@@ -194,6 +194,18 @@ class RSSCollector:
             logger.warning(f"⚠️  解析完整内容失败 {url}: {e}")
             return ""
 
+    def fetch_single_feed(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        获取单个RSS源（公开接口）
+
+        Args:
+            config: RSS配置，包含 name, url, max_articles 等字段
+
+        Returns:
+            {"articles": [articles], "feed_title": "feed title"}
+        """
+        return self._fetch_single_feed_with_info(config)
+
     def fetch_multiple_feeds(self, feed_configs: List[Dict[str, Any]], max_workers: int = 5) -> Dict[str, Dict[str, Any]]:
         """
         批量获取多个RSS源（并发）
