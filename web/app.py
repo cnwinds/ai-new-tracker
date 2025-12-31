@@ -6,6 +6,11 @@ from datetime import datetime, timedelta
 import pandas as pd
 from pathlib import Path
 import sys
+import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
@@ -73,11 +78,12 @@ def init_session_state():
 
     if "collector" not in st.session_state:
         # 如果配置了AI，初始化采集服务
-        if st.secrets.get("OPENAI_API_KEY"):
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
             ai_analyzer = AIAnalyzer(
-                api_key=st.secrets["OPENAI_API_KEY"],
-                base_url=st.secrets.get("OPENAI_API_BASE", "https://api.openai.com/v1"),
-                model=st.secrets.get("OPENAI_MODEL", "gpt-4-turbo-preview"),
+                api_key=api_key,
+                base_url=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"),
+                model=os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview"),
             )
             st.session_state.collector = CollectionService(ai_analyzer=ai_analyzer)
         else:

@@ -33,7 +33,7 @@ class Article(Base):
     related_papers = Column(JSON, nullable=True)  # ["paper1", "paper2"]
 
     # 元数据
-    metadata = Column(JSON, nullable=True)  # 额外信息
+    extra_data = Column(JSON, nullable=True)  # 额外信息（避免使用metadata，这是SQLAlchemy保留字）
     is_processed = Column(Boolean, default=False)  # 是否已AI分析
     is_sent = Column(Boolean, default=False)  # 是否已推送
 

@@ -187,7 +187,7 @@ class CollectionService:
                     category=article.get("category"),
                     author=article.get("author"),
                     published_at=article.get("published_at"),
-                    metadata=article.get("metadata"),
+                    extra_data=article.get("metadata"),
                 )
 
                 session.add(new_article)

@@ -1,11 +1,18 @@
 """
-AI内容分析器 - 使用OpenAI兼容接口
+AI内容分析器 - 使用OpenAI兼容接口（改进版）
 """
 import json
 from typing import Dict, Any, List, Optional
-from openai import OpenAI
 import logging
 from datetime import datetime
+
+# 尝试导入，如果失败则提示
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logging.warning("⚠️  openai 包未安装，AI功能将不可用")
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +27,20 @@ class AIAnalyzer:
         model: str = "gpt-4-turbo-preview",
         embedding_model: str = "text-embedding-3-small",
     ):
+        if not OPENAI_AVAILABLE:
+            raise ImportError("openai 包未安装，请运行: pip install openai")
+
+        if not api_key:
+            raise ValueError("api_key 不能为空")
+
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+        self.embedding_model = embedding_model
+
         try:
-            # 初始化OpenAI客户端，只传递必需参数
-            self.client = OpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=60.0,
-                max_retries=2,
-            )
-            self.model = model
-            self.embedding_model = embedding_model
+            # 初始化OpenAI客户端 - 只传递最基本参数
+            self.client = OpenAI(api_key=api_key, base_url=base_url)
             logger.info(f"✅ AI分析器初始化成功 (model: {model})")
         except Exception as e:
             logger.error(f"❌ AI分析器初始化失败: {e}")
