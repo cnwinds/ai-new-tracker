@@ -150,20 +150,35 @@ class SummaryGenerator:
 
         # 调用LLM生成总结
         prompt = self._build_summary_prompt(articles_data, summary_type, start_date, end_date)
+        
+        # 根据总结类型设置不同的系统提示词和参数
+        if summary_type == "weekly":
+            # 周报使用专业的行业分析师角色和更高的参数
+            system_prompt = """你是一名资深的行业分析师和风向洞察者，拥有超过15年的从业经验。你不仅关注新闻事件的表面，更擅长从纷繁复杂的信息中，穿透表象，识别出那些真正能够影响行业格局的潜在变化、新兴趋势和关键信号。你的分析以深刻、前瞻和高度概括性著称，旨在为决策者提供高价值的参考。
+
+请使用Markdown格式输出所有内容，包括标题、列表、加粗等Markdown语法。"""
+            temperature = 0.5  # 周报需要更多创造性分析
+            max_tokens = 4000  # 周报需要更详细的分析
+        else:
+            # 日报使用原有的系统提示词
+            system_prompt = "你是一个专业的AI领域新闻分析助手，擅长从大量文章中提炼关键信息和趋势。请使用Markdown格式输出所有内容，包括标题、列表、加粗等Markdown语法。"
+            temperature = 0.3
+            max_tokens = 2000
+        
         summary_content = self.ai_analyzer.client.chat.completions.create(
             model=self.ai_analyzer.model,
             messages=[
                 {
                     "role": "system",
-                    "content": "你是一个专业的AI领域新闻分析助手，擅长从大量文章中提炼关键信息和趋势。请使用Markdown格式输出所有内容，包括标题、列表、加粗等Markdown语法。"
+                    "content": system_prompt
                 },
                 {
                     "role": "user",
                     "content": prompt
                 }
             ],
-            temperature=0.3,
-            max_tokens=2000
+            temperature=temperature,
+            max_tokens=max_tokens
         )
         summary_text = summary_content.choices[0].message.content
 
@@ -291,21 +306,104 @@ class SummaryGenerator:
         else:
             # 每周总结：显示日期范围
             time_str = f"{start_date.strftime('%Y年%m月%d日')} 至 {end_date.strftime('%Y年%m月%d日')}"
+            date_range = f"{start_date.strftime('%Y年%m月%d日')} 至 {end_date.strftime('%Y年%m月%d日')}"
 
-        # 选择最重要的文章（最多20篇）
-        important_articles = articles_data[:20]
+        # 选择最重要的文章（周报使用更多文章，日报保持原样）
+        if summary_type == "weekly":
+            important_articles = articles_data[:50]  # 周报使用更多文章进行分析
+        else:
+            important_articles = articles_data[:20]
 
         # 构建文章列表
         articles_str = ""
         for i, article in enumerate(important_articles, 1):
             importance_emoji = "🔴" if article.get("importance") == "high" else "🟡" if article.get("importance") == "medium" else "⚪"
-            articles_str += f"""
+            # 周报需要更详细的信息
+            if summary_type == "weekly":
+                key_points = ""
+                if article.get("key_points"):
+                    key_points = f"\n   关键点: {', '.join(article.get('key_points', [])[:3])}"
+                topics = ""
+                if article.get("topics"):
+                    topics = f"\n   主题: {', '.join(article.get('topics', [])[:3])}"
+                articles_str += f"""
+{i}. {importance_emoji} [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
+   发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
+   摘要: {article.get('summary', '')[:300]}{key_points}{topics}
+"""
+            else:
+                articles_str += f"""
 {i}. {importance_emoji} [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
    发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
    摘要: {article.get('summary', '')[:200]}...
 """
 
-        prompt = f"""请基于{time_str}期间采集的以下AI领域文章，生成一份{time_str}的新闻总结。
+        # 根据类型生成不同的提示词
+        if summary_type == "weekly":
+            # 周报使用专业的行业风向洞察提示词
+            prompt = f"""# 任务 (Mission)
+
+基于我本周提供的（人工智能/AI）行业相关新闻资讯，产出一份专业的《本周行业风向洞察摘要》。你的报告需要超越简单的信息罗列，核心在于**提炼观点、解读趋势、并预测其潜在影响**。
+
+# 工作流程 (Workflow)
+
+1. **信息梳理与聚合**：首先，全面阅读并理解我提供的所有新闻内容。将相关联的事件、数据和观点进行分类聚合。
+2. **关键主题识别**：从聚合后的信息中，识别出本周反复出现或最重要的2-3个核心主题或关键变量。这些是变化的源头。
+3. **趋势提炼与命名**：基于这些核心主题，提炼出本周最值得关注的行业趋势。为每个趋势赋予一个精准且概括性强的标题（例如："AI大模型应用加速落地"、"市场转向追求性价比消费"、"供应链区域化趋势凸显"等）。
+4. **深度分析与解读**：
+   * **"发生了什么？"**：简要说明该趋势由哪些具体新闻事件支撑。
+   * **"这意味着什么？"**：深入分析这些事件背后反映出的行业变化。是技术突破？是消费者行为变迁？是政策驱动？还是资本流向的改变？
+   * **"将带来什么影响？"**：从短期和中长期两个维度，预测这一趋势可能对行业生态、竞争格局、产业链上下游以及相关企业带来的潜在影响、机遇或挑战。
+5. **总结与展望**：在报告的最后，用一段话对本周的整体行业动态进行总结，并对未来1-3个月的动向给出一个简要的展望或需要关注的焦点。
+
+# 输出格式 (Output Format)
+
+请严格按照以下结构化格式输出你的报告，以确保专业性和可读性：
+
+---
+
+**【人工智能行业风向洞察周报 | {date_range}】**
+
+**一、 本周核心摘要 (Executive Summary)**
+*   （用2-3句话高度概括本周最重要的行业变化和核心观点，让读者能迅速把握要点。）
+
+**二、 本周关键趋势洞察 (Key Trends Insight)**
+
+*   **趋势一：[为趋势一命名]**
+    *   **现象描述**：由本周的[新闻事件A]、[数据B]等共同指向...
+    *   **趋势解读**：这反映出行业在[某个方面]正在发生深刻转变，其核心驱动力是...
+    *   **潜在影响与机遇**：短期来看，这将对[相关企业/领域]带来...机会/挑战。长期来看，我们预测...
+
+*   **趋势二：[为趋势二命名]**
+    *   **现象描述**：本周[公司C的动态]与[政策D的出台]...
+    *   **趋势解读**：这标志着市场竞争的焦点正从...转向...，背后的逻辑是...
+    *   **潜在影响与机遇**：这将迫使企业重新思考其...战略。对于[特定类型的公司]而言，这可能是一个...的窗口期。
+
+*   **（可选）趋势三：[为趋势三命名]**
+    *   ...
+
+**三、 未来展望 (Future Outlook)**
+*   （综合本周观察，我们判断未来几周内，行业需要密切关注...。特别是...方面的动向，可能会成为下一个引爆点。）
+
+---
+
+# 关键要求 (Key Requirements)
+
+*   **拒绝罗列**：不要简单地复述新闻，必须进行提炼和升华。
+*   **观点鲜明**：在分析和解读部分，要敢于提出你基于信息的判断和观点。
+*   **逻辑清晰**：确保现象、解读和影响之间的逻辑链条是清晰且有说服力的。
+*   **语言专业**：使用专业、精炼、客观的商业分析语言。
+
+# 本周新闻素材 (Weekly News Input)
+
+以下是本周收集到的所有新闻标题、摘要和关键信息：
+
+{articles_str}
+
+请基于以上新闻素材，按照上述格式和要求，生成专业的《人工智能行业风向洞察周报》。"""
+        else:
+            # 日报保持原有格式
+            prompt = f"""请基于{time_str}期间采集的以下AI领域文章，生成一份{time_str}的新闻总结。
 
 文章列表：
 {articles_str}

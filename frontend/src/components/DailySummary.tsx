@@ -258,8 +258,10 @@ export default function DailySummary() {
                     <div>
                       <Space align="center" style={{ marginBottom: '8px' }}>
                         <Title level={5} style={{ margin: 0 }}>
-                          {summary.summary_type === 'daily' ? '每日' : '每周'}摘要 -{' '}
-                          {dayjs(summary.summary_date).format('YYYY-MM-DD')}
+                          {summary.summary_type === 'daily' 
+                            ? `每日摘要 - ${dayjs(summary.summary_date).format('YYYY-MM-DD')}`
+                            : `每周摘要 - ${dayjs(summary.start_date).format('YYYY-MM-DD')} 至 ${dayjs(summary.end_date).format('YYYY-MM-DD')}`
+                          }
                         </Title>
                         <Button
                           type="text"
