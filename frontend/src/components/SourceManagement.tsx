@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import {
   Card,
-  Table,
   Button,
   Space,
   Tag,
@@ -19,6 +18,10 @@ import {
   Divider,
   Tabs,
   Alert,
+  Spin,
+  Select,
+  Row,
+  Col,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +35,14 @@ export default function SourceManagement() {
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
+
+  // 隐藏滚动条的样式
+  const hiddenScrollbarStyle: React.CSSProperties = {
+    maxHeight: 600,
+    overflowY: 'auto',
+    scrollbarWidth: 'none', // Firefox
+    msOverflowStyle: 'none', // IE/Edge
+  } as React.CSSProperties;
 
   const { data: sources, isLoading } = useQuery({
     queryKey: ['sources'],
@@ -126,9 +137,31 @@ export default function SourceManagement() {
     importMutation.mutate(selectedSources);
   };
 
+  // 规范化源类型
+  const normalizeSourceType = (type: string | undefined): string => {
+    if (!type) return 'rss';
+    const normalized = type.toLowerCase().trim();
+    // 支持多种可能的写法
+    if (normalized === 'social' || normalized === 'social_media') return 'social';
+    if (normalized === 'rss' || normalized === 'rss_feed') return 'rss';
+    if (normalized === 'api' || normalized === 'api_source') return 'api';
+    if (normalized === 'web' || normalized === 'web_source') return 'web';
+    return normalized; // 如果都不匹配，返回原值
+  };
+
   // 按类型分组默认源
-  const groupedSources = defaultSources?.reduce((acc: any, source: any) => {
-    const type = source.source_type || 'rss';
+  const groupedDefaultSources = defaultSources?.reduce((acc: any, source: any) => {
+    const type = normalizeSourceType(source.source_type);
+    if (!acc[type]) {
+      acc[type] = [];
+    }
+    acc[type].push(source);
+    return acc;
+  }, {}) || {};
+
+  // 按类型分组现有源
+  const groupedSources = sources?.reduce((acc: any, source: RSSSource) => {
+    const type = normalizeSourceType(source.source_type);
     if (!acc[type]) {
       acc[type] = [];
     }
@@ -143,62 +176,150 @@ export default function SourceManagement() {
     ) || false;
   };
 
-  const columns = [
-    {
-      title: '名称',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'URL',
-      dataIndex: 'url',
-      key: 'url',
-      ellipsis: true,
-    },
-    {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-    },
-    {
-      title: '状态',
-      dataIndex: 'enabled',
-      key: 'enabled',
-      render: (enabled: boolean) => (
-        <Tag color={enabled ? 'green' : 'red'}>{enabled ? '启用' : '禁用'}</Tag>
-      ),
-    },
-    {
-      title: '文章数',
-      dataIndex: 'articles_count',
-      key: 'articles_count',
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: RSSSource) => (
-        <Space>
+  // 计算距离今天的天数
+  const getDaysAgo = (dateString: string | undefined): number | null => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - date.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // 获取天数显示文本
+  const getDaysAgoText = (daysAgo: number | null): string => {
+    if (daysAgo === null) return '';
+    if (daysAgo === 0) return '今天';
+    if (daysAgo === 1) return '昨天';
+    return `${daysAgo}天前`;
+  };
+
+  // 格式化日期显示
+  const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return '暂无';
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // 渲染源列表项（网格卡片样式）
+  const renderSourceItem = (source: RSSSource) => {
+    const daysAgo = getDaysAgo(source.latest_article_published_at);
+    const lastUpdateText = source.latest_article_published_at
+      ? formatDate(source.latest_article_published_at)
+      : '暂无';
+    const daysAgoText = getDaysAgoText(daysAgo);
+    const daysAgoColor = daysAgo !== null 
+      ? (daysAgo > 30 ? '#ff4d4f' : daysAgo > 7 ? '#faad14' : '#52c41a')
+      : '#999';
+
+    return (
+      <Card
+        key={source.id}
+        hoverable
+        style={{
+          height: '100%',
+          borderRadius: 8,
+          border: `1px solid ${source.enabled ? '#d9d9d9' : '#ffccc7'}`,
+        }}
+        bodyStyle={{ padding: 16 }}
+        actions={[
           <Button
+            key="edit"
             type="link"
             icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
+            onClick={() => handleEdit(source)}
+            size="small"
           >
             编辑
-          </Button>
+          </Button>,
           <Popconfirm
+            key="delete"
             title="确定要删除这个订阅源吗？"
-            onConfirm={() => deleteMutation.mutate(record.id)}
+            onConfirm={() => deleteMutation.mutate(source.id)}
             okText="确定"
             cancelText="取消"
           >
-            <Button type="link" danger icon={<DeleteOutlined />}>
+            <Button type="link" danger icon={<DeleteOutlined />} size="small">
               删除
             </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+          </Popconfirm>,
+        ]}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8, lineHeight: 1.4 }}>
+              {source.name}
+            </div>
+            <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
+              <Tag color={source.enabled ? 'green' : 'red'} style={{ margin: 0 }}>
+                {source.enabled ? '启用' : '禁用'}
+              </Tag>
+              {source.category && <Tag style={{ margin: 0 }}>{source.category}</Tag>}
+              {source.tier && <Tag style={{ margin: 0 }}>{source.tier}</Tag>}
+            </Space>
+            {source.articles_count !== undefined && (
+              <Tag color="blue" style={{ marginBottom: 8 }}>文章数: {source.articles_count}</Tag>
+            )}
+          </div>
+          
+          <div style={{ flex: 1, fontSize: 12, color: '#666', marginBottom: 8 }}>
+            <div style={{ 
+              overflow: 'hidden', 
+              textOverflow: 'ellipsis', 
+              whiteSpace: 'nowrap',
+              marginBottom: 4
+            }}>
+              {source.url}
+            </div>
+            {source.description && (
+              <div style={{ 
+                color: '#999', 
+                marginTop: 4,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                lineHeight: 1.4,
+              }}>
+                {source.description}
+              </div>
+            )}
+          </div>
+
+          <div style={{ 
+            fontSize: 12, 
+            color: '#666', 
+            marginTop: 'auto',
+            paddingTop: 8,
+            borderTop: '1px solid #f0f0f0'
+          }}>
+            <div style={{ color: '#999', marginBottom: 4 }}>最后更新</div>
+            <div>
+              <span style={{ fontSize: 11 }}>{lastUpdateText}</span>
+              {daysAgo !== null && daysAgoText && (
+                <span style={{ 
+                  marginLeft: 8, 
+                  color: daysAgoColor,
+                  fontWeight: 500
+                }}>
+                  {daysAgoText}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <div>
@@ -215,13 +336,94 @@ export default function SourceManagement() {
           </Space>
         }
       >
-        <Table
-          columns={columns}
-          dataSource={sources}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{ pageSize: 10 }}
-        />
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spin size="large" />
+          </div>
+        ) : !sources || sources.length === 0 ? (
+          <Alert message="暂无订阅源" description="点击上方按钮添加或导入订阅源" type="info" />
+        ) : (
+          <Tabs
+            items={[
+              {
+                key: 'rss',
+                label: `RSS源 (${groupedSources.rss?.length || 0})`,
+                children: (
+                  <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
+                    {groupedSources.rss?.length > 0 ? (
+                      <Row gutter={[16, 16]}>
+                        {groupedSources.rss.map((source) => (
+                          <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
+                            {renderSourceItem(source)}
+                          </Col>
+                        ))}
+                      </Row>
+                    ) : (
+                      <Alert message="暂无RSS源" type="info" />
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: 'api',
+                label: `API源 (${groupedSources.api?.length || 0})`,
+                children: (
+                  <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
+                    {groupedSources.api?.length > 0 ? (
+                      <Row gutter={[16, 16]}>
+                        {groupedSources.api.map((source) => (
+                          <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
+                            {renderSourceItem(source)}
+                          </Col>
+                        ))}
+                      </Row>
+                    ) : (
+                      <Alert message="暂无API源" type="info" />
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: 'web',
+                label: `Web源 (${groupedSources.web?.length || 0})`,
+                children: (
+                  <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
+                    {groupedSources.web?.length > 0 ? (
+                      <Row gutter={[16, 16]}>
+                        {groupedSources.web.map((source) => (
+                          <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
+                            {renderSourceItem(source)}
+                          </Col>
+                        ))}
+                      </Row>
+                    ) : (
+                      <Alert message="暂无Web源" type="info" />
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: 'social',
+                label: `社交媒体源 (${groupedSources.social?.length || 0})`,
+                children: (
+                  <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
+                    {groupedSources.social?.length > 0 ? (
+                      <Row gutter={[16, 16]}>
+                        {groupedSources.social.map((source) => (
+                          <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
+                            {renderSourceItem(source)}
+                          </Col>
+                        ))}
+                      </Row>
+                    ) : (
+                      <Alert message="暂无社交媒体源" type="info" />
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        )}
       </Card>
 
       <Modal
@@ -242,11 +444,19 @@ export default function SourceManagement() {
           <Form.Item name="url" label="URL" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
+          <Form.Item name="source_type" label="源类型" rules={[{ required: true }]} initialValue="rss">
+            <Select>
+              <Select.Option value="rss">RSS源</Select.Option>
+              <Select.Option value="api">API源</Select.Option>
+              <Select.Option value="web">Web源</Select.Option>
+              <Select.Option value="social">社交媒体源</Select.Option>
+            </Select>
+          </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea />
           </Form.Item>
           <Form.Item name="category" label="分类">
-            <Input />
+            <Input placeholder="例如: news, official_blog, academic" />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked" initialValue={true}>
             <Switch />
@@ -305,10 +515,10 @@ export default function SourceManagement() {
               items={[
                 {
                   key: 'rss',
-                  label: `RSS源 (${groupedSources.rss?.length || 0})`,
+                  label: `RSS源 (${groupedDefaultSources.rss?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                      {groupedSources.rss?.map((source: any) => {
+                      {groupedDefaultSources.rss?.map((source: any) => {
                         const exists = isSourceExists(source.name, source.url);
                         return (
                           <div key={source.name} style={{ marginBottom: 8 }}>
@@ -326,7 +536,8 @@ export default function SourceManagement() {
                               <Space>
                                 <strong>{source.name}</strong>
                                 {exists && <Tag color="orange">已存在</Tag>}
-                                <Tag>{source.category}</Tag>
+                                {source.category && <Tag>{source.category}</Tag>}
+                                {source.tier && <Tag>{source.tier}</Tag>}
                                 {!source.enabled && <Tag color="red">禁用</Tag>}
                               </Space>
                             </Checkbox>
@@ -341,10 +552,10 @@ export default function SourceManagement() {
                 },
                 {
                   key: 'api',
-                  label: `API源 (${groupedSources.api?.length || 0})`,
+                  label: `API源 (${groupedDefaultSources.api?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                      {groupedSources.api?.map((source: any) => {
+                      {groupedDefaultSources.api?.map((source: any) => {
                         const exists = isSourceExists(source.name, source.url);
                         return (
                           <div key={source.name} style={{ marginBottom: 8 }}>
@@ -362,7 +573,8 @@ export default function SourceManagement() {
                               <Space>
                                 <strong>{source.name}</strong>
                                 {exists && <Tag color="orange">已存在</Tag>}
-                                <Tag>{source.category}</Tag>
+                                {source.category && <Tag>{source.category}</Tag>}
+                                {source.tier && <Tag>{source.tier}</Tag>}
                                 {!source.enabled && <Tag color="red">禁用</Tag>}
                               </Space>
                             </Checkbox>
@@ -377,10 +589,10 @@ export default function SourceManagement() {
                 },
                 {
                   key: 'web',
-                  label: `Web源 (${groupedSources.web?.length || 0})`,
+                  label: `Web源 (${groupedDefaultSources.web?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                      {groupedSources.web?.map((source: any) => {
+                      {groupedDefaultSources.web?.map((source: any) => {
                         const exists = isSourceExists(source.name, source.url);
                         return (
                           <div key={source.name} style={{ marginBottom: 8 }}>
@@ -398,7 +610,8 @@ export default function SourceManagement() {
                               <Space>
                                 <strong>{source.name}</strong>
                                 {exists && <Tag color="orange">已存在</Tag>}
-                                <Tag>{source.category}</Tag>
+                                {source.category && <Tag>{source.category}</Tag>}
+                                {source.tier && <Tag>{source.tier}</Tag>}
                                 {!source.enabled && <Tag color="red">禁用</Tag>}
                               </Space>
                             </Checkbox>
@@ -413,10 +626,10 @@ export default function SourceManagement() {
                 },
                 {
                   key: 'social',
-                  label: `社交媒体源 (${groupedSources.social?.length || 0})`,
+                  label: `社交媒体源 (${groupedDefaultSources.social?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                      {groupedSources.social?.map((source: any) => {
+                      {groupedDefaultSources.social?.map((source: any) => {
                         const exists = isSourceExists(source.name, source.url);
                         return (
                           <div key={source.name} style={{ marginBottom: 8 }}>
@@ -434,7 +647,8 @@ export default function SourceManagement() {
                               <Space>
                                 <strong>{source.name}</strong>
                                 {exists && <Tag color="orange">已存在</Tag>}
-                                <Tag>{source.category}</Tag>
+                                {source.category && <Tag>{source.category}</Tag>}
+                                {source.tier && <Tag>{source.tier}</Tag>}
                                 {!source.enabled && <Tag color="red">禁用</Tag>}
                               </Space>
                             </Checkbox>

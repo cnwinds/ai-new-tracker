@@ -52,3 +52,4 @@ class CollectionStats(BaseModel):
     duration: float
     analyzed_count: Optional[int] = None
 
+

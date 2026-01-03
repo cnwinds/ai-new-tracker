@@ -60,7 +60,7 @@ def _run_collection_background(
                 task.failed_sources = stats.get('sources_error', 0)
                 task.duration = stats.get('duration', 0)
                 task.completed_at = datetime.now()
-                task.ai_analyzed_count = stats.get('analyzed_count', 0)
+                task.ai_analyzed_count = stats.get('ai_analyzed_count', 0)
                 session.commit()
         
         # 从运行任务中移除

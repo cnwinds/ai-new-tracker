@@ -17,3 +17,4 @@ class Statistics(BaseModel):
     category_distribution: Dict[str, int]
     importance_distribution: Dict[str, int]
 
+

@@ -157,13 +157,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 </ReactMarkdown>
               </div>
             </div>
-            {/* AI生成的精简摘要标签 + 查看原文 + 折叠按钮（靠右） */}
+            {/* AI生成的精简摘要标签（右边）+ 查看原文 + 折叠按钮（左边） */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {article.is_processed && (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  🤖 AI生成的精简摘要
-                </Text>
-              )}
               <Space>
                 <Button
                   type="link"
@@ -182,6 +177,11 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                   title={expanded ? '收起' : '展开'}
                 />
               </Space>
+              {article.is_processed && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  🤖 AI生成的精简摘要
+                </Text>
+              )}
             </div>
           </div>
         ) : (

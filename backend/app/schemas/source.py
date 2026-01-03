@@ -50,3 +50,4 @@ class RSSSource(RSSSourceBase):
     class Config:
         from_attributes = True
 
+
