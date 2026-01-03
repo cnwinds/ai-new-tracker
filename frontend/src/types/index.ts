@@ -1,0 +1,143 @@
+/**
+ * TypeScript 类型定义
+ */
+
+export interface Article {
+  id: number;
+  title: string;
+  title_zh?: string;
+  url: string;
+  content?: string;
+  summary?: string;
+  source: string;
+  source_id?: number;
+  category?: string;
+  author?: string;
+  published_at?: string;
+  collected_at: string;
+  importance?: 'high' | 'medium' | 'low';
+  topics?: string[];
+  tags?: string[];
+  target_audience?: string;
+  key_points?: string[];
+  related_papers?: string[];
+  extra_data?: Record<string, any>;
+  is_processed: boolean;
+  is_sent: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ArticleListResponse {
+  items: Article[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface ArticleFilter {
+  time_range?: string;
+  sources?: string[];
+  importance?: string[];
+  category?: string[];
+  page?: number;
+  page_size?: number;
+}
+
+export interface CollectionTask {
+  id: number;
+  status: 'running' | 'completed' | 'error';
+  new_articles_count: number;
+  total_sources: number;
+  success_sources: number;
+  failed_sources: number;
+  error_message?: string;
+  duration?: number;
+  ai_enabled: boolean;
+  ai_analyzed_count: number;
+  started_at: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface CollectionTaskStatus {
+  task_id: number;
+  status: string;
+  message: string;
+  stats?: {
+    new_articles?: number;
+    total_sources?: number;
+    success_sources?: number;
+    failed_sources?: number;
+    duration?: number;
+    ai_analyzed_count?: number;
+  };
+}
+
+export interface DailySummary {
+  id: number;
+  summary_type: 'daily' | 'weekly';
+  summary_date: string;
+  start_date: string;
+  end_date: string;
+  summary_content: string;
+  total_articles: number;
+  high_importance_count: number;
+  medium_importance_count: number;
+  key_topics?: string[];
+  recommended_articles?: Array<{
+    id: number;
+    title: string;
+    reason: string;
+  }>;
+  model_used?: string;
+  generation_time?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RSSSource {
+  id: number;
+  name: string;
+  url: string;
+  description?: string;
+  category?: string;
+  tier?: string;
+  source_type: string;
+  language: string;
+  enabled: boolean;
+  priority: number;
+  note?: string;
+  last_collected_at?: string;
+  latest_article_published_at?: string;
+  articles_count: number;
+  last_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Statistics {
+  total_articles: number;
+  today_count: number;
+  high_importance: number;
+  medium_importance: number;
+  low_importance: number;
+  unanalyzed: number;
+  source_distribution: Record<string, number>;
+  category_distribution: Record<string, number>;
+  importance_distribution: Record<string, number>;
+}
+
+export interface CollectionSettings {
+  max_article_age_days: number;
+  max_analysis_age_days: number;
+}
+
+export interface WebSocketMessage {
+  type: string;
+  message?: string;
+  timestamp: string;
+  [key: string]: any;
+}
+

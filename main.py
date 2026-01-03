@@ -18,10 +18,15 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
-from collector import CollectionService
-from notification import NotificationService
-from database import get_db
-from utils import create_ai_analyzer, setup_logger
+from backend.app.services.collector import CollectionService
+from backend.app.db import get_db
+from backend.app.utils import create_ai_analyzer, setup_logger
+
+# 可选：通知服务（如果存在）
+try:
+    from notification import NotificationService
+except ImportError:
+    NotificationService = None
 
 # 配置日志
 logger = setup_logger(__name__)
@@ -151,7 +156,7 @@ def list(limit, hours, importance):
 
     with db.get_session() as session:
         from datetime import timedelta
-        from database.models import Article
+        from backend.app.db.models import Article
 
         # 构建查询
         time_threshold = datetime.now() - timedelta(hours=hours)
@@ -207,7 +212,14 @@ def send(webhook):
         sys.exit(1)
 
     collector = CollectionService(ai_analyzer=ai_analyzer)
-    notifier = NotificationService(feishu_webhook=feishu_webhook)
+    
+    # 通知服务（如果可用）
+    if NotificationService:
+        notifier = NotificationService(feishu_webhook=feishu_webhook)
+    else:
+        notifier = None
+        click.echo("⚠️  通知服务模块未找到，将跳过推送功能", err=True)
+    
     db = get_db()
 
     try:
@@ -234,8 +246,12 @@ def send(webhook):
         summary = ai_analyzer.generate_daily_summary(articles_data, max_count=15)
 
         # 发送
-        click.echo("📤 正在发送到飞书...")
-        success = notifier.send_daily_summary(summary, db, limit=20)
+        if notifier:
+            click.echo("📤 正在发送到飞书...")
+            success = notifier.send_daily_summary(summary, db, limit=20)
+        else:
+            click.echo("⚠️  通知服务不可用，跳过推送")
+            success = False
 
         if success:
             click.echo("✅ 发送成功!")
@@ -249,18 +265,26 @@ def send(webhook):
 
 
 @cli.command()
-def web():
-    """启动Web Dashboard"""
-    import subprocess
+@click.option("--port", default=8000, help="API服务器端口")
+@click.option("--host", default="0.0.0.0", help="API服务器主机")
+def web(port, host):
+    """启动FastAPI Web服务器"""
+    import uvicorn
 
-    click.echo("🌐 启动Web Dashboard...")
+    click.echo("🌐 启动FastAPI Web服务器...")
+    click.echo(f"   API地址: http://{host}:{port}")
+    click.echo(f"   API文档: http://{host}:{port}/docs")
+    click.echo(f"   前端地址: http://localhost:5173 (需要单独启动)")
 
     try:
-        # 使用streamlit运行
-        subprocess.run(["streamlit", "run", "web/app.py"], cwd=project_root)
-
+        uvicorn.run(
+            "backend.app.main:app",
+            host=host,
+            port=port,
+            reload=True,
+        )
     except KeyboardInterrupt:
-        click.echo("\n⏹️  Web Dashboard已停止")
+        click.echo("\n⏹️  Web服务器已停止")
     except Exception as e:
         click.echo(f"❌ 启动失败: {e}", err=True)
         sys.exit(1)
@@ -269,17 +293,46 @@ def web():
 @cli.command()
 def schedule():
     """启动定时任务调度器"""
-    import subprocess
+    from backend.app.services.scheduler import TaskScheduler
+    from backend.app.utils import setup_logger
+    import logging
+
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler("logs/scheduler.log", encoding="utf-8")
+        ],
+    )
+
+    logger = setup_logger(__name__)
 
     click.echo("⏰ 启动定时任务调度器...")
 
     try:
-        # 运行调度器
-        subprocess.run([sys.executable, "scheduler.py"], cwd=project_root)
+        logger.info("=" * 60)
+        logger.info("🤖 AI News Tracker - 任务调度器")
+        logger.info("=" * 60)
 
-    except KeyboardInterrupt:
-        click.echo("\n⏹️  调度器已停止")
+        # 创建并启动调度器
+        scheduler = TaskScheduler()
+        scheduler.start()
+
+        # 保持运行
+        import time
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("\n⏹️  收到停止信号，正在关闭调度器...")
+            scheduler.shutdown()
+            logger.info("✅ 调度器已停止")
+            click.echo("\n⏹️  调度器已停止")
+
     except Exception as e:
+        logger.error(f"❌ 启动失败: {e}", exc_info=True)
         click.echo(f"❌ 启动失败: {e}", err=True)
         sys.exit(1)
 

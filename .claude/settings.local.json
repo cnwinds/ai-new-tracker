@@ -6,7 +6,8 @@
     "allow": [
       "Edit",
       "Bash(pip:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(cd:*)"
     ]
   }
 }
