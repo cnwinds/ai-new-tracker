@@ -139,6 +139,18 @@ export interface CollectionSettings {
   max_analysis_age_days: number;
 }
 
+export interface AutoCollectionSettings {
+  enabled: boolean;
+  time: string; // 格式：HH:MM，如 "09:00"
+}
+
+export interface SummarySettings {
+  daily_summary_enabled: boolean;
+  daily_summary_time: string; // 格式：HH:MM，如 "09:00"
+  weekly_summary_enabled: boolean;
+  weekly_summary_time: string; // 格式：HH:MM，如 "09:00"，在周六执行
+}
+
 export interface WebSocketMessage {
   type: string;
   message?: string;

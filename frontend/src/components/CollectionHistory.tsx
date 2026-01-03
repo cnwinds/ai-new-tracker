@@ -19,8 +19,10 @@ import {
   Divider,
   Empty,
   Spin,
+  Switch,
+  TimePicker,
 } from 'antd';
-import { PlayCircleOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, ReloadOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons';
 import { LinkOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 
 const { Text, Paragraph } = Typography;
@@ -28,12 +30,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import dayjs from 'dayjs';
-import type { CollectionTask } from '@/types';
+import type { CollectionTask, AutoCollectionSettings } from '@/types';
 
 export default function CollectionHistory() {
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [autoCollectionModalVisible, setAutoCollectionModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [autoCollectionForm] = Form.useForm();
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
 
@@ -66,6 +70,36 @@ export default function CollectionHistory() {
       message.error('启动采集任务失败');
     },
   });
+
+  // 获取自动采集配置
+  const { data: autoCollectionSettings } = useQuery({
+    queryKey: ['auto-collection-settings'],
+    queryFn: () => apiService.getAutoCollectionSettings(),
+  });
+
+  // 更新自动采集配置
+  const updateAutoCollectionMutation = useMutation({
+    mutationFn: (data: AutoCollectionSettings) => apiService.updateAutoCollectionSettings(data),
+    onSuccess: () => {
+      message.success('自动采集设置已保存');
+      setAutoCollectionModalVisible(false);
+      queryClient.invalidateQueries({ queryKey: ['auto-collection-settings'] });
+    },
+    onError: () => {
+      message.error('保存自动采集设置失败');
+    },
+  });
+
+  // 初始化表单
+  useEffect(() => {
+    if (autoCollectionSettings && autoCollectionModalVisible) {
+      const [hour, minute] = autoCollectionSettings.time.split(':');
+      autoCollectionForm.setFieldsValue({
+        enabled: autoCollectionSettings.enabled,
+        time: dayjs().hour(parseInt(hour)).minute(parseInt(minute)),
+      });
+    }
+  }, [autoCollectionSettings, autoCollectionModalVisible, autoCollectionForm]);
 
   useEffect(() => {
     const unsubscribe = subscribe('collection_status', () => {
@@ -156,6 +190,12 @@ export default function CollectionHistory() {
         title="🚀 采集历史"
         extra={
           <Space>
+            <Button
+              icon={<SettingOutlined />}
+              onClick={() => setAutoCollectionModalVisible(true)}
+            >
+              自动采集设置
+            </Button>
             <Button
               icon={<PlayCircleOutlined />}
               type="primary"
@@ -379,6 +419,61 @@ export default function CollectionHistory() {
         ) : (
           <Empty description="无法加载任务详情" />
         )}
+      </Modal>
+
+      {/* 自动采集设置Modal */}
+      <Modal
+        title="自动采集设置"
+        open={autoCollectionModalVisible}
+        onCancel={() => {
+          setAutoCollectionModalVisible(false);
+          autoCollectionForm.resetFields();
+        }}
+        onOk={() => autoCollectionForm.submit()}
+        confirmLoading={updateAutoCollectionMutation.isPending}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form
+          form={autoCollectionForm}
+          layout="vertical"
+          onFinish={(values) => {
+            const timeStr = values.time.format('HH:mm');
+            updateAutoCollectionMutation.mutate({
+              enabled: values.enabled,
+              time: timeStr,
+            });
+          }}
+        >
+          <Form.Item
+            name="enabled"
+            label="启用自动采集"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="time"
+            label="每日采集时间"
+            rules={[{ required: true, message: '请选择采集时间' }]}
+            tooltip="设置每日自动采集的时间，格式：HH:MM"
+          >
+            <TimePicker
+              format="HH:mm"
+              style={{ width: '100%' }}
+              placeholder="选择时间"
+            />
+          </Form.Item>
+          {autoCollectionSettings?.enabled && (
+            <Alert
+              message={`当前已启用自动采集，每日 ${autoCollectionSettings.time} 执行`}
+              type="info"
+              showIcon
+              style={{ marginTop: 16 }}
+            />
+          )}
+        </Form>
       </Modal>
     </div>
   );

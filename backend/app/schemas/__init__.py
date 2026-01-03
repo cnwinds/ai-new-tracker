@@ -19,7 +19,7 @@ from backend.app.schemas.source import (
     RSSSourceUpdate,
 )
 from backend.app.schemas.statistics import Statistics
-from backend.app.schemas.settings import CollectionSettings
+from backend.app.schemas.settings import CollectionSettings, AutoCollectionSettings
 
 __all__ = [
     "Article",
@@ -38,6 +38,7 @@ __all__ = [
     "RSSSourceUpdate",
     "Statistics",
     "CollectionSettings",
+    "AutoCollectionSettings",
 ]
 
 

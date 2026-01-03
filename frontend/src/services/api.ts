@@ -7,7 +7,6 @@ import type {
   ArticleListResponse,
   ArticleFilter,
   CollectionTask,
-  CollectionTaskCreate,
   CollectionTaskStatus,
   DailySummary,
   SummaryGenerateRequest,
@@ -16,6 +15,8 @@ import type {
   RSSSourceUpdate,
   Statistics,
   CollectionSettings,
+  AutoCollectionSettings,
+  SummarySettings,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -208,6 +209,27 @@ class ApiService {
 
   async updateCollectionSettings(data: CollectionSettings): Promise<CollectionSettings> {
     const response = await this.client.put<CollectionSettings>('/settings/collection', data);
+    return response.data;
+  }
+
+  async getAutoCollectionSettings(): Promise<AutoCollectionSettings> {
+    const response = await this.client.get<AutoCollectionSettings>('/settings/auto-collection');
+    return response.data;
+  }
+
+  async updateAutoCollectionSettings(data: AutoCollectionSettings): Promise<AutoCollectionSettings> {
+    const response = await this.client.put<AutoCollectionSettings>('/settings/auto-collection', data);
+    return response.data;
+  }
+
+  // 总结配置相关
+  async getSummarySettings(): Promise<SummarySettings> {
+    const response = await this.client.get<SummarySettings>('/settings/summary');
+    return response.data;
+  }
+
+  async updateSummarySettings(data: SummarySettings): Promise<SummarySettings> {
+    const response = await this.client.put<SummarySettings>('/settings/summary', data);
     return response.data;
   }
 }

@@ -4,7 +4,7 @@
 import { Card, Row, Col, Statistic } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 export default function Statistics() {
   const { data: stats, isLoading } = useQuery({
@@ -22,10 +22,13 @@ export default function Statistics() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  const categoryData = Object.entries(stats.category_distribution).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  // 准备重要性分布数据
+  const importanceData = [
+    { name: '高重要性', value: stats.importance_distribution.high || 0 },
+    { name: '中重要性', value: stats.importance_distribution.medium || 0 },
+    { name: '低重要性', value: stats.importance_distribution.low || 0 },
+    { name: '未分析', value: stats.importance_distribution.unanalyzed || 0 },
+  ];
 
   return (
     <div>
@@ -67,14 +70,25 @@ export default function Statistics() {
           </Card>
         </Col>
         <Col span={12}>
-          <Card title="分类分布">
+          <Card title="重要性分布">
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryData}>
+              <BarChart data={importanceData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="value" fill="#52c41a" />
+                <Bar dataKey="value">
+                  {importanceData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`}
+                      fill={
+                        entry.name === '高重要性' ? '#cf1322' :
+                        entry.name === '中重要性' ? '#fa8c16' :
+                        entry.name === '低重要性' ? '#52c41a' : '#d9d9d9'
+                      }
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>

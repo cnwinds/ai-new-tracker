@@ -106,7 +106,7 @@ class TaskScheduler:
             cron_expression: cron表达式，默认从配置读取
         """
         if cron_expression is None:
-            cron_expression = settings.DAILY_SUMMARY_CRON
+            cron_expression = settings.get_daily_summary_cron() or settings.DAILY_SUMMARY_CRON
         
         try:
             self.scheduler.add_job(
@@ -121,6 +121,33 @@ class TaskScheduler:
 
         except Exception as e:
             logger.error(f"❌ 添加每日摘要任务失败: {e}")
+
+    def add_weekly_summary_job(self, cron_expression: str = None):
+        """
+        添加每周摘要任务
+
+        Args:
+            cron_expression: cron表达式，默认从配置读取
+        """
+        if cron_expression is None:
+            cron_expression = settings.get_weekly_summary_cron()
+            if not cron_expression:
+                logger.warning("⚠️  每周总结未启用或配置无效")
+                return
+        
+        try:
+            self.scheduler.add_job(
+                func=self._run_weekly_summary,
+                trigger=CronTrigger.from_crontab(cron_expression),
+                id="weekly_summary_job",
+                name="每周摘要推送",
+                replace_existing=True,
+            )
+
+            logger.info(f"✅ 每周摘要任务已添加: {cron_expression}")
+
+        except Exception as e:
+            logger.error(f"❌ 添加每周摘要任务失败: {e}")
 
     def _run_collection(self):
         """执行采集任务"""
@@ -198,9 +225,11 @@ class TaskScheduler:
                 summary = self.ai_analyzer.generate_daily_summary(articles_data, max_count=15)
             else:
                 # 如果没有这个方法，使用总结生成器
+                # 自动执行时统计昨天的内容
                 from backend.app.services.collector.summary_generator import SummaryGenerator
                 summary_generator = SummaryGenerator(self.ai_analyzer)
-                summary_obj = summary_generator.generate_daily_summary(self.db)
+                yesterday = datetime.now() - timedelta(days=1)
+                summary_obj = summary_generator.generate_daily_summary(self.db, yesterday)
                 summary = summary_obj.summary_content if summary_obj else "暂无摘要"
 
             logger.info("📝 摘要生成完成")
@@ -220,6 +249,48 @@ class TaskScheduler:
 
         except Exception as e:
             logger.error(f"❌ 每日摘要任务执行失败: {e}", exc_info=True)
+
+    def _run_weekly_summary(self):
+        """执行每周摘要任务"""
+        try:
+            logger.info("=" * 60)
+            logger.info("📝 开始执行每周摘要任务")
+            logger.info(f"⏰ 时间: {datetime.now()}")
+
+            if not self.ai_analyzer:
+                logger.warning("⚠️  AI分析器未配置，跳过摘要生成")
+                return
+
+            # 使用总结生成器生成每周总结
+            # 自动执行时统计上周的内容（上周六到上周五）
+            # 由于每周总结在周六执行，需要传递上周六的日期
+            from backend.app.services.collector.summary_generator import SummaryGenerator
+            summary_generator = SummaryGenerator(self.ai_analyzer)
+            # 计算上周六的日期
+            # 如果今天是周六，上周六是7天前；如果今天是其他日期，计算距离上周六的天数
+            now = datetime.now()
+            weekday = now.weekday()  # Monday=0, Tuesday=1, ..., Sunday=6
+            if weekday == 5:  # 周六
+                days_to_last_saturday = 7
+            elif weekday == 6:  # 周日
+                days_to_last_saturday = 1
+            else:  # 周一到周五
+                days_to_last_saturday = weekday + 2
+            last_saturday = now - timedelta(days=days_to_last_saturday)
+            summary_obj = summary_generator.generate_weekly_summary(self.db, last_saturday)
+
+            if summary_obj:
+                logger.info("📝 每周摘要生成完成")
+                logger.info(f"   文章总数: {summary_obj.total_articles}")
+                logger.info(f"   高重要性: {summary_obj.high_importance_count}")
+                logger.info(f"   中重要性: {summary_obj.medium_importance_count}")
+            else:
+                logger.warning("⚠️  本周暂无符合条件的文章")
+
+            logger.info("=" * 60)
+
+        except Exception as e:
+            logger.error(f"❌ 每周摘要任务执行失败: {e}", exc_info=True)
 
     def _send_instant_alerts(self):
         """发送即时提醒（高重要性文章）"""
@@ -264,8 +335,24 @@ class TaskScheduler:
             logger.info(f"📅 当前时间: {datetime.now()}")
 
             # 添加任务
-            self.add_collection_job()
-            self.add_daily_summary_job()
+            # 如果启用了自动采集，使用自动采集时间；否则使用默认的COLLECTION_CRON
+            if settings.AUTO_COLLECTION_ENABLED:
+                cron_expr = settings.get_auto_collection_cron()
+                if cron_expr:
+                    logger.info(f"⏰ 使用自动采集时间: {settings.AUTO_COLLECTION_TIME}")
+                    self.add_collection_job(cron_expr)
+                else:
+                    logger.warning("⚠️  自动采集时间配置无效，使用默认配置")
+                    self.add_collection_job()
+            else:
+                self.add_collection_job()
+            
+            # 添加总结任务
+            if settings.DAILY_SUMMARY_ENABLED:
+                self.add_daily_summary_job()
+            
+            if settings.WEEKLY_SUMMARY_ENABLED:
+                self.add_weekly_summary_job()
 
             # 启动调度器（BackgroundScheduler 在后台运行）
             self.scheduler.start()

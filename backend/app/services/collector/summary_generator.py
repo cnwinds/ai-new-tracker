@@ -47,7 +47,8 @@ class SummaryGenerator:
 
         Args:
             db: 数据库管理器
-            date: 总结日期（默认今天），会计算该日期所在ISO周的周一至周日
+            date: 总结日期（默认今天），会计算该日期所在自定义周的周六至周五
+            自定义周规则：周六、周日、周一到周五，为一个总结周
 
         Returns:
             DailySummary对象
@@ -55,19 +56,33 @@ class SummaryGenerator:
         if date is None:
             date = datetime.now()
 
-        # 使用ISO周标准计算该周的起始日期（周一）和结束日期（周日）
-        # ISO周：周一到周日，每年第一周是包含1月4日的那一周
-        # weekday(): Monday=0, Sunday=6
-        days_since_monday = date.weekday()
-        start_date = date - timedelta(days=days_since_monday)
+        # 使用自定义周标准计算该周的起始日期（周六）和结束日期（周五）
+        # 自定义周：周六到周五，weekday(): Monday=0, Sunday=6
+        # 需要找到该日期所在周的周六（起始）和周五（结束）
+        weekday = date.weekday()  # Monday=0, Tuesday=1, ..., Sunday=6
+        
+        # 计算距离上周六的天数
+        # 如果今天是周六(5)，则距离上周六是0天
+        # 如果今天是周日(6)，则距离上周六是1天
+        # 如果今天是周一(0)，则距离上周六是2天
+        # 如果今天是周五(4)，则距离上周六是6天
+        if weekday == 5:  # 周六
+            days_since_saturday = 0
+        elif weekday == 6:  # 周日
+            days_since_saturday = 1
+        else:  # 周一到周五
+            days_since_saturday = weekday + 2
+        
+        start_date = date - timedelta(days=days_since_saturday)
         start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
         
+        # 结束日期是周五（起始日期+6天）
         end_date = start_date + timedelta(days=6)
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
         logger.info(f"📝 生成每周总结: {start_date.strftime('%Y-%m-%d')} ~ {end_date.strftime('%Y-%m-%d')}")
 
-        # 使用该周的周日作为summary_date
+        # 使用该周的周五作为summary_date
         summary_date = end_date
 
         # 直接在同一个session中处理所有逻辑
@@ -176,10 +191,17 @@ class SummaryGenerator:
                     DailySummary.summary_date < date_only + timedelta(days=1)
                 ).first()
             else:
-                # 每周总结：比较summary_date所在的周
-                # 计算summary_date所在周的周一和周日
-                days_since_monday = date.weekday()
-                week_start = date - timedelta(days=days_since_monday)
+                # 每周总结：比较summary_date所在的自定义周（周六到周五）
+                # 计算summary_date所在周的周六和周五
+                weekday = date.weekday()
+                if weekday == 5:  # 周六
+                    days_since_saturday = 0
+                elif weekday == 6:  # 周日
+                    days_since_saturday = 1
+                else:  # 周一到周五
+                    days_since_saturday = weekday + 2
+                
+                week_start = date - timedelta(days=days_since_saturday)
                 week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
                 week_end = week_start + timedelta(days=7)
                 
