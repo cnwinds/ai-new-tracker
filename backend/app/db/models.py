@@ -106,6 +106,7 @@ class RSSSource(Base):
     enabled = Column(Boolean, default=True, index=True)  # 是否启用
     priority = Column(Integer, default=1)  # 优先级（1-5，数字越小优先级越高）
     note = Column(Text, nullable=True)  # 备注信息
+    extra_config = Column(Text, nullable=True)  # 扩展配置（JSON格式，用于Web/Social源的article_selector等）
 
     # 统计信息
     last_collected_at = Column(DateTime, nullable=True)  # 最后采集时间

@@ -163,17 +163,30 @@ async def get_default_sources(
             # 格式化源数据
             formatted_sources = []
             for source in sources:
+                # 提取 extra_config（如果存在）
+                extra_config = source.get("extra_config", {})
+                if isinstance(extra_config, str):
+                    try:
+                        extra_config = json.loads(extra_config)
+                    except:
+                        extra_config = {}
+                
+                # 处理 description：优先使用 description，如果没有则使用 note（向后兼容）
+                description = source.get("description", "")
+                if not description:
+                    description = source.get("note", "")
+                
                 formatted_source = {
                     "name": source.get("name", ""),
                     "url": source.get("url", ""),
-                    "description": source.get("description", ""),
+                    "description": description,
                     "category": source.get("category", "other"),
                     "tier": source.get("tier", "tier3"),
                     "source_type": source.get("source_type", source_type or "rss"),
                     "language": source.get("language", "en"),
                     "priority": source.get("priority", 3),
                     "enabled": source.get("enabled", True),
-                    "note": source.get("note", ""),
+                    "extra_config": extra_config if extra_config else {},
                 }
                 formatted_sources.append(formatted_source)
             
@@ -270,18 +283,32 @@ async def import_default_sources(
                     skipped_count += 1
                     continue
                 
+                # 处理 extra_config（如果是字典，序列化为JSON字符串）
+                extra_config = source_data.get("extra_config", "")
+                if isinstance(extra_config, dict):
+                    import json
+                    extra_config = json.dumps(extra_config, ensure_ascii=False)
+                elif not extra_config:
+                    extra_config = ""
+                
+                # 处理 description：优先使用 description，如果没有则使用 note（向后兼容）
+                description = source_data.get("description", "")
+                if not description:
+                    description = source_data.get("note", "")
+                
                 # 创建新源
                 new_source = RSSSource(
                     name=source_data.get("name", ""),
                     url=source_data.get("url", ""),
-                    description=source_data.get("description") or source_data.get("note", ""),
+                    description=description,
                     category=source_data.get("category", "other"),
                     tier=source_data.get("tier", "tier3"),
                     source_type=source_data.get("source_type", "rss"),
                     language=source_data.get("language", "en"),
                     enabled=source_data.get("enabled", True),
                     priority=source_data.get("priority", 3),
-                    note=source_data.get("note", ""),
+                    note=None,  # 不再使用 note 字段存储描述信息
+                    extra_config=extra_config,
                 )
                 db.add(new_source)
                 imported_count += 1

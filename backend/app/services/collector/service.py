@@ -61,6 +61,32 @@ class CollectionService:
             logger.error(f"❌ 加载配置文件失败: {e}")
             return {"rss_sources": [], "api_sources": [], "web_sources": [], "social_sources": []}
 
+    def _merge_extra_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        合并 extra_config 到主配置中
+        
+        Args:
+            config: 源配置字典
+            
+        Returns:
+            合并后的配置字典
+        """
+        merged_config = config.copy()
+        extra_config = config.get("extra_config", {})
+        
+        if isinstance(extra_config, str):
+            # 如果是字符串，尝试解析为JSON
+            try:
+                extra_config = json.loads(extra_config)
+            except:
+                extra_config = {}
+        
+        if extra_config:
+            # 将 extra_config 中的字段合并到主配置
+            merged_config.update(extra_config)
+        
+        return merged_config
+
     def collect_all(self, enable_ai_analysis: bool = True, task_id: int = None) -> Dict[str, Any]:
         """
         采集所有配置的数据源
@@ -86,7 +112,11 @@ class CollectionService:
         # 1. 采集RSS源（双层并发：多个RSS源 + 每个源内部并发获取内容+AI分析）
         logger.info("\n📡 采集RSS源（双层并发模式）")
         rss_stats = self._collect_rss_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
-        stats.update(rss_stats)
+        stats["total_articles"] += rss_stats.get("total_articles", 0)
+        stats["new_articles"] += rss_stats.get("new_articles", 0)
+        stats["sources_success"] += rss_stats.get("sources_success", 0)
+        stats["sources_error"] += rss_stats.get("sources_error", 0)
+        stats["ai_analyzed_count"] = rss_stats.get("ai_analyzed_count", 0)
 
         # 实时更新任务状态
         if task_id:
@@ -95,7 +125,11 @@ class CollectionService:
         # 2. 采集API源（arXiv, Hugging Face等）
         logger.info("\n📚 采集论文API源")
         api_stats = self._collect_api_sources(db, task_id=task_id)
-        stats.update(api_stats)
+        stats["total_articles"] += api_stats.get("total_articles", 0)
+        stats["new_articles"] += api_stats.get("new_articles", 0)
+        stats["sources_success"] += api_stats.get("sources_success", 0)
+        stats["sources_error"] += api_stats.get("sources_error", 0)
+        stats["ai_analyzed_count"] += api_stats.get("ai_analyzed_count", 0)
 
         # 实时更新任务状态
         if task_id:
@@ -104,7 +138,24 @@ class CollectionService:
         # 3. 采集网站源（通过网页爬取）
         logger.info("\n🌐 采集网站源")
         web_stats = self._collect_web_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
-        stats.update(web_stats)
+        stats["total_articles"] += web_stats.get("total_articles", 0)
+        stats["new_articles"] += web_stats.get("new_articles", 0)
+        stats["sources_success"] += web_stats.get("sources_success", 0)
+        stats["sources_error"] += web_stats.get("sources_error", 0)
+        stats["ai_analyzed_count"] += web_stats.get("ai_analyzed_count", 0)
+
+        # 实时更新任务状态
+        if task_id:
+            self._update_task_progress(db, task_id, stats)
+
+        # 4. 采集社交媒体源
+        logger.info("\n📱 采集社交媒体源")
+        social_stats = self._collect_social_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
+        stats["total_articles"] += social_stats.get("total_articles", 0)
+        stats["new_articles"] += social_stats.get("new_articles", 0)
+        stats["sources_success"] += social_stats.get("sources_success", 0)
+        stats["sources_error"] += social_stats.get("sources_error", 0)
+        stats["ai_analyzed_count"] += social_stats.get("ai_analyzed_count", 0)
 
         # 实时更新任务状态
         if task_id:
@@ -117,6 +168,7 @@ class CollectionService:
         logger.info(f"   总文章数: {stats['total_articles']}")
         logger.info(f"   新增文章: {stats['new_articles']}")
         logger.info(f"   成功源数: {stats['sources_success']}")
+        logger.info(f"   失败源数: {stats['sources_error']}")
         logger.info(f"   AI分析数: {stats.get('ai_analyzed_count', 0)}")
         logger.info(f"   耗时: {stats['duration']:.2f}秒")
 
@@ -591,6 +643,8 @@ class CollectionService:
             if not config.get("enabled", True):
                 continue
 
+            # 合并 extra_config 到主配置
+            config = self._merge_extra_config(config)
             name = config.get("name")
 
             try:
@@ -648,22 +702,78 @@ class CollectionService:
         """
         stats = {"sources_success": 0, "sources_error": 0, "new_articles": 0, "total_articles": 0, "ai_analyzed_count": 0}
 
-        web_configs = self.config.get("web_sources", [])
+        # 优先从数据库读取Web源
+        web_configs = []
+        with db.get_session() as session:
+            db_sources = session.query(RSSSource).filter(
+                RSSSource.enabled == True,
+                RSSSource.source_type == "web"
+            ).order_by(RSSSource.priority.asc()).all()
+
+            for source in db_sources:
+                config = {
+                    "name": source.name,
+                    "url": source.url,
+                    "enabled": source.enabled,
+                }
+                
+                # 优先使用 extra_config 字段，如果没有则尝试从 note 字段解析
+                if source.extra_config:
+                    try:
+                        import json
+                        extra_config = json.loads(source.extra_config)
+                        if isinstance(extra_config, dict):
+                            config["extra_config"] = extra_config
+                    except:
+                        pass
+                elif source.note:
+                    try:
+                        import json
+                        note_config = json.loads(source.note)
+                        # 如果note是extra_config格式，将其放入extra_config字段
+                        if isinstance(note_config, dict):
+                            config["extra_config"] = note_config
+                        else:
+                            config["note"] = source.note
+                    except:
+                        config["note"] = source.note
+                
+                web_configs.append(config)
+                # 预先加载属性
+                _ = source.id
+                _ = source.name
+                _ = source.url
+                _ = source.enabled
+            session.expunge_all()
+
+        # 如果数据库中没有源，则从配置文件读取（向后兼容）
+        if not web_configs:
+            logger.info("  ℹ️  数据库中没有Web源，从配置文件读取")
+            web_configs = self.config.get("web_sources", [])
 
         if not web_configs:
             logger.warning("  ⚠️  没有配置网站源")
             return stats
 
-        logger.info(f"  🚀 开始采集 {len(web_configs)} 个网站源（第一层并发）")
+        logger.info(f"  🚀 开始采集 {len(web_configs)} 个网站源")
 
         for config in web_configs:
             if not config.get("enabled", True):
                 continue
 
+            # 合并 extra_config 到主配置
+            config = self._merge_extra_config(config)
             source_name = config.get("name", "Unknown")
 
             try:
                 logger.info(f"  🌐 开始采集网站: {source_name}")
+
+                # 检查是否有必要的配置（article_selector）
+                if not config.get("article_selector"):
+                    logger.warning(f"  ⚠️  {source_name}: 缺少 article_selector 配置，跳过")
+                    stats["sources_error"] += 1
+                    self._log_collection(db, source_name, "web", "error", 0, "缺少 article_selector 配置")
+                    continue
 
                 articles = self.web_collector.fetch_articles(config)
 
@@ -674,6 +784,25 @@ class CollectionService:
                     continue
 
                 process_result = self._process_articles_from_source(db, articles, source_name, "web", enable_ai_analysis)
+
+                # 更新Web源的统计信息
+                with db.get_session() as session:
+                    source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    if source_obj:
+                        source_obj.last_collected_at = datetime.now()
+                        source_obj.articles_count += len(articles)
+                        source_obj.last_error = None
+
+                        # 更新最新文章发布时间
+                        latest_article = session.query(Article).filter(
+                            Article.source == source_name,
+                            Article.published_at.isnot(None)
+                        ).order_by(Article.published_at.desc()).first()
+
+                        if latest_article:
+                            source_obj.latest_article_published_at = latest_article.published_at
+
+                        session.commit()
 
                 self._log_collection(db, source_name, "web", "success", process_result["total"])
                 stats["sources_success"] += 1
@@ -687,8 +816,155 @@ class CollectionService:
                 logger.error(f"  ❌ {source_name}: {e}")
                 stats["sources_error"] += 1
                 self._log_collection(db, source_name, "web", "error", 0, str(e))
+                
+                # 更新错误信息
+                with db.get_session() as session:
+                    source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    if source_obj:
+                        source_obj.last_error = str(e)
+                        session.commit()
 
         logger.info(f"  ✅ 网站源采集完成: 成功 {stats['sources_success']} 个源, 失败 {stats['sources_error']} 个源")
+        logger.info(f"     总文章: {stats['total_articles']} 篇, 新增: {stats['new_articles']} 篇, AI分析: {stats['ai_analyzed_count']} 篇")
+
+        return stats
+
+    def _collect_social_sources(self, db, task_id: int = None, enable_ai_analysis: bool = False) -> Dict[str, Any]:
+        """
+        采集社交媒体源（目前使用RSS方式采集，因为大多数社交媒体平台提供RSS feed）
+
+        Args:
+            db: 数据库管理器
+            task_id: 任务ID
+            enable_ai_analysis: 是否启用AI分析
+
+        Returns:
+            采集统计信息
+        """
+        stats = {"sources_success": 0, "sources_error": 0, "new_articles": 0, "total_articles": 0, "ai_analyzed_count": 0}
+
+        # 优先从数据库读取社交源
+        social_configs = []
+        with db.get_session() as session:
+            db_sources = session.query(RSSSource).filter(
+                RSSSource.enabled == True,
+                RSSSource.source_type == "social"
+            ).order_by(RSSSource.priority.asc()).all()
+
+            for source in db_sources:
+                config = {
+                    "name": source.name,
+                    "url": source.url,
+                    "enabled": source.enabled,
+                    "category": source.category,
+                    "tier": source.tier,
+                }
+                
+                # 优先使用 extra_config 字段，如果没有则尝试从 note 字段解析
+                if source.extra_config:
+                    try:
+                        import json
+                        extra_config = json.loads(source.extra_config)
+                        if isinstance(extra_config, dict):
+                            config["extra_config"] = extra_config
+                    except:
+                        pass
+                elif source.note:
+                    try:
+                        import json
+                        note_config = json.loads(source.note)
+                        # 如果note是extra_config格式，将其放入extra_config字段
+                        if isinstance(note_config, dict):
+                            config["extra_config"] = note_config
+                        else:
+                            config["note"] = source.note
+                    except:
+                        config["note"] = source.note
+                
+                social_configs.append(config)
+                # 预先加载属性
+                _ = source.id
+                _ = source.name
+                _ = source.url
+                _ = source.enabled
+            session.expunge_all()
+
+        # 如果数据库中没有源，则从配置文件读取（向后兼容）
+        if not social_configs:
+            logger.info("  ℹ️  数据库中没有社交源，从配置文件读取")
+            social_configs = self.config.get("social_sources", [])
+
+        if not social_configs:
+            logger.warning("  ⚠️  没有配置社交媒体源")
+            return stats
+
+        logger.info(f"  🚀 开始采集 {len(social_configs)} 个社交媒体源")
+
+        # 使用RSS采集器采集社交源（大多数社交媒体平台提供RSS feed）
+        for config in social_configs:
+            if not config.get("enabled", True):
+                continue
+
+            # 合并 extra_config 到主配置
+            config = self._merge_extra_config(config)
+            source_name = config.get("name", "Unknown")
+
+            try:
+                logger.info(f"  📱 开始采集社交媒体: {source_name}")
+
+                # 使用RSS采集器（因为社交源通常有RSS feed）
+                feed_data = self.rss_collector.fetch_single_feed(config)
+
+                if not feed_data or not feed_data.get("articles"):
+                    logger.info(f"  ⚠️  {source_name}: 未获取到文章")
+                    stats["sources_error"] += 1
+                    self._log_collection(db, source_name, "social", "error", 0, "未获取到文章")
+                    continue
+
+                articles = feed_data.get("articles", [])
+
+                process_result = self._process_articles_from_source(db, articles, source_name, "social", enable_ai_analysis)
+
+                # 更新社交源的统计信息
+                with db.get_session() as session:
+                    source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    if source_obj:
+                        source_obj.last_collected_at = datetime.now()
+                        source_obj.articles_count += len(articles)
+                        source_obj.last_error = None
+
+                        # 更新最新文章发布时间
+                        latest_article = session.query(Article).filter(
+                            Article.source == source_name,
+                            Article.published_at.isnot(None)
+                        ).order_by(Article.published_at.desc()).first()
+
+                        if latest_article:
+                            source_obj.latest_article_published_at = latest_article.published_at
+
+                        session.commit()
+
+                self._log_collection(db, source_name, "social", "success", process_result["total"])
+                stats["sources_success"] += 1
+                stats["new_articles"] += process_result["new"]
+                stats["total_articles"] += process_result["total"]
+                stats["ai_analyzed_count"] += process_result["ai_analyzed"]
+
+                logger.info(f"  ✅ {source_name}: {process_result['total']} 篇, 新增 {process_result['new']} 篇, AI分析 {process_result['ai_analyzed']} 篇")
+
+            except Exception as e:
+                logger.error(f"  ❌ {source_name}: {e}")
+                stats["sources_error"] += 1
+                self._log_collection(db, source_name, "social", "error", 0, str(e))
+                
+                # 更新错误信息
+                with db.get_session() as session:
+                    source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    if source_obj:
+                        source_obj.last_error = str(e)
+                        session.commit()
+
+        logger.info(f"  ✅ 社交媒体源采集完成: 成功 {stats['sources_success']} 个源, 失败 {stats['sources_error']} 个源")
         logger.info(f"     总文章: {stats['total_articles']} 篇, 新增: {stats['new_articles']} 篇, AI分析: {stats['ai_analyzed_count']} 篇")
 
         return stats

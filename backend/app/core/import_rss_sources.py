@@ -35,18 +35,79 @@ def load_sources(source_type: str = "rss") -> List[Dict[str, Any]]:
         # 转换格式，确保所有必需字段都存在
         formatted_sources = []
         for source in sources:
+            # 提取 extra_config（如果存在）
+            extra_config = source.get("extra_config", {})
+            if isinstance(extra_config, str):
+                try:
+                    extra_config = json.loads(extra_config)
+                except:
+                    extra_config = {}
+            
+            # 如果没有 extra_config，尝试从顶层字段读取（向后兼容）
+            if not extra_config:
+                extra_fields = {}
+                
+                # API源的扩展字段
+                if source_type == "api":
+                    if source.get("query"):
+                        extra_fields["query"] = source.get("query")
+                    if source.get("max_results"):
+                        extra_fields["max_results"] = source.get("max_results")
+                    if source.get("endpoint"):
+                        extra_fields["endpoint"] = source.get("endpoint")
+                
+                # Web源的扩展字段
+                elif source_type == "web":
+                    if source.get("article_selector"):
+                        extra_fields["article_selector"] = source.get("article_selector")
+                    if source.get("title_selector"):
+                        extra_fields["title_selector"] = source.get("title_selector")
+                    if source.get("link_selector"):
+                        extra_fields["link_selector"] = source.get("link_selector")
+                    if source.get("date_selector"):
+                        extra_fields["date_selector"] = source.get("date_selector")
+                    if source.get("content_selector"):
+                        extra_fields["content_selector"] = source.get("content_selector")
+                    if source.get("description_selector"):
+                        extra_fields["description_selector"] = source.get("description_selector")
+                    if source.get("author_selector"):
+                        extra_fields["author_selector"] = source.get("author_selector")
+                    if source.get("max_articles"):
+                        extra_fields["max_articles"] = source.get("max_articles")
+                
+                # 社交源的扩展字段
+                elif source_type == "social":
+                    if source.get("platform"):
+                        extra_fields["platform"] = source.get("platform")
+                    if source.get("search_query"):
+                        extra_fields["search_query"] = source.get("search_query")
+                
+                if extra_fields:
+                    extra_config = extra_fields
+            
+            # 处理 description：优先使用 description，如果没有则使用 note（向后兼容）
+            description = source.get("description", "")
+            if not description:
+                description = source.get("note", "")
+            
             formatted_source = {
                 "name": source.get("name", ""),
                 "url": source.get("url", ""),
-                "description": source.get("description", ""),
+                "description": description,
                 "category": source.get("category", "other"),
                 "tier": source.get("tier", "tier3"),
                 "source_type": source_type,
                 "language": source.get("language", "en"),
                 "priority": source.get("priority", 3),
                 "enabled": source.get("enabled", True),
-                "note": source.get("note", ""),
             }
+            
+            # 如果有 extra_config，将其序列化为JSON字符串
+            if extra_config:
+                formatted_source["extra_config"] = json.dumps(extra_config, ensure_ascii=False)
+            else:
+                formatted_source["extra_config"] = ""
+            
             formatted_sources.append(formatted_source)
 
         return formatted_sources

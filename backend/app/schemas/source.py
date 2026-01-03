@@ -18,6 +18,7 @@ class RSSSourceBase(BaseModel):
     enabled: bool = True
     priority: int = 1
     note: Optional[str] = None
+    extra_config: Optional[str] = None
 
 
 class RSSSourceCreate(RSSSourceBase):
@@ -35,6 +36,7 @@ class RSSSourceUpdate(BaseModel):
     enabled: Optional[bool] = None
     priority: Optional[int] = None
     note: Optional[str] = None
+    extra_config: Optional[str] = None
 
 
 class RSSSource(RSSSourceBase):

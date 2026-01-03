@@ -25,8 +25,8 @@
       "enabled": true,
       "language": "en",
       "priority": 1,
-      "note": "使用 Meta Engineering Blog 的 AI 分类作为替代源",
-      "source_type": "rss"
+      "source_type": "rss",
+      "description": "使用 Meta Engineering Blog 的 AI 分类作为替代源"
     },
     {
       "name": "Google AI Blog",
@@ -62,8 +62,8 @@
       "enabled": false,
       "language": "en",
       "priority": 3,
-      "note": "官方未提供 RSS，主要通过邮件推送，已禁用",
-      "source_type": "rss"
+      "source_type": "rss",
+      "description": "官方未提供 RSS，主要通过邮件推送，已禁用"
     },
     {
       "name": "量子位",
@@ -72,7 +72,8 @@
       "enabled": true,
       "language": "zh",
       "priority": 1,
-      "source_type": "rss"
+      "source_type": "rss",
+      "description": "追踪人工智能新趋势，报道科技行业新突破"
     }
   ],
   "api_sources": [
@@ -81,60 +82,78 @@
       "url": "http://export.arxiv.org/api/query",
       "category": "paper",
       "enabled": true,
-      "query": "cat:cs.AI",
-      "max_results": 20,
+      "language": "en",
       "priority": 1,
-      "source_type": "api"
+      "source_type": "api",
+      "extra_config": {
+        "query": "cat:cs.AI",
+        "max_results": 20
+      }
     },
     {
       "name": "arXiv CS.LG",
       "url": "http://export.arxiv.org/api/query",
       "category": "paper",
       "enabled": true,
-      "query": "cat:cs.LG",
-      "max_results": 20,
+      "language": "en",
       "priority": 1,
-      "source_type": "api"
+      "source_type": "api",
+      "extra_config": {
+        "query": "cat:cs.LG",
+        "max_results": 20
+      }
     },
     {
       "name": "arXiv CS.CL",
       "url": "http://export.arxiv.org/api/query",
       "category": "paper",
       "enabled": true,
-      "query": "cat:cs.CL",
-      "max_results": 15,
+      "language": "en",
       "priority": 2,
-      "source_type": "api"
+      "source_type": "api",
+      "extra_config": {
+        "query": "cat:cs.CL",
+        "max_results": 15
+      }
     },
     {
       "name": "arXiv CS.CV",
       "url": "http://export.arxiv.org/api/query",
       "category": "paper",
       "enabled": true,
-      "query": "cat:cs.CV",
-      "max_results": 15,
+      "language": "en",
       "priority": 2,
-      "source_type": "api"
+      "source_type": "api",
+      "extra_config": {
+        "query": "cat:cs.CV",
+        "max_results": 15
+      }
     },
     {
       "name": "Hugging Face Trending Papers",
       "url": "https://huggingface.co/api/papers",
       "category": "paper",
       "enabled": true,
-      "endpoint": "/trending",
-      "max_results": 20,
+      "language": "en",
       "priority": 1,
-      "source_type": "api"
+      "source_type": "api",
+      "extra_config": {
+        "endpoint": "/trending",
+        "max_results": 20
+      }
     },
     {
       "name": "Papers with Code Trending",
       "url": "https://paperswithcode.com",
       "category": "paper",
       "enabled": true,
-      "endpoint": "/trending",
-      "max_results": 20,
+      "language": "en",
       "priority": 2,
-      "source_type": "api"
+      "source_type": "api",
+      "extra_config": {
+        "endpoint": "/trending",
+        "max_results": 20
+      }
     }
   ],
   "web_sources": [
@@ -145,12 +164,15 @@
       "enabled": true,
       "language": "zh",
       "priority": 1,
-      "max_articles": 20,
-      "article_selector": "article.entry-card",
-      "title_selector": "h2.entry-title a",
-      "link_selector": "a",
-      "date_selector": ".entry-meta",
-      "source_type": "web"
+      "source_type": "web",
+      "description": "国内影响力最广泛的人工智能社交资讯平台",
+      "extra_config": {
+        "max_articles": 20,
+        "article_selector": "article.entry-card",
+        "title_selector": "h2.entry-title a",
+        "link_selector": "a",
+        "date_selector": ".entry-meta"
+      }
     },
     {
       "name": "Anthropic Research",
@@ -159,13 +181,16 @@
       "enabled": true,
       "language": "en",
       "priority": 1,
-      "article_selector": "a.PublicationList-module-scss-module__KxYrHG__listItem",
-      "title_selector": ".PublicationList-module-scss-module__KxYrHG__title",
-      "link_selector": "self",
-      "date_selector": ".PublicationList-module-scss-module__KxYrHG__date",
-      "description_selector": ".PublicationList-module-scss-module__KxYrHG__subject",
-      "max_articles": 20,
-      "source_type": "web"
+      "source_type": "web",
+      "description": "Anthropic官方研究博客，发布AI安全、对齐和可解释性相关研究",
+      "extra_config": {
+        "max_articles": 20,
+        "article_selector": "a.PublicationList-module-scss-module__KxYrHG__listItem",
+        "title_selector": ".PublicationList-module-scss-module__KxYrHG__title",
+        "link_selector": "self",
+        "date_selector": ".PublicationList-module-scss-module__KxYrHG__date",
+        "description_selector": ".PublicationList-module-scss-module__KxYrHG__subject"
+      }
     }
   ],
   "social_sources": [
@@ -174,46 +199,64 @@
       "url": "https://twitter.com/ylecun",
       "category": "social",
       "enabled": false,
-      "platform": "twitter",
+      "language": "en",
       "priority": 3,
-      "source_type": "social"
+      "source_type": "social",
+      "description": "Twitter没有公开RSS，需要使用第三方RSS服务如nitter.net",
+      "extra_config": {
+        "platform": "twitter"
+      }
     },
     {
       "name": "Andrew Ng Twitter",
       "url": "https://twitter.com/AndrewYNg",
       "category": "social",
       "enabled": false,
-      "platform": "twitter",
+      "language": "en",
       "priority": 3,
-      "source_type": "social"
+      "source_type": "social",
+      "description": "Twitter没有公开RSS，需要使用第三方RSS服务如nitter.net",
+      "extra_config": {
+        "platform": "twitter"
+      }
     },
     {
       "name": "Andrej Karpathy Twitter",
       "url": "https://twitter.com/karpathy",
       "category": "social",
       "enabled": false,
-      "platform": "twitter",
+      "language": "en",
       "priority": 3,
-      "source_type": "social"
+      "source_type": "social",
+      "description": "Twitter没有公开RSS，需要使用第三方RSS服务如nitter.net",
+      "extra_config": {
+        "platform": "twitter"
+      }
     },
     {
       "name": "Reddit Machine Learning",
-      "url": "https://www.reddit.com/r/MachineLearning",
+      "url": "https://www.reddit.com/r/MachineLearning/.rss",
       "category": "community",
       "enabled": true,
-      "platform": "reddit",
+      "language": "en",
       "priority": 3,
-      "source_type": "social"
+      "source_type": "social",
+      "extra_config": {
+        "platform": "reddit"
+      }
     },
     {
       "name": "Hacker News AI",
-      "url": "https://news.ycombinator.com/",
+      "url": "https://news.ycombinator.com/rss",
       "category": "community",
       "enabled": true,
-      "platform": "hackernews",
-      "search_query": "AI",
+      "language": "en",
       "priority": 3,
-      "source_type": "social"
+      "source_type": "social",
+      "extra_config": {
+        "platform": "hackernews",
+        "search_query": "AI"
+      }
     }
   ]
 }

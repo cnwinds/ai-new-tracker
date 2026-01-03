@@ -109,6 +109,7 @@ export interface RSSSource {
   enabled: boolean;
   priority: number;
   note?: string;
+  extra_config?: string;
   last_collected_at?: string;
   latest_article_published_at?: string;
   articles_count: number;
@@ -116,6 +117,10 @@ export interface RSSSource {
   created_at: string;
   updated_at: string;
 }
+
+export type RSSSourceCreate = Omit<RSSSource, 'id' | 'created_at' | 'updated_at' | 'last_collected_at' | 'latest_article_published_at' | 'articles_count' | 'last_error'>;
+
+export type RSSSourceUpdate = Partial<RSSSourceCreate>;
 
 export interface Statistics {
   total_articles: number;

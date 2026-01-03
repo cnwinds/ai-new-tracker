@@ -159,6 +159,27 @@ export default function SourceManagement() {
     return acc;
   }, {}) || {};
 
+  // 订阅源排序函数
+  const sortSources = (sources: RSSSource[]): RSSSource[] => {
+    return [...sources].sort((a, b) => {
+      // 1. 首先按启用状态排序：启用的排在前面
+      if (a.enabled !== b.enabled) {
+        return a.enabled ? -1 : 1;
+      }
+      
+      // 2. 然后按最后更新时间排序：时间近的排在前面
+      const aTime = a.latest_article_published_at 
+        ? new Date(a.latest_article_published_at).getTime() 
+        : 0;
+      const bTime = b.latest_article_published_at 
+        ? new Date(b.latest_article_published_at).getTime() 
+        : 0;
+      
+      // 时间大的（更近的）排在前面
+      return bTime - aTime;
+    });
+  };
+
   // 按类型分组现有源
   const groupedSources = sources?.reduce((acc: any, source: RSSSource) => {
     const type = normalizeSourceType(source.source_type);
@@ -168,6 +189,12 @@ export default function SourceManagement() {
     acc[type].push(source);
     return acc;
   }, {}) || {};
+
+  // 对每个类型的源进行排序
+  if (groupedSources.rss) groupedSources.rss = sortSources(groupedSources.rss);
+  if (groupedSources.api) groupedSources.api = sortSources(groupedSources.api);
+  if (groupedSources.web) groupedSources.web = sortSources(groupedSources.web);
+  if (groupedSources.social) groupedSources.social = sortSources(groupedSources.social);
 
   // 检查源是否已存在
   const isSourceExists = (sourceName: string, sourceUrl: string) => {
@@ -352,7 +379,7 @@ export default function SourceManagement() {
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.rss?.length > 0 ? (
                       <Row gutter={[16, 16]}>
-                        {groupedSources.rss.map((source) => (
+                        {groupedSources.rss.map((source: RSSSource) => (
                           <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
                             {renderSourceItem(source)}
                           </Col>
@@ -371,7 +398,7 @@ export default function SourceManagement() {
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.api?.length > 0 ? (
                       <Row gutter={[16, 16]}>
-                        {groupedSources.api.map((source) => (
+                        {groupedSources.api.map((source: RSSSource) => (
                           <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
                             {renderSourceItem(source)}
                           </Col>
@@ -390,7 +417,7 @@ export default function SourceManagement() {
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.web?.length > 0 ? (
                       <Row gutter={[16, 16]}>
-                        {groupedSources.web.map((source) => (
+                        {groupedSources.web.map((source: RSSSource) => (
                           <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
                             {renderSourceItem(source)}
                           </Col>
@@ -409,7 +436,7 @@ export default function SourceManagement() {
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.social?.length > 0 ? (
                       <Row gutter={[16, 16]}>
-                        {groupedSources.social.map((source) => (
+                        {groupedSources.social.map((source: RSSSource) => (
                           <Col key={source.id} xs={24} sm={12} md={8} lg={6}>
                             {renderSourceItem(source)}
                           </Col>
@@ -453,10 +480,16 @@ export default function SourceManagement() {
             </Select>
           </Form.Item>
           <Form.Item name="description" label="描述">
-            <Input.TextArea />
+            <Input.TextArea placeholder="订阅源的说明信息" rows={3} />
           </Form.Item>
           <Form.Item name="category" label="分类">
             <Input placeholder="例如: news, official_blog, academic" />
+          </Form.Item>
+          <Form.Item name="extra_config" label="扩展配置（JSON）">
+            <Input.TextArea 
+              placeholder="Web源和社交媒体源的扩展配置（JSON格式），例如: {&quot;article_selector&quot;: &quot;article.entry-card&quot;, &quot;title_selector&quot;: &quot;h2.entry-title a&quot;}" 
+              rows={4}
+            />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked" initialValue={true}>
             <Switch />
