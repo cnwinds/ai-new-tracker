@@ -35,6 +35,10 @@ logger = logging.getLogger(__name__)
 _running_tasks = {}
 _task_lock = threading.Lock()
 
+# 全局变量存储停止标志（按任务ID）
+_stop_flags = {}
+_stop_lock = threading.Lock()
+
 
 def _run_collection_background(
     task_id: int,
@@ -45,11 +49,40 @@ def _run_collection_background(
     try:
         db = get_db()
         
+        # 检查是否已请求停止
+        if is_stop_requested(task_id):
+            logger.info(f"🛑 任务 {task_id} 在开始前已被停止")
+            with db.get_session() as session:
+                task = session.query(CollectionTask).filter(CollectionTask.id == task_id).first()
+                if task:
+                    task.status = "error"
+                    task.error_message = "手动停止：用户终止了采集任务"
+                    task.completed_at = datetime.now()
+                    session.commit()
+            return
+        
         # 执行采集
         stats = collection_service.collect_all(
             enable_ai_analysis=enable_ai,
             task_id=task_id,
         )
+        
+        # 检查是否在采集过程中被停止
+        if is_stop_requested(task_id):
+            logger.info(f"🛑 任务 {task_id} 在采集过程中被停止")
+            with db.get_session() as session:
+                task = session.query(CollectionTask).filter(CollectionTask.id == task_id).first()
+                if task:
+                    task.status = "error"
+                    task.error_message = "手动停止：用户终止了采集任务"
+                    task.completed_at = datetime.now()
+                    task.new_articles_count = stats.get('new_articles', 0)
+                    task.total_sources = stats.get('sources_success', 0) + stats.get('sources_error', 0)
+                    task.success_sources = stats.get('sources_success', 0)
+                    task.failed_sources = stats.get('sources_error', 0)
+                    task.duration = (datetime.now() - task.started_at).total_seconds()
+                    session.commit()
+            return
         
         # 更新任务状态
         with db.get_session() as session:
@@ -69,6 +102,11 @@ def _run_collection_background(
         with _task_lock:
             if task_id in _running_tasks:
                 del _running_tasks[task_id]
+        
+        # 清除停止标志
+        with _stop_lock:
+            if task_id in _stop_flags:
+                del _stop_flags[task_id]
                 
     except Exception as e:
         # 更新任务状态为错误
@@ -85,6 +123,11 @@ def _run_collection_background(
         with _task_lock:
             if task_id in _running_tasks:
                 del _running_tasks[task_id]
+        
+        # 清除停止标志
+        with _stop_lock:
+            if task_id in _stop_flags:
+                del _stop_flags[task_id]
 
 
 @router.post("/start", response_model=CollectionTaskSchema)
@@ -151,6 +194,10 @@ async def start_collection(
     # 记录运行中的任务
     with _task_lock:
         _running_tasks[task.id] = thread
+    
+    # 清除该任务的停止标志
+    with _stop_lock:
+        _stop_flags[task.id] = False
     
     return CollectionTaskSchema.model_validate(task)
 
@@ -399,4 +446,61 @@ async def get_collection_status(
         status="idle",
         message="暂无采集任务",
     )
+
+
+@router.post("/stop")
+async def stop_collection(
+    db: Session = Depends(get_database),
+):
+    """停止当前运行的采集任务"""
+    with _task_lock:
+        running_task_ids = list(_running_tasks.keys())
+    
+    if not running_task_ids:
+        # 检查数据库中是否有running状态的任务（可能是挂起的任务）
+        running_task = db.query(CollectionTask).filter(
+            CollectionTask.status == "running"
+        ).order_by(CollectionTask.started_at.desc()).first()
+        
+        if running_task:
+            # 手动停止挂起的任务
+            running_task.status = "error"
+            running_task.error_message = "手动停止：任务已停止"
+            running_task.completed_at = datetime.now()
+            db.commit()
+            return {
+                "message": f"已停止挂起的任务 (ID: {running_task.id})",
+                "task_id": running_task.id
+            }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="没有正在运行的采集任务"
+            )
+    
+    # 设置停止标志
+    task_id = running_task_ids[0]
+    with _stop_lock:
+        _stop_flags[task_id] = True
+    
+    # 更新数据库中的任务状态
+    task = db.query(CollectionTask).filter(CollectionTask.id == task_id).first()
+    if task:
+        task.status = "error"
+        task.error_message = "手动停止：用户终止了采集任务"
+        task.completed_at = datetime.now()
+        db.commit()
+    
+    logger.info(f"🛑 用户请求停止采集任务 (ID: {task_id})")
+    
+    return {
+        "message": f"已发送停止信号给任务 (ID: {task_id})",
+        "task_id": task_id
+    }
+
+
+def is_stop_requested(task_id: int) -> bool:
+    """检查是否请求停止指定任务"""
+    with _stop_lock:
+        return _stop_flags.get(task_id, False)
 

@@ -116,6 +116,11 @@ class ApiService {
     return response.data;
   }
 
+  async stopCollection(): Promise<any> {
+    const response = await this.client.post('/collection/stop');
+    return response.data;
+  }
+
   // 摘要相关
   async getSummaries(limit: number = 50): Promise<DailySummary[]> {
     const response = await this.client.get<DailySummary[]>(`/summary?limit=${limit}`);

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from backend.app.services.collector.rss_collector import RSSCollector
 from backend.app.services.collector.api_collector import ArXivCollector, HuggingFaceCollector, PapersWithCodeCollector
 from backend.app.services.collector.web_collector import WebCollector
+from backend.app.services.collector.twitter_collector import TwitterCollector
 from backend.app.db import get_db
 from backend.app.db.models import Article, CollectionLog, RSSSource
 from backend.app.services.analyzer.ai_analyzer import AIAnalyzer
@@ -36,6 +37,7 @@ class CollectionService:
         self.hf_collector = HuggingFaceCollector()
         self.pwc_collector = PapersWithCodeCollector()
         self.web_collector = WebCollector()
+        self.twitter_collector = TwitterCollector()
 
         # 初始化总结生成器
         if ai_analyzer:
@@ -89,6 +91,9 @@ class CollectionService:
         # 在开始采集前，检查并恢复挂起的任务
         self._recover_stuck_tasks(db)
         
+        # 导入停止检查函数
+        from backend.app.api.v1.endpoints.collection import is_stop_requested
+        
         stats = {
             "total_articles": 0,
             "new_articles": 0,
@@ -99,6 +104,9 @@ class CollectionService:
 
         # 1. 采集RSS源（双层并发：多个RSS源 + 每个源内部并发获取内容+AI分析）
         logger.info("\n📡 采集RSS源（双层并发模式）")
+        if task_id and is_stop_requested(task_id):
+            logger.info("🛑 收到停止信号，终止采集")
+            return stats
         rss_stats = self._collect_rss_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
         stats["total_articles"] += rss_stats.get("total_articles", 0)
         stats["new_articles"] += rss_stats.get("new_articles", 0)
@@ -109,9 +117,15 @@ class CollectionService:
         # 实时更新任务状态
         if task_id:
             self._update_task_progress(db, task_id, stats)
+            if is_stop_requested(task_id):
+                logger.info("🛑 收到停止信号，终止采集")
+                return stats
 
         # 2. 采集API源（arXiv, Hugging Face等）
         logger.info("\n📚 采集论文API源")
+        if task_id and is_stop_requested(task_id):
+            logger.info("🛑 收到停止信号，终止采集")
+            return stats
         api_stats = self._collect_api_sources(db, task_id=task_id)
         stats["total_articles"] += api_stats.get("total_articles", 0)
         stats["new_articles"] += api_stats.get("new_articles", 0)
@@ -122,9 +136,15 @@ class CollectionService:
         # 实时更新任务状态
         if task_id:
             self._update_task_progress(db, task_id, stats)
+            if is_stop_requested(task_id):
+                logger.info("🛑 收到停止信号，终止采集")
+                return stats
 
         # 3. 采集网站源（通过网页爬取）
         logger.info("\n🌐 采集网站源")
+        if task_id and is_stop_requested(task_id):
+            logger.info("🛑 收到停止信号，终止采集")
+            return stats
         web_stats = self._collect_web_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
         stats["total_articles"] += web_stats.get("total_articles", 0)
         stats["new_articles"] += web_stats.get("new_articles", 0)
@@ -135,9 +155,15 @@ class CollectionService:
         # 实时更新任务状态
         if task_id:
             self._update_task_progress(db, task_id, stats)
+            if is_stop_requested(task_id):
+                logger.info("🛑 收到停止信号，终止采集")
+                return stats
 
         # 4. 采集社交媒体源
         logger.info("\n📱 采集社交媒体源")
+        if task_id and is_stop_requested(task_id):
+            logger.info("🛑 收到停止信号，终止采集")
+            return stats
         social_stats = self._collect_social_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
         stats["total_articles"] += social_stats.get("total_articles", 0)
         stats["new_articles"] += social_stats.get("new_articles", 0)
@@ -1039,12 +1065,10 @@ class CollectionService:
                     if feed_data and feed_data.get("articles"):
                         articles = feed_data.get("articles", [])
 
-                elif platform == "twitter" or (not platform and "twitter.com" in config.get("url", "").lower()):
-                    # Twitter 目前也使用 RSS 采集器（如果配置了第三方RSS服务如nitter.net）
-                    collector_used = "rss"
-                    feed_data = self.rss_collector.fetch_single_feed(config)
-                    if feed_data and feed_data.get("articles"):
-                        articles = feed_data.get("articles", [])
+                elif platform == "twitter" or (not platform and ("twitter.com" in config.get("url", "").lower() or "x.com" in config.get("url", "").lower())):
+                    # Twitter 使用专门的 Twitter 采集器（支持 Nitter RSS、TodayRss、Twitter API）
+                    collector_used = "twitter"
+                    articles = self.twitter_collector.fetch_tweets(config)
 
                 else:
                     # 默认使用 RSS 采集器（大多数社交平台提供 RSS feed）

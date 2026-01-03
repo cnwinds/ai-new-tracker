@@ -22,7 +22,7 @@ import {
   Switch,
   TimePicker,
 } from 'antd';
-import { PlayCircleOutlined, ReloadOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, ReloadOutlined, EyeOutlined, SettingOutlined, StopOutlined } from '@ant-design/icons';
 import { LinkOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 
 const { Text, Paragraph } = Typography;
@@ -68,6 +68,18 @@ export default function CollectionHistory() {
     },
     onError: () => {
       message.error('启动采集任务失败');
+    },
+  });
+
+  const stopCollectionMutation = useMutation({
+    mutationFn: () => apiService.stopCollection(),
+    onSuccess: () => {
+      message.success('已发送停止信号，采集任务将尽快停止');
+      queryClient.invalidateQueries({ queryKey: ['collection-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['collection-status'] });
+    },
+    onError: (error: any) => {
+      message.error(`停止采集任务失败: ${error?.response?.data?.detail || error?.message || '未知错误'}`);
     },
   });
 
@@ -184,6 +196,19 @@ export default function CollectionHistory() {
     startCollectionMutation.mutate(enableAi);
   };
 
+  const handleStopCollection = () => {
+    Modal.confirm({
+      title: '确认停止',
+      content: '确定要停止当前正在运行的采集任务吗？',
+      okText: '停止',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: () => {
+        stopCollectionMutation.mutate();
+      },
+    });
+  };
+
   return (
     <div>
       <Card
@@ -196,15 +221,25 @@ export default function CollectionHistory() {
             >
               自动采集设置
             </Button>
-            <Button
-              icon={<PlayCircleOutlined />}
-              type="primary"
-              onClick={() => handleStartCollection(true)}
-              loading={startCollectionMutation.isPending}
-              disabled={status?.status === 'running'}
-            >
-              开始采集（AI分析）
-            </Button>
+            {status?.status === 'running' ? (
+              <Button
+                icon={<StopOutlined />}
+                danger
+                onClick={handleStopCollection}
+                loading={stopCollectionMutation.isPending}
+              >
+                终止采集
+              </Button>
+            ) : (
+              <Button
+                icon={<PlayCircleOutlined />}
+                type="primary"
+                onClick={() => handleStartCollection(true)}
+                loading={startCollectionMutation.isPending}
+              >
+                开始采集（AI分析）
+              </Button>
+            )}
             <Button
               icon={<ReloadOutlined />}
               onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-tasks'] })}

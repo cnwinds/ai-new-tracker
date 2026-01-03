@@ -202,9 +202,12 @@
       "language": "en",
       "priority": 3,
       "source_type": "social",
-      "description": "Twitter没有公开RSS，需要使用第三方RSS服务如nitter.net",
+      "description": "使用 Nitter RSS 服务采集 Twitter 推文（无需 API 密钥）",
       "extra_config": {
-        "platform": "twitter"
+        "platform": "twitter",
+        "method": "nitter",
+        "nitter_instance": "https://nitter.net",
+        "max_tweets": 20
       }
     },
     {
@@ -215,22 +218,28 @@
       "language": "en",
       "priority": 3,
       "source_type": "social",
-      "description": "Twitter没有公开RSS，需要使用第三方RSS服务如nitter.net",
+      "description": "使用 Nitter RSS 服务采集 Twitter 推文（无需 API 密钥）",
       "extra_config": {
-        "platform": "twitter"
+        "platform": "twitter",
+        "method": "nitter",
+        "nitter_instance": "https://nitter.net",
+        "max_tweets": 20
       }
     },
     {
       "name": "Andrej Karpathy Twitter",
       "url": "https://twitter.com/karpathy",
       "category": "social",
-      "enabled": false,
+      "enabled": true,
       "language": "en",
       "priority": 3,
       "source_type": "social",
-      "description": "Twitter没有公开RSS，需要使用第三方RSS服务如nitter.net",
+      "description": "使用 Nitter RSS 服务采集 Twitter 推文（无需 API 密钥）",
       "extra_config": {
-        "platform": "twitter"
+        "platform": "twitter",
+        "method": "nitter",
+        "nitter_instance": "https://nitter.net",
+        "max_tweets": 20
       }
     },
     {

@@ -33,6 +33,40 @@ dayjs.extend(isoWeek);
 
 const { Title } = Typography;
 
+// 计算给定日期所在周的周六到周五范围
+// 一周定义为：从上周六到本周五（共7天）
+const getWeekRange = (date: dayjs.Dayjs) => {
+  const dayOfWeek = date.day(); // 0=周日, 1=周一, ..., 6=周六
+  
+  let monday: dayjs.Dayjs;
+  
+  if (dayOfWeek === 6) {
+    // 如果是周六，这个周六属于"从本周六到下周五"这个周期
+    // 所以需要找到包含这个周六的周期：本周六到下周五
+    // 这个周期的周一应该是下周一
+    monday = date.add(2, 'day').startOf('isoWeek');
+  } else {
+    // 周日（0）、周一到周五（1-5），都属于"从上周六到本周五"这个周期
+    // 这个周期的周一应该是本周一（ISO周的周一）
+    // 对于周日，需要先加一天到周一，然后再找ISO周的周一
+    monday = date.add(dayOfWeek === 0 ? 1 : 0, 'day').startOf('isoWeek');
+  }
+  
+  // 周六是周一的前2天（上周六）
+  const saturday = monday.subtract(2, 'day');
+  // 周五是周一的后4天（本周五）
+  const friday = monday.add(4, 'day');
+  return { saturday, friday };
+};
+
+// 判断日期是否在周六到周五的范围内
+const isInWeekRange = (date: dayjs.Dayjs, weekDate: dayjs.Dayjs | null) => {
+  if (!weekDate) return false;
+  const { saturday, friday } = getWeekRange(weekDate);
+  return (date.isAfter(saturday, 'day') || date.isSame(saturday, 'day')) && 
+         (date.isBefore(friday, 'day') || date.isSame(friday, 'day'));
+};
+
 export default function DailySummary() {
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
   const [configModalVisible, setConfigModalVisible] = useState(false);
@@ -40,6 +74,8 @@ export default function DailySummary() {
   const [configForm] = Form.useForm();
   const queryClient = useQueryClient();
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
+  const [selectedWeekDate, setSelectedWeekDate] = useState<dayjs.Dayjs | null>(null);
+  const [hoveredWeekDate, setHoveredWeekDate] = useState<dayjs.Dayjs | null>(null);
 
   const { data: summaries, isLoading } = useQuery({
     queryKey: ['summaries'],
@@ -58,6 +94,8 @@ export default function DailySummary() {
       message.success('摘要生成成功');
       setGenerateModalVisible(false);
       form.resetFields();
+      setSelectedWeekDate(null);
+      setHoveredWeekDate(null);
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
     onError: (error: any) => {
@@ -392,6 +430,8 @@ export default function DailySummary() {
           if (!generateMutation.isPending) {
             setGenerateModalVisible(false);
             form.resetFields();
+            setSelectedWeekDate(null);
+            setHoveredWeekDate(null);
           }
         }}
         onOk={() => form.submit()}
@@ -480,31 +520,53 @@ export default function DailySummary() {
                         style={{ width: '100%' }}
                         format="YYYY-MM-DD"
                         placeholder="选择周（默认本周）"
-                        picker="week"
+                        onChange={(date) => {
+                          setSelectedWeekDate(date);
+                        }}
                         dateRender={(current) => {
-                          if (!summaries) {
-                            return <div>{current.date()}</div>;
-                          }
-                          const currentYear = current.year();
-                          const currentWeek = current.isoWeek();
-                          const isSummarized = summaries.some((s) => {
+                          const isInSelectedWeek = isInWeekRange(current, selectedWeekDate);
+                          const isInHoveredWeek = isInWeekRange(current, hoveredWeekDate);
+                          const isSummarized = summaries ? summaries.some((s) => {
                             if (s.summary_type !== 'weekly') return false;
                             const summaryDate = dayjs(s.summary_date);
+                            const currentYear = current.year();
+                            const currentWeek = current.isoWeek();
                             return (
                               summaryDate.year() === currentYear &&
                               summaryDate.isoWeek() === currentWeek
                             );
-                          });
+                          }) : false;
+                          
+                          // 优先显示选中状态，然后是悬停状态
+                          const backgroundColor = isInSelectedWeek 
+                            ? '#e6f7ff' 
+                            : isInHoveredWeek 
+                              ? '#f0f9ff' 
+                              : isSummarized 
+                                ? '#f5f5f5' 
+                                : 'transparent';
+                          
+                          const border = isInSelectedWeek 
+                            ? '1px solid #1890ff' 
+                            : isInHoveredWeek 
+                              ? '1px solid #91d5ff' 
+                              : 'none';
+                          
                           return (
                             <div
                               style={{
                                 color: isSummarized ? '#bfbfbf' : 'inherit',
-                                backgroundColor: isSummarized ? '#f5f5f5' : 'transparent',
+                                backgroundColor,
                                 borderRadius: '2px',
                                 padding: '2px',
                                 width: '100%',
                                 textAlign: 'center',
+                                border,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s, border 0.2s',
                               }}
+                              onMouseEnter={() => setHoveredWeekDate(current)}
+                              onMouseLeave={() => setHoveredWeekDate(null)}
                             >
                               {current.date()}
                             </div>
