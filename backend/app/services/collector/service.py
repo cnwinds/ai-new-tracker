@@ -263,6 +263,8 @@ class CollectionService:
             feed_title = feed_result.get("feed_title")
 
             if not articles:
+                # 即使没有文章，也要记录日志（成功但无文章）
+                self._log_collection(db, source_name, "rss", "success", 0, task_id=task_id)
                 result_stats["success"] = True
                 return result_stats
 
@@ -368,6 +370,15 @@ class CollectionService:
 
             if not articles_to_fetch and not articles_to_analyze:
                 logger.info(f"  ✅ {source_name}: 所有文章都已完整采集和分析")
+                # 即使所有文章都已完整，也要更新统计信息和记录日志
+                with db.get_session() as session:
+                    source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    if source_obj:
+                        source_obj.last_collected_at = datetime.now()
+                        source_obj.last_error = None
+                        session.commit()
+                # 记录采集日志（成功但无需处理）
+                self._log_collection(db, source_name, "rss", "success", len(articles), task_id=task_id)
                 result_stats["success"] = True
                 return result_stats
 
@@ -477,10 +488,13 @@ class CollectionService:
         """
         stats = {"sources_success": 0, "sources_error": 0, "new_articles": 0, "total_articles": 0, "ai_analyzed_count": 0}
 
-        # 优先从数据库读取RSS源
+        # 从数据库读取RSS源（只读取source_type为rss的源）
         rss_configs = []
         with db.get_session() as session:
-            db_sources = session.query(RSSSource).filter(RSSSource.enabled == True).order_by(RSSSource.priority.asc()).all()
+            db_sources = session.query(RSSSource).filter(
+                RSSSource.enabled == True,
+                RSSSource.source_type == "rss"
+            ).order_by(RSSSource.priority.asc()).all()
 
             for source in db_sources:
                 rss_configs.append({
@@ -526,6 +540,20 @@ class CollectionService:
                     try:
                         # 获取RSS feed（使用传入的config，确保每个线程使用正确的配置）
                         feed_data = self.rss_collector.fetch_single_feed(config)
+                        
+                        # 如果fetch_single_feed返回None或无效数据，记录错误日志
+                        if not feed_data:
+                            error_msg = f"{name}: RSS feed获取失败，返回数据为空"
+                            logger.error(f"  ❌ {error_msg}")
+                            self._log_collection(db, name, "rss", "error", 0, error_msg, task_id=task_id_param)
+                            return {
+                                "source_name": name,
+                                "success": False,
+                                "error": error_msg,
+                                "total_articles": 0,
+                                "new_articles": 0,
+                                "ai_analyzed": 0
+                            }
 
                         # 处理这个源（包含获取完整内容、保存、AI分析）
                         # 使用传入的name，确保每个线程使用正确的源名称
@@ -535,6 +563,10 @@ class CollectionService:
                         return result
                     except Exception as e:
                         logger.error(f"  ❌ {name} 采集失败: {e}")
+                        # 记录失败日志（如果fetch_single_feed失败，_process_single_rss_source不会被调用，所以不会重复）
+                        # 如果_process_single_rss_source内部抛出异常，它自己会记录日志，这里再记录一次会重复
+                        # 但为了确保所有异常都被记录，这里也记录一次（可能会有重复，但比遗漏好）
+                        self._log_collection(db, name, "rss", "error", 0, str(e), task_id=task_id_param)
                         return {
                             "source_name": name,
                             "success": False,
@@ -678,24 +710,51 @@ class CollectionService:
             name = config.get("name")
 
             try:
+                # 根据配置明确指定采集器，不再通过名称匹配
+                # 优先级：1. extra_config中的collector_type 2. URL特征判断
+                collector_type = config.get("collector_type", "").lower()
+                url = config.get("url", "").lower()
+                
                 articles = []
-                if "arxiv" in name.lower():
+                collector_used = None
+                
+                # 首先检查是否明确指定了collector_type
+                if collector_type == "arxiv" or (not collector_type and "arxiv.org" in url):
+                    collector_used = "arxiv"
                     query = config.get("query")
+                    if not query:
+                        raise ValueError(f"{name}: ArXiv采集器需要配置query参数")
                     max_results = config.get("max_results", 20)
                     articles = self.arxiv_collector.fetch_papers(query, max_results)
 
-                elif "hugging Face" in name.lower():
+                elif collector_type == "huggingface" or collector_type == "hf" or (not collector_type and "huggingface.co" in url):
+                    collector_used = "huggingface"
                     limit = config.get("max_results", 20)
                     articles = self.hf_collector.fetch_trending_papers(limit)
 
-                elif "papers with code" in name.lower():
+                elif collector_type == "paperswithcode" or collector_type == "pwc" or (not collector_type and "paperswithcode.com" in url):
+                    collector_used = "paperswithcode"
                     limit = config.get("max_results", 20)
                     articles = self.pwc_collector.fetch_trending_papers(limit)
 
-                if not articles:
-                    logger.info(f"  ⚠️  {name}: 未获取到文章")
+                else:
+                    # 无法确定使用哪个采集器，明确报错
+                    error_msg = f"{name}: 无法确定API采集器类型。请在extra_config中指定collector_type (arxiv/huggingface/paperswithcode)，或确保URL包含可识别的域名特征"
+                    logger.error(f"  ❌ {error_msg}")
                     stats["sources_error"] += 1
-                    self._log_collection(db, name, "api", "error", 0, "未获取到文章", task_id=task_id)
+                    self._log_collection(db, name, "api", "error", 0, error_msg, task_id=task_id)
+                    
+                    with db.get_session() as session:
+                        source_obj = session.query(RSSSource).filter(RSSSource.name == name).first()
+                        if source_obj:
+                            source_obj.last_error = error_msg
+                            session.commit()
+                    continue
+
+                if not articles:
+                    logger.info(f"  ⚠️  {name}: 使用{collector_used}采集器未获取到文章")
+                    stats["sources_error"] += 1
+                    self._log_collection(db, name, "api", "error", 0, f"使用{collector_used}采集器未获取到文章", task_id=task_id)
                     continue
 
                 process_result = self._process_articles_from_source(db, articles, name, "api", enable_ai_analysis, task_id=task_id)
@@ -949,7 +1008,7 @@ class CollectionService:
 
         logger.info(f"  🚀 开始采集 {len(social_configs)} 个社交媒体源")
 
-        # 使用RSS采集器采集社交源（大多数社交媒体平台提供RSS feed）
+        # 根据extra_config中的platform参数选择对应的采集器
         for config in social_configs:
             if not config.get("enabled", True):
                 continue
@@ -957,20 +1016,63 @@ class CollectionService:
             # 合并 extra_config 到主配置
             config = self._merge_extra_config(config)
             source_name = config.get("name", "Unknown")
+            platform = config.get("platform", "").lower() if config.get("platform") else ""
 
             try:
-                logger.info(f"  📱 开始采集社交媒体: {source_name}")
+                logger.info(f"  📱 开始采集社交媒体: {source_name} (平台: {platform or '未指定'})")
 
-                # 使用RSS采集器（因为社交源通常有RSS feed）
-                feed_data = self.rss_collector.fetch_single_feed(config)
+                # 根据platform选择对应的采集器
+                articles = []
+                collector_used = None
+                
+                if platform == "reddit" or (not platform and "reddit.com" in config.get("url", "").lower()):
+                    # Reddit 使用 RSS 采集器（Reddit 提供 RSS feed）
+                    collector_used = "rss"
+                    feed_data = self.rss_collector.fetch_single_feed(config)
+                    if feed_data and feed_data.get("articles"):
+                        articles = feed_data.get("articles", [])
 
-                if not feed_data or not feed_data.get("articles"):
-                    logger.info(f"  ⚠️  {source_name}: 未获取到文章")
+                elif platform == "hackernews" or platform == "hn" or (not platform and "ycombinator.com" in config.get("url", "").lower()):
+                    # Hacker News 使用 RSS 采集器
+                    collector_used = "rss"
+                    feed_data = self.rss_collector.fetch_single_feed(config)
+                    if feed_data and feed_data.get("articles"):
+                        articles = feed_data.get("articles", [])
+
+                elif platform == "twitter" or (not platform and "twitter.com" in config.get("url", "").lower()):
+                    # Twitter 目前也使用 RSS 采集器（如果配置了第三方RSS服务如nitter.net）
+                    collector_used = "rss"
+                    feed_data = self.rss_collector.fetch_single_feed(config)
+                    if feed_data and feed_data.get("articles"):
+                        articles = feed_data.get("articles", [])
+
+                else:
+                    # 默认使用 RSS 采集器（大多数社交平台提供 RSS feed）
+                    # 如果无法确定平台，明确报错
+                    if platform:
+                        error_msg = f"{source_name}: 不支持的社交平台类型 '{platform}'。支持的平台: reddit, hackernews, twitter"
+                        logger.error(f"  ❌ {error_msg}")
+                        stats["sources_error"] += 1
+                        self._log_collection(db, source_name, "social", "error", 0, error_msg, task_id=task_id)
+                        
+                        with db.get_session() as session:
+                            source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                            if source_obj:
+                                source_obj.last_error = error_msg
+                                session.commit()
+                        continue
+                    else:
+                        # 没有指定platform，尝试使用RSS采集器（向后兼容）
+                        collector_used = "rss"
+                        feed_data = self.rss_collector.fetch_single_feed(config)
+                        if feed_data and feed_data.get("articles"):
+                            articles = feed_data.get("articles", [])
+
+                if not articles:
+                    logger.info(f"  ⚠️  {source_name}: 使用{collector_used}采集器未获取到文章")
                     stats["sources_error"] += 1
-                    self._log_collection(db, source_name, "social", "error", 0, "未获取到文章", task_id=task_id)
+                    self._log_collection(db, source_name, "social", "error", 0, f"使用{collector_used}采集器未获取到文章", task_id=task_id)
                     continue
-
-                articles = feed_data.get("articles", [])
 
                 process_result = self._process_articles_from_source(db, articles, source_name, "social", enable_ai_analysis, task_id=task_id)
 
