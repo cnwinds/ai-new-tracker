@@ -40,12 +40,7 @@ fi
 # 启动前端服务
 echo -e "${GREEN}正在启动前端服务...${NC}"
 echo -e "${YELLOW}Web 界面: http://localhost:5173 (本地)${NC}"
-if command -v hostname &> /dev/null; then
-    IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "服务器IP")
-    if [ -n "$IP" ] && [ "$IP" != "服务器IP" ]; then
-        echo -e "${YELLOW}Web 界面: http://$IP:5173 (网络)${NC}"
-    fi
-fi
+echo -e "${YELLOW}Web 界面: http://服务器IP:5173 (网络，监听 0.0.0.0)${NC}"
 echo ""
 
 npm run dev

@@ -102,10 +102,10 @@ fi
 nohup npm run dev > ../logs/frontend.log 2>&1 &
 
 FRONTEND_PID=$!
-echo "$FRONTEND_PID" > "../$FRONTEND_PID_FILE"
+echo "$FRONTEND_PID" > "$FRONTEND_PID_FILE"
 echo -e "${GREEN}前端服务已启动 (PID: $FRONTEND_PID)${NC}"
 echo -e "${YELLOW}  - Web 界面: http://localhost:5173 (本地)${NC}"
-echo -e "${YELLOW}  - Web 界面: http://$(hostname -I | awk '{print $1}'):5173 (网络)${NC}"
+echo -e "${YELLOW}  - Web 界面: http://服务器IP:5173 (网络，监听 0.0.0.0)${NC}"
 echo -e "${YELLOW}  - 日志文件: logs/frontend.log${NC}"
 
 cd ..
@@ -124,9 +124,9 @@ echo ""
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  所有服务已成功启动！${NC}"
 echo -e "${GREEN}========================================${NC}"
-echo -e "${YELLOW}后端 API: http://localhost:8000${NC}"
+echo -e "${YELLOW}后端 API: http://localhost:8000 (监听 0.0.0.0)${NC}"
 echo -e "${YELLOW}前端界面: http://localhost:5173 (本地)${NC}"
-echo -e "${YELLOW}前端界面: http://$(hostname -I | awk '{print $1}'):5173 (网络)${NC}"
+echo -e "${YELLOW}前端界面: http://服务器IP:5173 (网络，监听 0.0.0.0)${NC}"
 echo ""
 echo -e "${YELLOW}查看日志:${NC}"
 echo -e "  - 后端: tail -f logs/backend.log"
