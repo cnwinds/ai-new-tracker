@@ -28,6 +28,8 @@ import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { useTheme } from '@/contexts/ThemeContext';
+import { createMarkdownComponents } from '@/utils/markdown';
+import { getThemeColor } from '@/utils/theme';
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -285,172 +287,19 @@ export default function DailySummary() {
                         <div
                           style={{
                             padding: '16px',
-                            backgroundColor: theme === 'dark' ? '#262626' : '#fafafa',
+                            backgroundColor: getThemeColor(theme, 'bgSecondary'),
                             borderRadius: '4px',
-                            border: theme === 'dark' ? '1px solid #434343' : '1px solid #e8e8e8',
-                            color: theme === 'dark' ? '#ffffff' : '#000000',
+                            border: `1px solid ${getThemeColor(theme, 'border')}`,
+                            color: getThemeColor(theme, 'text'),
                           }}
                         >
-                          <ReactMarkdown
-                            components={{
-                              h1: ({ children }) => (
-                                <h1 style={{ 
-                                  fontSize: '24px', 
-                                  fontWeight: 'bold', 
-                                  marginTop: '16px', 
-                                  marginBottom: '12px',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </h1>
-                              ),
-                              h2: ({ children }) => (
-                                <h2 style={{ 
-                                  fontSize: '20px', 
-                                  fontWeight: 'bold', 
-                                  marginTop: '16px', 
-                                  marginBottom: '12px',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </h2>
-                              ),
-                              h3: ({ children }) => (
-                                <h3 style={{ 
-                                  fontSize: '18px', 
-                                  fontWeight: 'bold', 
-                                  marginTop: '14px', 
-                                  marginBottom: '10px',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </h3>
-                              ),
-                              p: ({ children }) => (
-                                <p style={{ 
-                                  marginBottom: '12px', 
-                                  lineHeight: '1.6',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </p>
-                              ),
-                              ul: ({ children }) => (
-                                <ul style={{ 
-                                  marginBottom: '12px', 
-                                  paddingLeft: '24px',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </ul>
-                              ),
-                              ol: ({ children }) => (
-                                <ol style={{ 
-                                  marginBottom: '12px', 
-                                  paddingLeft: '24px',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </ol>
-                              ),
-                              li: ({ children }) => (
-                                <li style={{ 
-                                  marginBottom: '6px', 
-                                  lineHeight: '1.6',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </li>
-                              ),
-                              strong: ({ children }) => (
-                                <strong style={{ 
-                                  fontWeight: 'bold',
-                                  color: theme === 'dark' ? '#ffffff' : '#000000',
-                                }}>
-                                  {children}
-                                </strong>
-                              ),
-                              em: ({ children }) => (
-                                <em style={{ 
-                                  fontStyle: 'italic',
-                                  color: theme === 'dark' ? '#bfbfbf' : '#000000',
-                                }}>
-                                  {children}
-                                </em>
-                              ),
-                              code: ({ children, className }: any) => {
-                                const isInline = !className;
-                                const codeBg = theme === 'dark' ? '#1a1a1a' : '#f4f4f4';
-                                const codeColor = theme === 'dark' ? '#ffffff' : '#000000';
-                                if (isInline) {
-                                  return (
-                                    <code
-                                      style={{
-                                        backgroundColor: codeBg,
-                                        color: codeColor,
-                                        padding: '2px 6px',
-                                        borderRadius: '3px',
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.9em',
-                                      }}
-                                    >
-                                      {children}
-                                    </code>
-                                  );
-                                }
-                                return (
-                                  <code
-                                    style={{
-                                      display: 'block',
-                                      backgroundColor: codeBg,
-                                      color: codeColor,
-                                      padding: '12px',
-                                      borderRadius: '4px',
-                                      fontFamily: 'monospace',
-                                      fontSize: '0.9em',
-                                      overflow: 'auto',
-                                      marginBottom: '12px',
-                                    }}
-                                  >
-                                    {children}
-                                  </code>
-                                );
-                              },
-                              blockquote: ({ children }) => (
-                                <blockquote
-                                  style={{
-                                    borderLeft: `4px solid ${theme === 'dark' ? '#4096ff' : '#1890ff'}`,
-                                    paddingLeft: '16px',
-                                    marginLeft: '0',
-                                    marginBottom: '12px',
-                                    color: theme === 'dark' ? '#bfbfbf' : '#666',
-                                    fontStyle: 'italic',
-                                  }}
-                                >
-                                  {children}
-                                </blockquote>
-                              ),
-                              a: ({ children, href }) => (
-                                <a
-                                  href={href}
-                                  style={{ 
-                                    color: theme === 'dark' ? '#4096ff' : '#1890ff', 
-                                    textDecoration: 'none' 
-                                  }}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  {children}
-                                </a>
-                              ),
-                            }}
-                          >
+                          <ReactMarkdown components={createMarkdownComponents(theme)}>
                             {summary.summary_content}
                           </ReactMarkdown>
                         </div>
                         {summary.key_topics && summary.key_topics.length > 0 && (
                           <div>
-                            <strong style={{ color: theme === 'dark' ? '#ffffff' : '#000000' }}>
+                            <strong style={{ color: getThemeColor(theme, 'text') }}>
                               关键主题：
                             </strong>
                             {summary.key_topics.map((topic, index) => (
@@ -558,15 +407,19 @@ export default function DailySummary() {
                               s.summary_type === 'daily' &&
                               dayjs(s.summary_date).format('YYYY-MM-DD') === dateStr
                           );
+                          const backgroundColor = isSummarized 
+                            ? getThemeColor(theme, 'bgElevated')
+                            : 'transparent';
+                          
+                          const color = isSummarized 
+                            ? getThemeColor(theme, 'textTertiary')
+                            : 'inherit';
+                          
                           return (
                             <div
                               style={{
-                                color: isSummarized 
-                                  ? (theme === 'dark' ? '#595959' : '#bfbfbf') 
-                                  : 'inherit',
-                                backgroundColor: isSummarized 
-                                  ? (theme === 'dark' ? '#303030' : '#f5f5f5') 
-                                  : 'transparent',
+                                color,
+                                backgroundColor,
                                 borderRadius: '2px',
                                 padding: '2px',
                                 width: '100%',
@@ -608,25 +461,29 @@ export default function DailySummary() {
                           }) : false;
                           
                           // 优先显示选中状态，然后是悬停状态
+                          const selectedStyle = getSelectedStyle(theme);
+                          const primaryColor = theme === 'dark' ? '#4096ff' : '#1890ff';
+                          const hoverColor = theme === 'dark' ? '#69b7ff' : '#91d5ff';
+                          
                           const backgroundColor = isInSelectedWeek 
-                            ? (theme === 'dark' ? '#111a2c' : '#e6f7ff')
+                            ? selectedStyle.backgroundColor
                             : isInHoveredWeek 
                               ? (theme === 'dark' ? '#1a1f2e' : '#f0f9ff')
                               : isSummarized 
-                                ? (theme === 'dark' ? '#303030' : '#f5f5f5')
+                                ? getThemeColor(theme, 'bgElevated')
                                 : 'transparent';
                           
                           const border = isInSelectedWeek 
-                            ? `1px solid ${theme === 'dark' ? '#4096ff' : '#1890ff'}`
+                            ? selectedStyle.borderLeft?.replace('3px', '1px') || `1px solid ${primaryColor}`
                             : isInHoveredWeek 
-                              ? `1px solid ${theme === 'dark' ? '#69b7ff' : '#91d5ff'}`
+                              ? `1px solid ${hoverColor}`
                               : 'none';
                           
                           return (
                             <div
                               style={{
                                 color: isSummarized 
-                                  ? (theme === 'dark' ? '#595959' : '#bfbfbf') 
+                                  ? getThemeColor(theme, 'textTertiary')
                                   : 'inherit',
                                 backgroundColor,
                                 borderRadius: '2px',

@@ -10,6 +10,8 @@ import { apiService } from '@/services/api';
 import type { RAGSearchRequest, ArticleSearchResult, RSSSource } from '@/types';
 import dayjs from 'dayjs';
 import { useTheme } from '@/contexts/ThemeContext';
+import { createMarkdownComponents } from '@/utils/markdown';
+import { getThemeColor } from '@/utils/theme';
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -251,124 +253,11 @@ export default function RAGSearch() {
                             <div
                               style={{
                                 fontSize: 14,
-                                color: theme === 'dark' ? '#ffffff' : 'rgba(0, 0, 0, 0.65)',
+                                color: getThemeColor(theme, 'textSecondary'),
                                 lineHeight: 1.6,
                               }}
                             >
-                              <ReactMarkdown
-                                components={{
-                                  p: ({ children }) => (
-                                    <p style={{ 
-                                      marginBottom: '0.5em', 
-                                      marginTop: 0,
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </p>
-                                  ),
-                                  strong: ({ children }) => (
-                                    <strong style={{ 
-                                      fontWeight: 600,
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </strong>
-                                  ),
-                                  em: ({ children }) => (
-                                    <em style={{ 
-                                      fontStyle: 'italic',
-                                      color: theme === 'dark' ? '#e0e0e0' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </em>
-                                  ),
-                                  ul: ({ children }) => (
-                                    <ul style={{ 
-                                      marginBottom: '0.5em', 
-                                      paddingLeft: '1.5em',
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </ul>
-                                  ),
-                                  ol: ({ children }) => (
-                                    <ol style={{ 
-                                      marginBottom: '0.5em', 
-                                      paddingLeft: '1.5em',
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </ol>
-                                  ),
-                                  li: ({ children }) => (
-                                    <li style={{ 
-                                      marginBottom: '0.25em',
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </li>
-                                  ),
-                                  h1: ({ children }) => (
-                                    <h1 style={{ 
-                                      fontSize: '1.5em', 
-                                      fontWeight: 600, 
-                                      marginBottom: '0.5em', 
-                                      marginTop: 0,
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </h1>
-                                  ),
-                                  h2: ({ children }) => (
-                                    <h2 style={{ 
-                                      fontSize: '1.3em', 
-                                      fontWeight: 600, 
-                                      marginBottom: '0.5em', 
-                                      marginTop: 0,
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </h2>
-                                  ),
-                                  h3: ({ children }) => (
-                                    <h3 style={{ 
-                                      fontSize: '1.1em', 
-                                      fontWeight: 600, 
-                                      marginBottom: '0.5em', 
-                                      marginTop: 0,
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                    }}>
-                                      {children}
-                                    </h3>
-                                  ),
-                                  code: ({ children }) => (
-                                    <code style={{ 
-                                      backgroundColor: theme === 'dark' ? '#1a1a1a' : '#f5f5f5',
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                      padding: '2px 4px', 
-                                      borderRadius: '3px', 
-                                      fontSize: '0.9em',
-                                    }}>
-                                      {children}
-                                    </code>
-                                  ),
-                                  blockquote: ({ children }) => (
-                                    <blockquote style={{ 
-                                      borderLeft: `3px solid ${theme === 'dark' ? '#434343' : '#d9d9d9'}`,
-                                      paddingLeft: '1em', 
-                                      margin: '0.5em 0', 
-                                      color: theme === 'dark' ? '#e0e0e0' : 'rgba(0, 0, 0, 0.65)',
-                                    }}>
-                                      {children}
-                                    </blockquote>
-                                  ),
-                                  a: ({ href, children }) => (
-                                    <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#1890ff' }}>
-                                      {children}
-                                    </a>
-                                  ),
-                                }}
-                              >
+                              <ReactMarkdown components={createMarkdownComponents(theme)}>
                                 {item.summary}
                               </ReactMarkdown>
                             </div>

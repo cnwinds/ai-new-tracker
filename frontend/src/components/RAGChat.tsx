@@ -10,6 +10,8 @@ import { apiService } from '@/services/api';
 import type { RAGQueryRequest, RAGQueryResponse, ArticleSearchResult } from '@/types';
 import dayjs from 'dayjs';
 import { useTheme } from '@/contexts/ThemeContext';
+import { createMarkdownComponents } from '@/utils/markdown';
+import { getMessageBubbleStyle, getReferenceStyle, getSelectedStyle, getThemeColor } from '@/utils/theme';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -339,12 +341,7 @@ export default function RAGChat() {
                     >
                       <div
                         style={{
-                          backgroundColor: message.type === 'user' 
-                            ? '#4096ff' 
-                            : (theme === 'dark' ? '#262626' : '#f0f0f0'),
-                          color: message.type === 'user' 
-                            ? '#fff' 
-                            : (theme === 'dark' ? '#ffffff' : '#000'),
+                          ...getMessageBubbleStyle(theme, message.type),
                           padding: '12px 16px',
                           borderRadius: '12px',
                           wordBreak: 'break-word',
@@ -352,83 +349,12 @@ export default function RAGChat() {
                       >
                         {message.type === 'assistant' ? (
                           <div>
-                            <ReactMarkdown
-                              components={{
-                                p: ({ children }) => (
-                                  <p style={{ 
-                                    marginBottom: '0.5em', 
-                                    marginTop: 0,
-                                    color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                  }}>
-                                    {children}
-                                  </p>
-                                ),
-                                strong: ({ children }) => (
-                                  <strong style={{ 
-                                    fontWeight: 600,
-                                    color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                  }}>
-                                    {children}
-                                  </strong>
-                                ),
-                                em: ({ children }) => (
-                                  <em style={{ 
-                                    fontStyle: 'italic',
-                                    color: theme === 'dark' ? '#e0e0e0' : 'inherit',
-                                  }}>
-                                    {children}
-                                  </em>
-                                ),
-                                ul: ({ children }) => (
-                                  <ul style={{ 
-                                    marginBottom: '0.5em', 
-                                    paddingLeft: '1.5em',
-                                    color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                  }}>
-                                    {children}
-                                  </ul>
-                                ),
-                                ol: ({ children }) => (
-                                  <ol style={{ 
-                                    marginBottom: '0.5em', 
-                                    paddingLeft: '1.5em',
-                                    color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                  }}>
-                                    {children}
-                                  </ol>
-                                ),
-                                li: ({ children }) => (
-                                  <li style={{ 
-                                    marginBottom: '0.25em',
-                                    color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                  }}>
-                                    {children}
-                                  </li>
-                                ),
-                                code: ({ children }) => (
-                                  <code
-                                    style={{
-                                      backgroundColor: theme === 'dark' ? '#1a1a1a' : 'rgba(0, 0, 0, 0.1)',
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
-                                      padding: '2px 4px',
-                                      borderRadius: '3px',
-                                      fontSize: '0.9em',
-                                    }}
-                                  >
-                                    {children}
-                                  </code>
-                                ),
-                              }}
-                            >
+                            <ReactMarkdown components={createMarkdownComponents(theme)}>
                               {processAnswerText(message.content)}
                             </ReactMarkdown>
                           </div>
                         ) : (
-                          <Text style={{ 
-                            color: message.type === 'user' 
-                              ? '#fff' 
-                              : (theme === 'dark' ? '#ffffff' : '#000')
-                          }}>
+                          <Text style={{ color: getThemeColor(theme, 'userMessageText') }}>
                             {message.content}
                           </Text>
                         )}
@@ -443,7 +369,7 @@ export default function RAGChat() {
                               fontSize: 12, 
                               marginBottom: 8, 
                               display: 'block',
-                              color: theme === 'dark' ? '#e0e0e0' : 'inherit',
+                              color: getThemeColor(theme, 'textSecondary'),
                             }}
                           >
                             参考来源：
@@ -451,13 +377,13 @@ export default function RAGChat() {
                           <Space direction="vertical" size="small" style={{ width: '100%' }}>
                             {message.articles.map((article, idx) => {
                               const articleNumber = idx + 1;
+                              const primaryColor = theme === 'dark' ? '#4096ff' : '#1890ff';
                               return (
                                 <div
                                   key={idx}
                                   style={{
                                     padding: '8px 12px',
-                                    backgroundColor: theme === 'dark' ? '#1f1f1f' : '#fafafa',
-                                    border: theme === 'dark' ? '1px solid #434343' : '1px solid #e8e8e8',
+                                    ...getReferenceStyle(theme),
                                     borderRadius: '4px',
                                   }}
                                 >
@@ -467,7 +393,7 @@ export default function RAGChat() {
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
-                                        color: theme === 'dark' ? '#4096ff' : '#1890ff',
+                                        color: primaryColor,
                                         textDecoration: 'none',
                                         fontWeight: 500,
                                         fontSize: 14,
@@ -483,7 +409,7 @@ export default function RAGChat() {
                                     </a>
                                     <Text style={{ 
                                       fontSize: 14,
-                                      color: theme === 'dark' ? '#ffffff' : 'inherit',
+                                      color: getThemeColor(theme, 'text'),
                                     }}>
                                       {article.title_zh || article.title}
                                     </Text>
@@ -516,15 +442,14 @@ export default function RAGChat() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
               <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#52c41a', flexShrink: 0 }} />
               <div style={{ 
-                backgroundColor: theme === 'dark' ? '#262626' : '#f0f0f0',
-                color: theme === 'dark' ? '#ffffff' : '#000000',
+                ...getMessageBubbleStyle(theme, 'assistant'),
                 padding: '12px 16px', 
                 borderRadius: '12px',
               }}>
                 <Spin size="small" /> 
                 <Text style={{ 
                   marginLeft: 8,
-                  color: theme === 'dark' ? '#ffffff' : 'inherit',
+                  color: getThemeColor(theme, 'assistantMessageText'),
                 }}>
                   正在思考...
                 </Text>
@@ -589,12 +514,7 @@ export default function RAGChat() {
                   style={{
                     padding: '8px 12px',
                     cursor: 'pointer',
-                    backgroundColor: currentChatId === history.id 
-                      ? (theme === 'dark' ? '#111a2c' : '#e6f7ff')
-                      : 'transparent',
-                    borderLeft: currentChatId === history.id 
-                      ? `3px solid ${theme === 'dark' ? '#4096ff' : '#1890ff'}`
-                      : '3px solid transparent',
+                    ...(currentChatId === history.id ? getSelectedStyle(theme) : {}),
                   }}
                   onClick={() => loadChatHistory(history.id)}
                 >
