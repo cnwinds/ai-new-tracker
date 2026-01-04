@@ -76,7 +76,7 @@ DATABASE_URL=sqlite:///./data/ai_news.db
 
 # 定时任务
 COLLECTION_CRON=0 */1 * * *      # 每小时采集
-DAILY_SUMMARY_CRON=0 9 * * *     # 每天9点推送
+# 注意：每日和每周总结的推送时间现在通过前端界面配置，总结生成完成后会自动触发推送
 ```
 
 ### 4. 使用命令

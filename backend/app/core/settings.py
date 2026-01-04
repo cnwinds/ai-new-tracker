@@ -34,11 +34,11 @@ class Settings:
         # 确保必要目录存在
         self.DATA_DIR.mkdir(parents=True, exist_ok=True)
         
-        # OpenAI API配置（默认从环境变量读取，后续会从数据库加载）
-        self.OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-        self.OPENAI_API_BASE: str = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-        self.OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
-        self.OPENAI_EMBEDDING_MODEL: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+        # OpenAI API配置（从数据库加载，这里只设置默认值）
+        self.OPENAI_API_KEY: str = ""
+        self.OPENAI_API_BASE: str = "https://api.openai.com/v1"
+        self.OPENAI_MODEL: str = "gpt-4-turbo-preview"
+        self.OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
         # 飞书机器人配置
         self.FEISHU_BOT_WEBHOOK: str = os.getenv("FEISHU_BOT_WEBHOOK", "")
@@ -47,16 +47,16 @@ class Settings:
         default_db_path = str(self.DATA_DIR / "ai_news.db")
         self.DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{default_db_path}")
 
-        # 定时任务配置
-        self.COLLECTION_CRON: str = os.getenv("COLLECTION_CRON", "0 */1 * * *")
-        self.DAILY_SUMMARY_CRON: str = os.getenv("DAILY_SUMMARY_CRON", "0 9 * * *")
+        # 定时任务配置（从数据库加载，这里只设置默认值）
+        self.COLLECTION_CRON: str = "0 */1 * * *"
+        # 注意：DAILY_SUMMARY_CRON 已移除，现在使用数据库中的 daily_summary_time 配置
 
-        # 采集配置（默认从环境变量读取，后续会从数据库加载）
-        self.MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", "3"))
-        self.REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "30"))
-        self.MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
-        self.MAX_ARTICLES_PER_SOURCE: int = int(os.getenv("MAX_ARTICLES_PER_SOURCE", "50"))
-        self.COLLECTION_INTERVAL_HOURS: int = int(os.getenv("COLLECTION_INTERVAL_HOURS", "1"))
+        # 采集配置（从数据库加载，这里只设置默认值）
+        self.MAX_WORKERS: int = 3
+        self.REQUEST_TIMEOUT: int = 30
+        self.MAX_RETRIES: int = 3
+        self.MAX_ARTICLES_PER_SOURCE: int = 50
+        self.COLLECTION_INTERVAL_HOURS: int = 1
 
         # Web配置
         self.WEB_HOST: str = os.getenv("WEB_HOST", "0.0.0.0")
@@ -401,6 +401,7 @@ class Settings:
         try:
             from backend.app.db import get_db
             from backend.app.db.repositories import AppSettingsRepository
+            from backend.app.db.models import AppSettings
             
             db = get_db()
             # 确保数据库已初始化
@@ -408,9 +409,15 @@ class Settings:
                 return
             
             with db.get_session() as session:
-                self.OPENAI_API_KEY = AppSettingsRepository.get_setting(
-                    session, "openai_api_key", self.OPENAI_API_KEY
-                )
+                # 获取配置值，对于字符串类型，如果数据库中的值不为None，就使用数据库中的值（即使是空字符串）
+                setting = session.query(AppSettings).filter(AppSettings.key == "openai_api_key").first()
+                if setting is not None:
+                    # 如果数据库中有这个配置项，使用数据库中的值（即使是空字符串）
+                    self.OPENAI_API_KEY = setting.value if setting.value is not None else self.OPENAI_API_KEY
+                else:
+                    # 如果数据库中没有这个配置项，保持默认值
+                    pass
+                
                 self.OPENAI_API_BASE = AppSettingsRepository.get_setting(
                     session, "openai_api_base", self.OPENAI_API_BASE
                 )
@@ -420,6 +427,10 @@ class Settings:
                 self.OPENAI_EMBEDDING_MODEL = AppSettingsRepository.get_setting(
                     session, "openai_embedding_model", self.OPENAI_EMBEDDING_MODEL
                 )
+            
+            # 记录加载结果（用于调试）
+            logger.debug(f"LLM配置加载完成: API_KEY={'已配置' if self.OPENAI_API_KEY else '未配置'}, "
+                        f"BASE={self.OPENAI_API_BASE}, MODEL={self.OPENAI_MODEL}")
             
             self._llm_settings_loaded = True
         except Exception as e:
@@ -476,6 +487,9 @@ class Settings:
                 return
             
             with db.get_session() as session:
+                self.COLLECTION_CRON = AppSettingsRepository.get_setting(
+                    session, "collection_cron", self.COLLECTION_CRON
+                )
                 self.COLLECTION_INTERVAL_HOURS = AppSettingsRepository.get_setting(
                     session, "collection_interval_hours", self.COLLECTION_INTERVAL_HOURS
                 )

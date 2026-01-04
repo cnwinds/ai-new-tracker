@@ -78,9 +78,13 @@ class RAGService:
         if article.summary:
             parts.append(f"摘要: {article.summary}")
         
-        # 内容（截取前5000字符以避免过长）
+        # 内容（截取前2000字符，约2000 tokens，符合最佳实践256-512 tokens的4倍范围）
+        # 如果已有摘要，内容作为补充信息，不需要太长
         if article.content:
-            content_preview = article.content[:5000]
+            # 优先使用摘要，如果摘要存在，内容只取前2000字符作为补充
+            # 如果摘要不存在，则取前3000字符
+            max_content_length = 2000 if article.summary else 3000
+            content_preview = article.content[:max_content_length]
             parts.append(f"内容: {content_preview}")
         
         # 关键点
@@ -431,8 +435,31 @@ class RAGService:
                     "similarity": similarity
                 })
             
-            logger.info(f"✅ 搜索完成（使用sqlite-vec），找到 {len(search_results)} 个结果")
-            return search_results
+            # 去重：按文章ID去重，保留相似度最高的记录
+            seen_article_ids = {}
+            deduplicated_results = []
+            for result in search_results:
+                article_id = result["id"]
+                if article_id not in seen_article_ids:
+                    seen_article_ids[article_id] = result
+                    deduplicated_results.append(result)
+                else:
+                    # 如果已存在，比较相似度，保留更高的
+                    existing = seen_article_ids[article_id]
+                    if result["similarity"] > existing["similarity"]:
+                        # 替换为相似度更高的记录
+                        index = deduplicated_results.index(existing)
+                        deduplicated_results[index] = result
+                        seen_article_ids[article_id] = result
+            
+            # 按相似度重新排序（去重后可能顺序改变）
+            deduplicated_results.sort(key=lambda x: x["similarity"], reverse=True)
+            
+            # 限制返回数量
+            final_results = deduplicated_results[:top_k]
+            
+            logger.info(f"✅ 搜索完成（使用sqlite-vec），找到 {len(search_results)} 个结果，去重后 {len(final_results)} 个")
+            return final_results
             
         except Exception as e:
             logger.error(f"❌ sqlite-vec搜索失败: {e}，回退到Python计算")
@@ -528,8 +555,31 @@ class RAGService:
                 "similarity": result["similarity"]
             })
         
-        logger.info(f"✅ 搜索完成（使用Python计算），找到 {len(search_results)} 个结果")
-        return search_results
+        # 去重：按文章ID去重，保留相似度最高的记录
+        seen_article_ids = {}
+        deduplicated_results = []
+        for result in search_results:
+            article_id = result["id"]
+            if article_id not in seen_article_ids:
+                seen_article_ids[article_id] = result
+                deduplicated_results.append(result)
+            else:
+                # 如果已存在，比较相似度，保留更高的
+                existing = seen_article_ids[article_id]
+                if result["similarity"] > existing["similarity"]:
+                    # 替换为相似度更高的记录
+                    index = deduplicated_results.index(existing)
+                    deduplicated_results[index] = result
+                    seen_article_ids[article_id] = result
+        
+        # 按相似度重新排序（去重后可能顺序改变）
+        deduplicated_results.sort(key=lambda x: x["similarity"], reverse=True)
+        
+        # 限制返回数量
+        final_results = deduplicated_results[:top_k]
+        
+        logger.info(f"✅ 搜索完成（使用Python计算），找到 {len(search_results)} 个结果，去重后 {len(final_results)} 个")
+        return final_results
 
     def query_articles(self, question: str, top_k: int = 5) -> Dict[str, Any]:
         """

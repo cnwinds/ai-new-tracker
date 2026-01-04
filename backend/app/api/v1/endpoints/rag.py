@@ -50,7 +50,7 @@ def get_rag_service(
     if not ai_analyzer:
         raise HTTPException(
             status_code=400,
-            detail="未配置AI分析器，请检查OPENAI_API_KEY环境变量"
+            detail="未配置AI分析器，请在系统功能中配置LLM API密钥"
         )
     return RAGService(ai_analyzer=ai_analyzer, db=db)
 

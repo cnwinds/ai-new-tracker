@@ -40,7 +40,6 @@ class TaskScheduler:
 
     def _init_services(self):
         """初始化各个服务"""
-        # AI分析器
         self.ai_analyzer = create_ai_analyzer()
         if self.ai_analyzer:
             logger.info("✅ AI分析器初始化成功")
@@ -107,14 +106,17 @@ class TaskScheduler:
             cron_expression: cron表达式，默认从配置读取
         """
         if cron_expression is None:
-            cron_expression = settings.get_daily_summary_cron() or settings.DAILY_SUMMARY_CRON
+            cron_expression = settings.get_daily_summary_cron()
+            if not cron_expression:
+                logger.warning("⚠️  每日总结未启用或配置无效")
+                return
         
         try:
             self.scheduler.add_job(
                 func=self._run_daily_summary,
                 trigger=CronTrigger.from_crontab(cron_expression),
                 id="daily_summary_job",
-                name="每日摘要推送",
+                name="每日摘要生成",
                 replace_existing=True,
             )
 
@@ -156,6 +158,8 @@ class TaskScheduler:
             logger.info("=" * 60)
             logger.info("🚀 开始执行定时采集任务")
             logger.info(f"⏰ 时间: {datetime.now()}")
+            logger.info(f"📋 任务ID: collection_job")
+            logger.info(f"🔄 采集间隔: 每 {settings.get_auto_collection_interval_hours() or settings.COLLECTION_INTERVAL_HOURS} 小时")
 
             stats = self.collector.collect_all(enable_ai_analysis=True)
 
@@ -163,6 +167,11 @@ class TaskScheduler:
             logger.info(f"   总文章数: {stats['total_articles']}")
             logger.info(f"   新增文章: {stats['new_articles']}")
             logger.info(f"   耗时: {stats['duration']:.2f}秒")
+            
+            # 显示下次执行时间
+            job = self.scheduler.get_job("collection_job")
+            if job and job.next_run_time:
+                logger.info(f"⏰ 下次执行时间: {job.next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 60)
 
             # 检查是否有高重要性文章需要即时推送
@@ -173,7 +182,7 @@ class TaskScheduler:
             logger.error(f"❌ 采集任务执行失败: {e}", exc_info=True)
 
     def _run_daily_summary(self):
-        """执行每日摘要任务"""
+        """执行每日摘要任务（生成总结并自动推送）"""
         try:
             logger.info("=" * 60)
             logger.info("📝 开始执行每日摘要任务")
@@ -183,68 +192,37 @@ class TaskScheduler:
                 logger.warning("⚠️  AI分析器未配置，跳过摘要生成")
                 return
 
-            if not self.notifier:
-                logger.warning("⚠️  通知服务未配置，跳过推送")
+            # 使用总结生成器生成每日总结
+            # 自动执行时统计昨天的内容
+            from backend.app.services.collector.summary_generator import SummaryGenerator
+            summary_generator = SummaryGenerator(self.ai_analyzer)
+            yesterday = datetime.now() - timedelta(days=1)
+            summary_obj = summary_generator.generate_daily_summary(self.db, yesterday)
+
+            if not summary_obj:
+                logger.warning("⚠️  昨日暂无符合条件的文章，跳过推送")
+                logger.info("=" * 60)
                 return
 
-            # 获取重要文章（使用数据库查询）
-            with self.db.get_session() as session:
-                from backend.app.db.repositories import ArticleRepository
-                
-                # 获取最近24小时的高重要性文章
-                time_threshold = datetime.now() - timedelta(days=1)
-                articles = ArticleRepository.get_articles_by_filters(
-                    session=session,
-                    time_threshold=time_threshold,
-                    importance_values=["high", "medium"],
-                    limit=20
-                )
+            logger.info("📝 每日摘要生成完成")
+            logger.info(f"   文章总数: {summary_obj.total_articles}")
+            logger.info(f"   高重要性: {summary_obj.high_importance_count}")
+            logger.info(f"   中重要性: {summary_obj.medium_importance_count}")
 
-            if not articles:
-                logger.info("📭 今日暂无重要文章")
-                return
-
-            logger.info(f"📊 找到 {len(articles)} 篇重要文章")
-
-            # 准备文章数据
-            articles_data = []
-            for article in articles:
-                articles_data.append(
-                    {
-                        "title": article.title,
-                        "content": article.content,
-                        "source": article.source,
-                        "published_at": article.published_at,
-                        "summary": article.summary,
-                        "importance": article.importance,
-                    }
-                )
-
-            # 生成摘要（如果AI分析器有这个方法）
-            # 注意：这里需要根据实际的 AIAnalyzer 接口调整
-            if hasattr(self.ai_analyzer, 'generate_daily_summary'):
-                summary = self.ai_analyzer.generate_daily_summary(articles_data, max_count=15)
-            else:
-                # 如果没有这个方法，使用总结生成器
-                # 自动执行时统计昨天的内容
-                from backend.app.services.collector.summary_generator import SummaryGenerator
-                summary_generator = SummaryGenerator(self.ai_analyzer)
-                yesterday = datetime.now() - timedelta(days=1)
-                summary_obj = summary_generator.generate_daily_summary(self.db, yesterday)
-                summary = summary_obj.summary_content if summary_obj else "暂无摘要"
-
-            logger.info("📝 摘要生成完成")
-            logger.info(f"\n{summary[:500]}...\n")
-
-            # 推送到飞书
+            # 总结生成完成后，自动触发推送
             if self.notifier and hasattr(self.notifier, 'send_daily_summary'):
-                success = self.notifier.send_daily_summary(summary, self.db, limit=20)
+                logger.info("📤 开始推送每日摘要到飞书...")
+                summary_content = summary_obj.summary_content
+                success = self.notifier.send_daily_summary(summary_content, self.db, limit=20)
                 if success:
                     logger.info("✅ 每日摘要推送成功")
                 else:
                     logger.error("❌ 每日摘要推送失败")
             else:
-                logger.warning("⚠️  通知服务不支持每日摘要推送")
+                if not self.notifier:
+                    logger.warning("⚠️  通知服务未配置，跳过推送")
+                else:
+                    logger.warning("⚠️  通知服务不支持每日摘要推送")
 
             logger.info("=" * 60)
 
@@ -252,7 +230,7 @@ class TaskScheduler:
             logger.error(f"❌ 每日摘要任务执行失败: {e}", exc_info=True)
 
     def _run_weekly_summary(self):
-        """执行每周摘要任务"""
+        """执行每周摘要任务（生成总结并自动推送）"""
         try:
             logger.info("=" * 60)
             logger.info("📝 开始执行每周摘要任务")
@@ -280,13 +258,30 @@ class TaskScheduler:
             last_saturday = now - timedelta(days=days_to_last_saturday)
             summary_obj = summary_generator.generate_weekly_summary(self.db, last_saturday)
 
-            if summary_obj:
-                logger.info("📝 每周摘要生成完成")
-                logger.info(f"   文章总数: {summary_obj.total_articles}")
-                logger.info(f"   高重要性: {summary_obj.high_importance_count}")
-                logger.info(f"   中重要性: {summary_obj.medium_importance_count}")
+            if not summary_obj:
+                logger.warning("⚠️  上周暂无符合条件的文章，跳过推送")
+                logger.info("=" * 60)
+                return
+
+            logger.info("📝 每周摘要生成完成")
+            logger.info(f"   文章总数: {summary_obj.total_articles}")
+            logger.info(f"   高重要性: {summary_obj.high_importance_count}")
+            logger.info(f"   中重要性: {summary_obj.medium_importance_count}")
+
+            # 总结生成完成后，自动触发推送
+            if self.notifier and hasattr(self.notifier, 'send_daily_summary'):
+                logger.info("📤 开始推送每周摘要到飞书...")
+                summary_content = summary_obj.summary_content
+                success = self.notifier.send_daily_summary(summary_content, self.db, limit=20)
+                if success:
+                    logger.info("✅ 每周摘要推送成功")
+                else:
+                    logger.error("❌ 每周摘要推送失败")
             else:
-                logger.warning("⚠️  本周暂无符合条件的文章")
+                if not self.notifier:
+                    logger.warning("⚠️  通知服务未配置，跳过推送")
+                else:
+                    logger.warning("⚠️  通知服务不支持每周摘要推送")
 
             logger.info("=" * 60)
 
@@ -334,6 +329,7 @@ class TaskScheduler:
         try:
             logger.info("🚀 任务调度器启动中...")
             logger.info(f"📅 当前时间: {datetime.now()}")
+            logger.info(f"📊 自动采集状态: {'已启用' if settings.AUTO_COLLECTION_ENABLED else '未启用'}")
 
             # 添加任务
             # 如果启用了自动采集，使用自动采集间隔；否则使用默认的COLLECTION_INTERVAL_HOURS
@@ -362,7 +358,15 @@ class TaskScheduler:
             self.scheduler.start()
 
             # 显示即将执行的任务
-            self.scheduler.print_jobs()
+            jobs = self.scheduler.get_jobs()
+            if jobs:
+                logger.info(f"📋 已注册 {len(jobs)} 个定时任务:")
+                for job in jobs:
+                    next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else "未计划"
+                    logger.info(f"   - {job.name} (ID: {job.id})")
+                    logger.info(f"     下次执行: {next_run}")
+            else:
+                logger.warning("⚠️  调度器已启动，但未找到任何定时任务")
 
             logger.info("✅ 任务调度器已启动（后台运行）")
 

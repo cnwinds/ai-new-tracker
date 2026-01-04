@@ -81,21 +81,44 @@ async def update_auto_collection_settings(
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="保存自动采集配置失败")
     
-    # 如果调度器正在运行，更新采集任务
+    # 更新调度器任务
     try:
         from backend.app.main import scheduler
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # 如果调度器未启动，但启用了自动采集，则启动调度器
+        if new_settings.enabled and not scheduler:
+            try:
+                from backend.app.services.scheduler import create_scheduler
+                from backend.app.main import app
+                # 注意：这里不能直接修改全局变量，需要通过其他方式
+                # 暂时记录日志，提示用户重启应用
+                logger.warning("⚠️  调度器未启动，请重启应用以使自动采集生效")
+                logger.info("   提示: 调度器将在应用重启后自动启动（如果启用了自动采集）")
+            except Exception as e:
+                logger.error(f"❌ 尝试启动调度器失败: {e}")
+        
+        # 如果调度器正在运行，更新采集任务
         if scheduler:
             # 如果启用了自动采集，更新或添加任务
             if new_settings.enabled:
                 interval_hours = settings.get_auto_collection_interval_hours()
                 if interval_hours:
+                    logger.info(f"🔄 更新自动采集任务: 每 {interval_hours} 小时执行一次")
                     scheduler.add_collection_job(interval_hours)
+                    
+                    # 显示下次执行时间
+                    job = scheduler.scheduler.get_job("collection_job")
+                    if job and job.next_run_time:
+                        logger.info(f"⏰ 下次执行时间: {job.next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
             else:
                 # 如果禁用了，移除任务
                 try:
                     scheduler.scheduler.remove_job("collection_job")
-                except:
-                    pass
+                    logger.info("✅ 已移除自动采集任务")
+                except Exception as e:
+                    logger.debug(f"移除任务失败（可能任务不存在）: {e}")
     except Exception as e:
         # 如果调度器未运行或更新失败，记录日志但不影响配置保存
         import logging
