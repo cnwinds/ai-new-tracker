@@ -1,15 +1,46 @@
 # 🤖 AI News Tracker
 
-> 自动采集、AI智能分析、推送全球AI前沿资讯的智能系统
+> 自动采集、AI智能分析、RAG检索增强生成、推送全球AI前沿资讯的智能系统
 
 ## ✨ 功能特性
 
-- 📡 **多源采集**: 支持RSS订阅、API接口（arXiv、Hugging Face）、网页爬虫
-- 🤖 **AI智能分析**: 自动生成摘要、提取关键点、智能标签分类、重要性评分
-- 🌐 **Web Dashboard**: React + FastAPI 搭建的现代化可视化界面，随时查看最新资讯
-- 📱 **飞书推送**: 每日自动推送摘要到飞书，高重要文章即时提醒
-- ⏰ **定时调度**: 自动定时采集，每日生成并发送摘要
-- 🔍 **智能搜索**: 支持按来源、主题、重要性、时间筛选
+### 📡 数据采集
+- **多源采集**: 支持RSS订阅、API接口（arXiv、Hugging Face）、网页爬虫、Twitter采集
+- **智能去重**: 基于URL和标题自动去重，避免重复采集
+- **实时监控**: WebSocket实时推送采集进度和状态
+
+### 🤖 AI智能分析
+- **自动摘要**: 使用大语言模型自动生成文章摘要
+- **关键点提取**: 智能提取文章关键信息点
+- **智能标签**: 自动分类和打标签
+- **重要性评分**: AI评估文章重要性（高/中/低）
+
+### 🔍 RAG检索增强生成
+- **语义搜索**: 基于向量相似度的语义搜索，快速找到相关文章
+- **智能问答**: 基于检索到的文章内容进行智能问答
+- **向量索引**: 自动将文章内容转换为向量并建立索引
+- **批量索引**: 支持批量索引历史文章
+
+### 🌐 Web Dashboard
+- **现代化界面**: React + TypeScript + Ant Design 构建的可视化界面
+- **实时更新**: WebSocket实时推送数据更新
+- **数据统计**: 可视化展示采集统计、文章分布等
+- **系统设置**: 可视化配置系统参数（采集频率、摘要时间等）
+
+### 📱 通知推送
+- **飞书推送**: 每日/每周自动推送摘要到飞书
+- **高重要提醒**: 高重要性文章即时推送
+- **推送历史**: 查看推送历史记录
+
+### ⏰ 定时调度
+- **自动采集**: 可配置的定时采集任务
+- **自动摘要**: 定时生成每日/每周摘要
+- **灵活配置**: 通过Web界面配置调度时间
+
+### 🗑️ 数据管理
+- **数据清理**: 自动清理过期数据
+- **数据统计**: 详细的采集和文章统计
+- **订阅源管理**: 可视化管理RSS订阅源
 
 ## 📊 数据源
 
@@ -27,59 +58,214 @@
 - Papers with Code
 
 ### 社交媒体（可选）
+- Twitter/X
 - Reddit r/MachineLearning
 - Hacker News AI板块
+
+## 🛠️ 技术栈
+
+### 后端
+- **FastAPI** - 现代化Python Web框架
+- **SQLAlchemy** - ORM数据库操作
+- **SQLite** - 轻量级数据库（支持向量存储）
+- **APScheduler** - 定时任务调度
+- **OpenAI API** - AI分析和向量嵌入
+- **WebSocket** - 实时通信
+
+### 前端
+- **React 18** - UI框架
+- **TypeScript** - 类型安全
+- **Vite** - 构建工具
+- **Ant Design 5** - UI组件库
+- **React Query** - 数据获取和状态管理
+- **React Router** - 路由
+- **Recharts** - 图表库
+
+## 📁 项目结构
+
+```
+ai-news-tracker/
+├── backend/                    # 后端代码
+│   └── app/
+│       ├── main.py             # FastAPI应用入口
+│       ├── api/                # API路由
+│       │   └── v1/
+│       │       ├── api.py      # 路由聚合
+│       │       └── endpoints/  # API端点
+│       │           ├── articles.py      # 文章管理
+│       │           ├── collection.py   # 采集任务
+│       │           ├── summary.py      # 摘要生成
+│       │           ├── sources.py      # 订阅源管理
+│       │           ├── statistics.py   # 数据统计
+│       │           ├── cleanup.py     # 数据清理
+│       │           ├── settings.py    # 系统设置
+│       │           ├── websocket.py   # WebSocket
+│       │           └── rag.py         # RAG功能
+│       ├── core/               # 核心配置
+│       │   ├── config.py       # FastAPI配置
+│       │   ├── settings.py     # 应用配置管理
+│       │   ├── security.py    # 安全配置（CORS等）
+│       │   └── dependencies.py # 依赖注入
+│       ├── db/                 # 数据库模块
+│       │   ├── models.py       # 数据模型
+│       │   ├── repositories.py # 数据访问层
+│       │   └── session.py      # 数据库会话管理
+│       ├── services/           # 业务服务层
+│       │   ├── analyzer/       # AI分析服务
+│       │   │   └── ai_analyzer.py
+│       │   ├── collector/      # 数据采集服务
+│       │   │   ├── service.py
+│       │   │   ├── rss_collector.py
+│       │   │   ├── api_collector.py
+│       │   │   ├── web_collector.py
+│       │   │   ├── twitter_collector.py
+│       │   │   └── summary_generator.py
+│       │   ├── rag/            # RAG服务
+│       │   │   ├── rag_service.py
+│       │   │   └── README.md
+│       │   └── scheduler/      # 定时任务调度
+│       │       └── scheduler.py
+│       ├── schemas/            # Pydantic模型
+│       │   ├── article.py
+│       │   ├── collection.py
+│       │   ├── summary.py
+│       │   ├── source.py
+│       │   ├── statistics.py
+│       │   ├── settings.py
+│       │   └── rag.py
+│       ├── utils/              # 工具模块
+│       │   ├── logger.py       # 日志管理
+│       │   └── factories.py    # 工厂函数
+│       └── sources.json        # 数据源配置
+├── frontend/                   # 前端代码
+│   ├── src/
+│   │   ├── components/         # React组件
+│   │   │   ├── ArticleList.tsx
+│   │   │   ├── ArticleCard.tsx
+│   │   │   ├── CollectionHistory.tsx
+│   │   │   ├── DailySummary.tsx
+│   │   │   ├── Statistics.tsx
+│   │   │   ├── SourceManagement.tsx
+│   │   │   ├── DataCleanup.tsx
+│   │   │   ├── SystemSettings.tsx
+│   │   │   ├── RAG.tsx
+│   │   │   ├── RAGChat.tsx
+│   │   │   └── RAGSearch.tsx
+│   │   ├── pages/              # 页面组件
+│   │   │   └── Dashboard.tsx
+│   │   ├── services/           # API服务
+│   │   │   ├── api.ts
+│   │   │   └── websocket.ts
+│   │   ├── hooks/              # 自定义Hooks
+│   │   │   ├── useArticles.ts
+│   │   │   └── useWebSocket.ts
+│   │   ├── types/              # TypeScript类型
+│   │   │   └── index.ts
+│   │   ├── App.tsx             # 主应用组件
+│   │   └── main.tsx            # 入口文件
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts
+├── main.py                     # CLI命令行工具
+├── requirements.txt            # Python依赖
+├── logs/                       # 日志目录
+└── README.md                   # 项目文档
+```
 
 ## 🚀 快速开始
 
 ### 1. 环境要求
 
 - Python 3.9+
+- Node.js 16+ (用于前端)
 - pip
+- npm 或 yarn
 
 ### 2. 安装依赖
 
+#### 后端依赖
+
 ```bash
 # 克隆项目
+git clone <repository-url>
 cd ai-news-tracker
 
-# 安装依赖
+# 安装Python依赖
 pip install -r requirements.txt
+```
+
+#### 前端依赖
+
+```bash
+cd frontend
+npm install
 ```
 
 ### 3. 配置环境变量
 
-```bash
-# 初始化项目（复制配置文件）
-python main.py init
-
-# 编辑 .env 文件，填写以下配置：
-```
-
-**必需配置**：
+创建 `.env` 文件（在项目根目录）：
 
 ```env
 # LLM API（OpenAI兼容接口）
 OPENAI_API_BASE=https://api.openai.com/v1
 OPENAI_API_KEY=your-api-key-here
 OPENAI_MODEL=gpt-4-turbo-preview
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
 # 飞书机器人（可选）
 FEISHU_BOT_WEBHOOK=your-feishu-webhook-url
-```
 
-**可选配置**：
-
-```env
 # 数据库（默认SQLite）
-DATABASE_URL=sqlite:///./data/ai_news.db
+DATABASE_URL=sqlite:///./backend/app/data/ai_news.db
 
-# 定时任务
-COLLECTION_CRON=0 */1 * * *      # 每小时采集
-# 注意：每日和每周总结的推送时间现在通过前端界面配置，总结生成完成后会自动触发推送
+# Web服务器配置
+WEB_HOST=0.0.0.0
+WEB_PORT=8000
+
+# 日志配置
+LOG_LEVEL=INFO
+LOG_FILE=logs/app.log
 ```
 
-### 4. 使用命令
+### 4. 初始化项目
+
+```bash
+# 初始化数据库和配置文件
+python main.py init
+```
+
+### 5. 启动服务
+
+#### 启动后端API服务
+
+```bash
+# 方式1: 使用CLI工具
+python main.py web
+
+# 方式2: 直接运行
+python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+访问 http://localhost:8000/docs 查看API文档
+
+#### 启动前端开发服务器
+
+```bash
+cd frontend
+npm run dev
+```
+
+访问 http://localhost:5173 查看Web界面
+
+#### 启动定时任务调度器（可选）
+
+```bash
+python main.py schedule
+```
+
+## 📖 使用指南
+
+### CLI命令行工具
 
 #### 📥 采集数据
 
@@ -121,105 +307,45 @@ python main.py summary --hours 48 --limit 20
 python main.py send
 ```
 
-#### 🌐 启动Web界面
+### Web界面使用
 
-**后端 (FastAPI):**
-```bash
-# 启动FastAPI服务器
-python main.py web
+1. **文章管理**: 在Dashboard中浏览、筛选、搜索文章
+2. **采集任务**: 手动触发采集任务，查看采集历史
+3. **每日摘要**: 查看和生成AI摘要
+4. **数据统计**: 查看采集统计、文章分布等可视化数据
+5. **订阅源管理**: 管理RSS订阅源，启用/禁用数据源
+6. **系统设置**: 配置采集频率、摘要时间、AI模型等
+7. **RAG功能**: 使用语义搜索和智能问答
+8. **数据清理**: 清理过期数据，释放存储空间
 
-# 或指定端口
-python main.py web --port 8000
-```
+### RAG功能使用
 
-访问 http://localhost:8000/docs 查看API文档
+#### 1. 索引文章
 
-**前端 (React):**
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-访问 http://localhost:5173 查看Web界面
-
-#### ⏰ 启动定时任务
+首次使用需要索引现有文章：
 
 ```bash
-# 启动调度器（后台运行）
-python main.py schedule
+# 通过API索引所有文章
+curl -X POST http://localhost:8000/api/v1/rag/index/all?batch_size=10
 ```
 
-## 📁 项目结构
+或在Web界面的RAG页面中点击"索引所有文章"按钮。
 
-```
-ai-news-tracker/
-├── collector/           # 数据采集模块
-│   ├── rss_collector.py      # RSS采集器
-│   ├── api_collector.py      # API采集器（arXiv、HF等）
-│   └── service.py            # 采集服务
-├── analyzer/            # AI分析模块
-│   └── ai_analyzer.py        # AI内容分析器
-├── database/            # 数据库模块
-│   ├── models.py             # 数据模型
-│   ├── repositories.py        # 数据访问层（新增）
-│   └── __init__.py           # 数据库管理
-├── notification/         # 推送模块
-│   ├── feishu_notifier.py    # 飞书通知器
-│   └── service.py            # 推送服务
-├── backend/             # FastAPI后端
-│   └── app/                 # FastAPI应用
-│       ├── main.py          # 应用入口
-│       ├── sources.json     # 数据源配置
-│       ├── api/             # API路由
-│       ├── core/            # 核心配置
-│       └── schemas/         # Pydantic模型
-├── frontend/            # React前端
-│   └── src/                 # 前端源码
-│       ├── components/      # React组件
-│       ├── pages/           # 页面组件
-│       └── services/        # API服务
-├── web/                 # 旧版Streamlit应用（已废弃）
-│   └── app.py                # Streamlit应用
-├── config/              # 配置文件
-│   └── settings.py           # 统一配置管理
-├── utils/               # 工具模块（新增）
-│   ├── logger.py            # 日志管理
-│   └── factories.py         # 工厂函数
-├── main.py              # CLI入口
-├── scheduler.py         # 定时任务调度器
-├── requirements.txt     # 依赖包
-├── .env.example         # 环境变量示例
-├── README.md            # 项目文档
-└── REFACTORING.md      # 重构文档（新增）
-```
+#### 2. 语义搜索
 
-## 🎯 使用场景
+在Web界面的RAG页面中：
+- 输入搜索关键词
+- 选择筛选条件（来源、重要性等）
+- 查看搜索结果
 
-### 场景1：每日自动推送
+#### 3. 智能问答
 
-1. 配置 `.env` 文件（API密钥 + 飞书Webhook）
-2. 启动定时任务：`python main.py schedule`
-3. 系统将自动：
-   - 每小时采集最新资讯
-   - 每天早上9点生成摘要并推送飞书
+在Web界面的RAG Chat中：
+- 输入问题
+- 系统会自动检索相关文章并生成答案
+- 查看答案来源文章
 
-### 场景2：手动监控
-
-1. 启动Web界面：`python main.py web`
-2. 在浏览器中访问 Dashboard
-3. 点击"开始采集"按钮手动触发
-4. 浏览、筛选、搜索文章
-
-### 场景3：命令行查看
-
-```bash
-# 采集数据
-python main.py collect
-
-# 查看最新文章
-python main.py list --hours 24 --importance high
-```
+详细API文档请参考 [RAG服务README](backend/app/services/rag/README.md)
 
 ## ⚙️ 配置说明
 
@@ -231,18 +357,26 @@ python main.py list --hours 24 --importance high
 - 修改每源最大文章数
 - 添加自定义RSS源
 
+### 系统设置（Web界面）
+
+通过Web界面的"系统设置"页面可以配置：
+- **采集设置**: 自动采集开关、采集频率、最大文章数等
+- **摘要设置**: 每日/每周摘要开关、摘要时间、摘要数量等
+- **LLM设置**: API地址、模型名称、温度等
+- **通知设置**: 飞书Webhook、推送开关等
+
 ### AI分析配置
 
 支持的LLM API（通过 `OPENAI_API_BASE` 配置）：
 - OpenAI官方
 - Azure OpenAI
-- 各种兼容OpenAI格式的第三方API（如DeepSeek）
+- 各种兼容OpenAI格式的第三方API（如DeepSeek、Claude等）
 
 ### 飞书机器人配置
 
-1. 创建飞书机器人
+1. 在飞书群组中创建自定义机器人
 2. 获取Webhook URL
-3. 填写 `FEISHU_BOT_WEBHOOK` 环境变量
+3. 在系统设置中填写Webhook URL
 
 ## 🔧 高级功能
 
@@ -256,7 +390,8 @@ python main.py list --hours 24 --importance high
   "url": "https://example.com/rss",
   "category": "custom",
   "enabled": true,
-  "priority": 2
+  "priority": 2,
+  "max_articles": 50
 }
 ```
 
@@ -268,20 +403,28 @@ python main.py list --hours 24 --importance high
 FROM python:3.9-slim
 
 WORKDIR /app
+
+# 安装依赖
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# 复制代码
 COPY . .
 
-CMD ["python", "main.py", "schedule"]
+# 启动命令
+CMD ["python", "main.py", "web"]
 ```
 
 构建运行：
 
 ```bash
 docker build -t ai-news-tracker .
-docker run -d --env-file .env ai-news-tracker
+docker run -d --env-file .env -p 8000:8000 ai-news-tracker
 ```
+
+### 数据库迁移
+
+项目使用SQLAlchemy ORM，数据库结构变更会自动处理。首次运行时会自动创建数据库表。
 
 ## 📈 数据库结构
 
@@ -290,37 +433,81 @@ docker run -d --env-file .env ai-news-tracker
 - 来源、作者、发布时间
 - AI总结、关键点、标签
 - 重要性、目标受众
+- 向量嵌入（用于RAG）
 
 ### collection_logs（采集日志）
 - 记录每次采集的源、状态、文章数
+- 采集时间、耗时
 
 ### notification_logs（推送日志）
 - 记录推送历史和状态
+- 推送时间、内容摘要
+
+### settings（系统设置表）
+- 采集配置
+- 摘要配置
+- LLM配置
+- 通知配置
 
 ## 🐛 故障排查
 
 ### 问题1：RSS采集失败
 - 检查网络连接
 - 某些RSS源可能需要代理
+- 查看日志文件 `logs/app.log`
 
 ### 问题2：AI分析报错
 - 检查 `OPENAI_API_KEY` 是否正确
 - 检查API额度是否充足
 - 尝试更换API端点
+- 检查模型名称是否正确
 
 ### 问题3：飞书推送失败
 - 确认Webhook URL正确
 - 检查飞书机器人权限
+- 查看推送日志
 
-## 🔧 最近更新
+### 问题4：RAG功能异常
+- 确保已配置 `OPENAI_API_KEY`
+- 检查向量索引是否已创建
+- 查看RAG服务日志
 
-### v2.0 - 代码重构与优化
+### 问题5：前端无法连接后端
+- 确认后端服务已启动（默认端口8000）
+- 检查前端环境变量 `VITE_API_BASE_URL`
+- 检查CORS配置
+
+## 📝 开发计划
+
+- [x] 基础数据采集功能
+- [x] AI智能分析
+- [x] Web Dashboard
+- [x] RAG检索增强生成
+- [x] WebSocket实时通信
+- [x] 系统设置管理
+- [ ] 支持更多数据源（YouTube、Podcast等）
+- [ ] 用户个性化推荐
+- [ ] 数据导出功能（PDF、邮件）
+- [ ] 多语言支持
+- [ ] 移动端适配
+
+## 🔄 版本历史
+
+### v2.0.0 - 架构重构
 
 **新增功能**：
-- ✨ 统一配置管理模块（`config/settings.py`）
-- ✨ 统一日志管理模块（`utils/logger.py`）
-- ✨ 数据访问层（`database/repositories.py`）
-- ✨ 工厂函数模块（`utils/factories.py`）
+- ✨ RAG检索增强生成功能
+- ✨ WebSocket实时通信
+- ✨ 系统设置管理（Web界面）
+- ✨ 数据清理功能
+- ✨ 向量搜索和智能问答
+
+**架构改进**：
+- 🏗️ 模块化项目结构
+- 🏗️ 统一配置管理模块
+- 🏗️ 统一日志管理模块
+- 🏗️ 数据访问层（Repository模式）
+- 🏗️ 工厂函数模块
 
 **性能优化**：
 - 🚀 添加数据库复合索引，优化查询性能
@@ -332,18 +519,6 @@ docker run -d --env-file .env ai-news-tracker
 - 📝 统一AI分析器初始化逻辑
 - 📝 改进类型提示和文档
 - 📝 清理重复代码
-
-**文档更新**：
-- 📖 添加详细的重构文档（`REFACTORING.md`）
-- 📖 更新项目结构说明
-
-## 📝 开发计划
-
-- [ ] 支持更多数据源（Twitter、YouTube等）
-- [ ] 添加向量搜索（语义相似度）
-- [ ] 支持多语言摘要
-- [ ] 用户个性化推荐
-- [ ] 数据导出功能（PDF、邮件）
 
 ## 📄 License
 

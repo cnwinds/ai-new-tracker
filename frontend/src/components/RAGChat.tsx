@@ -3,7 +3,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Card, Input, Button, List, Typography, Empty, Spin, Alert, Space, Tag, Avatar, Select } from 'antd';
-import { SendOutlined, UserOutlined, RobotOutlined, LinkOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { apiService } from '@/services/api';
@@ -11,7 +11,7 @@ import type { RAGQueryRequest, RAGQueryResponse, ArticleSearchResult } from '@/t
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 interface Message {
   id: string;
@@ -244,10 +244,21 @@ export default function RAGChat() {
     }
   };
 
-  const importanceColors: Record<string, string> = {
-    high: 'red',
-    medium: 'orange',
-    low: 'green',
+  // 处理回答文本中的引用格式：将"文章 X"转换为"[X]"，并移除文章标题和来源
+  const processAnswerText = (text: string): string => {
+    let processed = text;
+    
+    // 1. 将"文章 X"或"文章X"转换为"[X]"
+    processed = processed.replace(/文章\s*(\d+)/g, '[$1]');
+    
+    // 2. 移除类似"——《文章标题》，来源：来源名称"的格式
+    // 匹配：——（或长破折号）《标题》，来源：来源名
+    processed = processed.replace(/[———]\s*《[^》]+》[，,]\s*来源[：:]\s*[^\n]+/g, '');
+    
+    // 3. 移除类似"——《文章标题》"的格式（没有来源的情况）
+    processed = processed.replace(/[———]\s*《[^》]+》/g, '');
+    
+    return processed;
   };
 
   return (
@@ -357,7 +368,7 @@ export default function RAGChat() {
                                 ),
                               }}
                             >
-                              {message.content}
+                              {processAnswerText(message.content)}
                             </ReactMarkdown>
                           </div>
                         ) : (
@@ -374,70 +385,46 @@ export default function RAGChat() {
                             参考来源：
                           </Text>
                           <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                            {message.articles.map((article, idx) => (
-                              <Card
-                                key={idx}
-                                size="small"
-                                style={{
-                                  backgroundColor: '#fafafa',
-                                  border: '1px solid #e8e8e8',
-                                }}
-                              >
-                                <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                                    {article.importance && (
-                                      <Tag color={importanceColors[article.importance]}>
-                                        {article.importance === 'high' ? '高' : article.importance === 'medium' ? '中' : '低'}
-                                      </Tag>
-                                    )}
-                                    <Tag color="blue">{article.source}</Tag>
-                                  </div>
-                                  <Title level={5} style={{ marginBottom: 4, fontSize: 14 }}>
-                                    {article.title_zh || article.title}
-                                  </Title>
-                                  {article.summary && (
-                                    <div
+                            {message.articles.map((article, idx) => {
+                              const articleNumber = idx + 1;
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    padding: '8px 12px',
+                                    backgroundColor: '#fafafa',
+                                    border: '1px solid #e8e8e8',
+                                    borderRadius: '4px',
+                                  }}
+                                >
+                                  <Space wrap>
+                                    <a
+                                      href={article.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
                                       style={{
-                                        fontSize: 12,
-                                        color: 'rgba(0, 0, 0, 0.65)',
-                                        lineHeight: 1.5,
+                                        color: '#1890ff',
+                                        textDecoration: 'none',
+                                        fontWeight: 500,
+                                        fontSize: 14,
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.textDecoration = 'underline';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.textDecoration = 'none';
                                       }}
                                     >
-                                      <ReactMarkdown
-                                        components={{
-                                          p: ({ children }) => <p style={{ marginBottom: '0.25em', marginTop: 0, fontSize: 12 }}>{children}</p>,
-                                          strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
-                                          em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
-                                          h1: ({ children }) => <h1 style={{ fontSize: '1.2em', fontWeight: 600, marginBottom: '0.25em', marginTop: 0 }}>{children}</h1>,
-                                          h2: ({ children }) => <h2 style={{ fontSize: '1.1em', fontWeight: 600, marginBottom: '0.25em', marginTop: 0 }}>{children}</h2>,
-                                          h3: ({ children }) => <h3 style={{ fontSize: '1em', fontWeight: 600, marginBottom: '0.25em', marginTop: 0 }}>{children}</h3>,
-                                          code: ({ children }) => <code style={{ backgroundColor: '#f5f5f5', padding: '1px 3px', borderRadius: '2px', fontSize: '0.85em' }}>{children}</code>,
-                                          a: ({ href, children }) => (
-                                            <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#1890ff', fontSize: 12 }}>
-                                              {children}
-                                            </a>
-                                          ),
-                                        }}
-                                      >
-                                        {article.summary.length > 100
-                                          ? `${article.summary.substring(0, 100)}...`
-                                          : article.summary}
-                                      </ReactMarkdown>
-                                    </div>
-                                  )}
-                                  <Button
-                                    type="link"
-                                    icon={<LinkOutlined />}
-                                    href={article.url}
-                                    target="_blank"
-                                    size="small"
-                                    style={{ padding: 0 }}
-                                  >
-                                    查看原文
-                                  </Button>
-                                </Space>
-                              </Card>
-                            ))}
+                                      [{articleNumber}]
+                                    </a>
+                                    <Text style={{ fontSize: 14 }}>
+                                      {article.title_zh || article.title}
+                                    </Text>
+                                    <Tag color="blue">{article.source}</Tag>
+                                  </Space>
+                                </div>
+                              );
+                            })}
                           </Space>
                         </div>
                       )}
