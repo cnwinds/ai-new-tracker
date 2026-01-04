@@ -153,11 +153,25 @@ export interface SummarySettings {
   weekly_summary_time: string; // 格式：HH:MM，如 "09:00"，在周六执行
 }
 
+export interface LLMProvider {
+  id: number;
+  name: string;
+  api_key: string;
+  api_base: string;
+  llm_model: string;
+  embedding_model?: string;
+  enabled: boolean;
+}
+
+export type LLMProviderCreate = Omit<LLMProvider, 'id'>;
+
+export type LLMProviderUpdate = Partial<LLMProviderCreate>;
+
 export interface LLMSettings {
-  openai_api_key: string;
-  openai_api_base: string;
-  openai_model: string;
-  openai_embedding_model: string;
+  selected_llm_provider_id?: number | null;
+  selected_embedding_provider_id?: number | null;
+  selected_llm_models?: string[] | null;
+  selected_embedding_models?: string[] | null;
 }
 
 export interface CollectorSettings {

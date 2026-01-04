@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.app.db.models import Article, RSSSource, CollectionTask, CollectionLog, AppSettings
+from backend.app.db.models import Article, RSSSource, CollectionTask, CollectionLog, AppSettings, LLMProvider
 
 
 class ArticleRepository:
@@ -407,3 +407,146 @@ class AppSettingsRepository:
         for setting in settings:
             result[setting.key] = AppSettingsRepository.get_setting(session, setting.key)
         return result
+
+
+class LLMProviderRepository:
+    """LLM提供商数据访问类"""
+
+    @staticmethod
+    def get_all(session: Session, enabled_only: bool = False) -> list[LLMProvider]:
+        """
+        获取所有提供商
+
+        Args:
+            session: 数据库会话
+            enabled_only: 是否只返回启用的提供商
+
+        Returns:
+            提供商列表
+        """
+        query = session.query(LLMProvider)
+        if enabled_only:
+            query = query.filter(LLMProvider.enabled == True)
+        return query.order_by(LLMProvider.name.asc()).all()
+
+    @staticmethod
+    def get_by_id(session: Session, provider_id: int) -> LLMProvider or None:
+        """
+        根据ID获取提供商
+
+        Args:
+            session: 数据库会话
+            provider_id: 提供商ID
+
+        Returns:
+            提供商对象或None
+        """
+        return session.query(LLMProvider).filter(LLMProvider.id == provider_id).first()
+
+    @staticmethod
+    def create(session: Session, name: str, api_key: str, api_base: str, 
+               llm_model: str, embedding_model: str = None, enabled: bool = True) -> LLMProvider:
+        """
+        创建新提供商
+
+        Args:
+            session: 数据库会话
+            name: 提供商名称
+            api_key: API密钥
+            api_base: API基础URL
+            llm_model: 大模型名称
+            embedding_model: 向量模型名称（可选）
+            enabled: 是否启用
+
+        Returns:
+            创建的提供商对象
+        """
+        provider = LLMProvider(
+            name=name,
+            api_key=api_key,
+            api_base=api_base,
+            llm_model=llm_model,
+            embedding_model=embedding_model,
+            enabled=enabled
+        )
+        session.add(provider)
+        session.commit()
+        session.refresh(provider)
+        return provider
+
+    @staticmethod
+    def update(session: Session, provider_id: int, name: str = None, api_key: str = None,
+               api_base: str = None, llm_model: str = None, embedding_model: str = None,
+               enabled: bool = None) -> LLMProvider or None:
+        """
+        更新提供商
+
+        Args:
+            session: 数据库会话
+            provider_id: 提供商ID
+            name: 提供商名称（可选）
+            api_key: API密钥（可选）
+            api_base: API基础URL（可选）
+            llm_model: 大模型名称（可选）
+            embedding_model: 向量模型名称（可选）
+            enabled: 是否启用（可选）
+
+        Returns:
+            更新后的提供商对象或None
+        """
+        provider = session.query(LLMProvider).filter(LLMProvider.id == provider_id).first()
+        if not provider:
+            return None
+
+        if name is not None:
+            provider.name = name
+        if api_key is not None:
+            provider.api_key = api_key
+        if api_base is not None:
+            provider.api_base = api_base
+        if llm_model is not None:
+            provider.llm_model = llm_model
+        if embedding_model is not None:
+            provider.embedding_model = embedding_model
+        if enabled is not None:
+            provider.enabled = enabled
+
+        session.commit()
+        session.refresh(provider)
+        return provider
+
+    @staticmethod
+    def delete(session: Session, provider_id: int) -> bool:
+        """
+        删除提供商
+
+        Args:
+            session: 数据库会话
+            provider_id: 提供商ID
+
+        Returns:
+            是否删除成功
+        """
+        provider = session.query(LLMProvider).filter(LLMProvider.id == provider_id).first()
+        if provider:
+            session.delete(provider)
+            session.commit()
+            return True
+        return False
+
+    @staticmethod
+    def get_enabled_with_embedding(session: Session) -> list[LLMProvider]:
+        """
+        获取已启用且支持向量模型的提供商
+
+        Args:
+            session: 数据库会话
+
+        Returns:
+            提供商列表
+        """
+        return session.query(LLMProvider).filter(
+            LLMProvider.enabled == True,
+            LLMProvider.embedding_model.isnot(None),
+            LLMProvider.embedding_model != ""
+        ).order_by(LLMProvider.name.asc()).all()

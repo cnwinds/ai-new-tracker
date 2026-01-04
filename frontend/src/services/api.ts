@@ -18,6 +18,9 @@ import type {
   AutoCollectionSettings,
   SummarySettings,
   LLMSettings,
+  LLMProvider,
+  LLMProviderCreate,
+  LLMProviderUpdate,
   CollectorSettings,
   NotificationSettings,
   RAGSearchRequest,
@@ -256,6 +259,31 @@ class ApiService {
   async updateLLMSettings(data: LLMSettings): Promise<LLMSettings> {
     const response = await this.client.put<LLMSettings>('/settings/llm', data);
     return response.data;
+  }
+
+  // 提供商管理相关
+  async getProviders(enabledOnly: boolean = false): Promise<LLMProvider[]> {
+    const response = await this.client.get<LLMProvider[]>(`/settings/providers?enabled_only=${enabledOnly}`);
+    return response.data;
+  }
+
+  async getProvider(providerId: number): Promise<LLMProvider> {
+    const response = await this.client.get<LLMProvider>(`/settings/providers/${providerId}`);
+    return response.data;
+  }
+
+  async createProvider(data: LLMProviderCreate): Promise<LLMProvider> {
+    const response = await this.client.post<LLMProvider>('/settings/providers', data);
+    return response.data;
+  }
+
+  async updateProvider(providerId: number, data: LLMProviderUpdate): Promise<LLMProvider> {
+    const response = await this.client.put<LLMProvider>(`/settings/providers/${providerId}`, data);
+    return response.data;
+  }
+
+  async deleteProvider(providerId: number): Promise<void> {
+    await this.client.delete(`/settings/providers/${providerId}`);
   }
 
   // 采集器配置相关

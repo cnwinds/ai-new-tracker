@@ -3,6 +3,7 @@
 """
 from typing import Optional
 import sys
+import logging
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -11,6 +12,8 @@ sys.path.insert(0, str(project_root))
 
 from backend.app.services.analyzer.ai_analyzer import AIAnalyzer
 from backend.app.core.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 def create_ai_analyzer(api_key: Optional[str] = None) -> Optional[AIAnalyzer]:
@@ -23,13 +26,51 @@ def create_ai_analyzer(api_key: Optional[str] = None) -> Optional[AIAnalyzer]:
     Returns:
         AI分析器实例，如果未配置API密钥则返回None
     """
-    key = api_key or settings.OPENAI_API_KEY
-    if not key:
+    # 确保配置已加载
+    settings.load_settings_from_db()
+    
+    # 获取提供商配置
+    llm_provider_config = settings.get_llm_provider_config()
+    embedding_provider_config = settings.get_embedding_provider_config()
+    
+    # 必须选择提供商
+    if not llm_provider_config:
+        logger.warning("未选择LLM提供商，无法创建AI分析器")
         return None
-
-    return AIAnalyzer(
-        api_key=key,
-        base_url=settings.OPENAI_API_BASE,
-        model=settings.OPENAI_MODEL,
-        embedding_model=settings.OPENAI_EMBEDDING_MODEL,
-    )
+    
+    llm_api_key = api_key or llm_provider_config["api_key"]
+    llm_api_base = llm_provider_config["api_base"]
+    # 使用 settings 中已选定的模型（第一个选定的模型）
+    llm_model = settings.OPENAI_MODEL
+    
+    if not llm_api_key:
+        return None
+    
+    # 确定向量模型配置
+    if not embedding_provider_config:
+        logger.warning("未选择向量模型提供商，无法创建AI分析器")
+        return None
+    
+    embedding_api_key = embedding_provider_config["api_key"]
+    embedding_api_base = embedding_provider_config["api_base"]
+    # 使用 settings 中已选定的向量模型（第一个选定的模型）
+    embedding_model = settings.OPENAI_EMBEDDING_MODEL
+    
+    # 如果大模型和向量模型使用不同的提供商，传递独立的配置
+    if llm_provider_config["id"] != embedding_provider_config["id"]:
+        return AIAnalyzer(
+            api_key=llm_api_key,
+            base_url=llm_api_base,
+            model=llm_model,
+            embedding_model=embedding_model,
+            embedding_api_key=embedding_api_key,
+            embedding_api_base=embedding_api_base,
+        )
+    else:
+        # 使用同一个提供商
+        return AIAnalyzer(
+            api_key=llm_api_key,
+            base_url=llm_api_base,
+            model=llm_model,
+            embedding_model=embedding_model,
+        )

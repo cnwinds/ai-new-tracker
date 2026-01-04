@@ -17,9 +17,15 @@ from backend.app.schemas.settings import (
     SummarySettings,
     LLMSettings,
     CollectorSettings,
-    NotificationSettings
+    NotificationSettings,
+    LLMProvider,
+    LLMProviderCreate,
+    LLMProviderUpdate
 )
 from backend.app.core.settings import settings
+from backend.app.db import get_db
+from backend.app.db.repositories import LLMProviderRepository
+from fastapi import HTTPException
 
 router = APIRouter()
 
@@ -205,10 +211,10 @@ async def get_llm_settings():
     # 确保从数据库加载最新配置
     settings.load_settings_from_db()
     return LLMSettings(
-        openai_api_key=settings.OPENAI_API_KEY,
-        openai_api_base=settings.OPENAI_API_BASE,
-        openai_model=settings.OPENAI_MODEL,
-        openai_embedding_model=settings.OPENAI_EMBEDDING_MODEL,
+        selected_llm_provider_id=settings.SELECTED_LLM_PROVIDER_ID,
+        selected_embedding_provider_id=settings.SELECTED_EMBEDDING_PROVIDER_ID,
+        selected_llm_models=settings.SELECTED_LLM_MODELS,
+        selected_embedding_models=settings.SELECTED_EMBEDDING_MODELS,
     )
 
 
@@ -218,21 +224,139 @@ async def update_llm_settings(
 ):
     """更新LLM配置"""
     success = settings.save_llm_settings(
-        api_key=new_settings.openai_api_key,
-        api_base=new_settings.openai_api_base,
-        model=new_settings.openai_model,
-        embedding_model=new_settings.openai_embedding_model,
+        selected_llm_provider_id=new_settings.selected_llm_provider_id,
+        selected_embedding_provider_id=new_settings.selected_embedding_provider_id,
+        selected_llm_models=new_settings.selected_llm_models,
+        selected_embedding_models=new_settings.selected_embedding_models,
     )
     if not success:
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="保存LLM配置失败")
     
+    # 重新加载配置
+    settings.load_settings_from_db()
     return LLMSettings(
-        openai_api_key=settings.OPENAI_API_KEY,
-        openai_api_base=settings.OPENAI_API_BASE,
-        openai_model=settings.OPENAI_MODEL,
-        openai_embedding_model=settings.OPENAI_EMBEDDING_MODEL,
+        selected_llm_provider_id=settings.SELECTED_LLM_PROVIDER_ID,
+        selected_embedding_provider_id=settings.SELECTED_EMBEDDING_PROVIDER_ID,
+        selected_llm_models=settings.SELECTED_LLM_MODELS,
+        selected_embedding_models=settings.SELECTED_EMBEDDING_MODELS,
     )
+
+
+@router.get("/providers", response_model=list[LLMProvider])
+async def get_providers(enabled_only: bool = False):
+    """获取所有提供商列表"""
+    db = get_db()
+    with db.get_session() as session:
+        providers = LLMProviderRepository.get_all(session, enabled_only=enabled_only)
+        return [LLMProvider(
+            id=p.id,
+            name=p.name,
+            api_key=p.api_key,
+            api_base=p.api_base,
+            llm_model=p.llm_model,
+            embedding_model=p.embedding_model,
+            enabled=p.enabled
+        ) for p in providers]
+
+
+@router.post("/providers", response_model=LLMProvider)
+async def create_provider(provider_data: LLMProviderCreate):
+    """创建新提供商"""
+    db = get_db()
+    with db.get_session() as session:
+        try:
+            provider = LLMProviderRepository.create(
+                session=session,
+                name=provider_data.name,
+                api_key=provider_data.api_key,
+                api_base=provider_data.api_base,
+                llm_model=provider_data.llm_model,
+                embedding_model=provider_data.embedding_model,
+                enabled=provider_data.enabled
+            )
+            return LLMProvider(
+                id=provider.id,
+                name=provider.name,
+                api_key=provider.api_key,
+                api_base=provider.api_base,
+                llm_model=provider.llm_model,
+                embedding_model=provider.embedding_model,
+                enabled=provider.enabled
+            )
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(status_code=400, detail=f"创建提供商失败: {str(e)}")
+
+
+@router.get("/providers/{provider_id}", response_model=LLMProvider)
+async def get_provider(provider_id: int):
+    """获取指定提供商"""
+    db = get_db()
+    with db.get_session() as session:
+        provider = LLMProviderRepository.get_by_id(session, provider_id)
+        if not provider:
+            raise HTTPException(status_code=404, detail="提供商不存在")
+        return LLMProvider(
+            id=provider.id,
+            name=provider.name,
+            api_key=provider.api_key,
+            api_base=provider.api_base,
+            llm_model=provider.llm_model,
+            embedding_model=provider.embedding_model,
+            enabled=provider.enabled
+        )
+
+
+@router.put("/providers/{provider_id}", response_model=LLMProvider)
+async def update_provider(provider_id: int, provider_data: LLMProviderUpdate):
+    """更新提供商"""
+    db = get_db()
+    with db.get_session() as session:
+        provider = LLMProviderRepository.update(
+            session=session,
+            provider_id=provider_id,
+            name=provider_data.name,
+            api_key=provider_data.api_key,
+            api_base=provider_data.api_base,
+            llm_model=provider_data.llm_model,
+            embedding_model=provider_data.embedding_model,
+            enabled=provider_data.enabled
+        )
+        if not provider:
+            raise HTTPException(status_code=404, detail="提供商不存在")
+        return LLMProvider(
+            id=provider.id,
+            name=provider.name,
+            api_key=provider.api_key,
+            api_base=provider.api_base,
+            llm_model=provider.llm_model,
+            embedding_model=provider.embedding_model,
+            enabled=provider.enabled
+        )
+
+
+@router.delete("/providers/{provider_id}")
+async def delete_provider(provider_id: int):
+    """删除提供商"""
+    db = get_db()
+    with db.get_session() as session:
+        # 检查是否正在使用此提供商
+        settings.load_settings_from_db()
+        if settings.SELECTED_LLM_PROVIDER_ID == provider_id:
+            raise HTTPException(
+                status_code=400, 
+                detail="无法删除正在使用的LLM提供商，请先选择其他提供商"
+            )
+        if settings.SELECTED_EMBEDDING_PROVIDER_ID == provider_id:
+            raise HTTPException(
+                status_code=400,
+                detail="无法删除正在使用的向量模型提供商，请先选择其他提供商"
+            )
+        
+        success = LLMProviderRepository.delete(session, provider_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="提供商不存在")
+        return {"message": "提供商已删除"}
 
 
 @router.get("/collector", response_model=CollectorSettings)

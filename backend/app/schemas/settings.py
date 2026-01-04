@@ -1,6 +1,7 @@
 """
 配置相关的 Pydantic 模型
 """
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -26,12 +27,45 @@ class SummarySettings(BaseModel):
     weekly_summary_time: str = Field(default="09:00", description="每周总结时间（格式：HH:MM，如09:00，在周六执行）")
 
 
+class LLMProviderBase(BaseModel):
+    """LLM提供商基础模型"""
+    name: str = Field(..., description="提供商名称")
+    api_key: str = Field(..., description="API密钥")
+    api_base: str = Field(..., description="API基础URL")
+    llm_model: str = Field(..., description="大模型名称")
+    embedding_model: Optional[str] = Field(None, description="向量模型名称（可选）")
+    enabled: bool = Field(default=True, description="是否启用")
+
+
+class LLMProviderCreate(LLMProviderBase):
+    """创建LLM提供商模型"""
+    pass
+
+
+class LLMProviderUpdate(BaseModel):
+    """更新LLM提供商模型"""
+    name: Optional[str] = Field(None, description="提供商名称")
+    api_key: Optional[str] = Field(None, description="API密钥")
+    api_base: Optional[str] = Field(None, description="API基础URL")
+    llm_model: Optional[str] = Field(None, description="大模型名称")
+    embedding_model: Optional[str] = Field(None, description="向量模型名称（可选）")
+    enabled: Optional[bool] = Field(None, description="是否启用")
+
+
+class LLMProvider(LLMProviderBase):
+    """LLM提供商模型"""
+    id: int = Field(..., description="提供商ID")
+    
+    class Config:
+        from_attributes = True
+
+
 class LLMSettings(BaseModel):
     """LLM配置模型"""
-    openai_api_key: str = Field(..., description="OpenAI API密钥")
-    openai_api_base: str = Field(default="https://api.openai.com/v1", description="OpenAI API基础URL")
-    openai_model: str = Field(default="gpt-4-turbo-preview", description="OpenAI模型名称")
-    openai_embedding_model: str = Field(default="text-embedding-3-small", description="OpenAI嵌入模型名称")
+    selected_llm_provider_id: Optional[int] = Field(None, description="选定的LLM提供商ID")
+    selected_embedding_provider_id: Optional[int] = Field(None, description="选定的向量模型提供商ID")
+    selected_llm_models: Optional[List[str]] = Field(None, description="选定的LLM模型列表")
+    selected_embedding_models: Optional[List[str]] = Field(None, description="选定的向量模型列表")
 
 
 class CollectorSettings(BaseModel):

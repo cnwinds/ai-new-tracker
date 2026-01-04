@@ -541,6 +541,10 @@ class CollectionService:
 
         # 从数据库读取RSS源（只读取source_type为rss的源）
         rss_configs = []
+        from backend.app.core.settings import settings
+        # 确保加载最新的配置
+        settings.load_collector_settings()
+        
         with db.get_session() as session:
             db_sources = session.query(RSSSource).filter(
                 RSSSource.enabled == True,
@@ -552,7 +556,7 @@ class CollectionService:
                     "name": source.name,
                     "url": source.url,
                     "enabled": source.enabled,
-                    "max_articles": 20,  # 默认值
+                    "max_articles": settings.MAX_ARTICLES_PER_SOURCE,  # 使用配置值
                     "category": source.category,
                     "tier": source.tier,
                 })
@@ -802,17 +806,26 @@ class CollectionService:
                     query = config.get("query")
                     if not query:
                         raise ValueError(f"{name}: ArXiv采集器需要配置query参数")
-                    max_results = config.get("max_results", 20)
+                    # 使用配置值作为默认值
+                    from backend.app.core.settings import settings
+                    settings.load_collector_settings()
+                    max_results = config.get("max_results", settings.MAX_ARTICLES_PER_SOURCE)
                     articles = self.arxiv_collector.fetch_papers(query, max_results)
 
                 elif collector_type == "huggingface" or collector_type == "hf" or (not collector_type and "huggingface.co" in url):
                     collector_used = "huggingface"
-                    limit = config.get("max_results", 20)
+                    # 使用配置值作为默认值
+                    from backend.app.core.settings import settings
+                    settings.load_collector_settings()
+                    limit = config.get("max_results", settings.MAX_ARTICLES_PER_SOURCE)
                     articles = self.hf_collector.fetch_trending_papers(limit)
 
                 elif collector_type == "paperswithcode" or collector_type == "pwc" or (not collector_type and "paperswithcode.com" in url):
                     collector_used = "paperswithcode"
-                    limit = config.get("max_results", 20)
+                    # 使用配置值作为默认值
+                    from backend.app.core.settings import settings
+                    settings.load_collector_settings()
+                    limit = config.get("max_results", settings.MAX_ARTICLES_PER_SOURCE)
                     articles = self.pwc_collector.fetch_trending_papers(limit)
 
                 else:
@@ -950,6 +963,12 @@ class CollectionService:
             # 合并 extra_config 到主配置
             config = self._merge_extra_config(config)
             source_name = config.get("name", "Unknown")
+            
+            # 如果没有配置max_articles，使用全局配置值
+            if "max_articles" not in config:
+                from backend.app.core.settings import settings
+                settings.load_collector_settings()
+                config["max_articles"] = settings.MAX_ARTICLES_PER_SOURCE
 
             try:
                 logger.info(f"  🌐 开始采集网站: {source_name}")
@@ -1095,6 +1114,12 @@ class CollectionService:
             config = self._merge_extra_config(config)
             source_name = config.get("name", "Unknown")
             platform = config.get("platform", "").lower() if config.get("platform") else ""
+            
+            # 如果没有配置max_articles，使用全局配置值（RSS和Twitter采集器都需要）
+            if "max_articles" not in config:
+                from backend.app.core.settings import settings
+                settings.load_collector_settings()
+                config["max_articles"] = settings.MAX_ARTICLES_PER_SOURCE
 
             try:
                 logger.info(f"  📱 开始采集社交媒体: {source_name} (平台: {platform or '未指定'})")
@@ -1120,6 +1145,10 @@ class CollectionService:
                 elif platform == "twitter" or (not platform and ("twitter.com" in config.get("url", "").lower() or "x.com" in config.get("url", "").lower())):
                     # Twitter 使用专门的 Twitter 采集器（支持 Nitter RSS、TodayRss、Twitter API）
                     collector_used = "twitter"
+                    # 如果config中没有max_tweets，使用max_articles或配置值
+                    if "max_tweets" not in config:
+                        # settings已经在上面导入
+                        config["max_tweets"] = config.get("max_articles", settings.MAX_ARTICLES_PER_SOURCE)
                     articles = self.twitter_collector.fetch_tweets(config)
 
                 else:
