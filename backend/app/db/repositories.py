@@ -144,6 +144,24 @@ class ArticleRepository:
         try:
             article = session.query(Article).filter(Article.id == article_id).first()
             if article:
+                # 先删除关联的 ArticleEmbedding 记录
+                from backend.app.db.models import ArticleEmbedding
+                session.query(ArticleEmbedding).filter(
+                    ArticleEmbedding.article_id == article_id
+                ).delete()
+                
+                # 删除 vec_embeddings 表中的相关记录（如果使用了 sqlite-vec）
+                try:
+                    from sqlalchemy import text
+                    session.execute(
+                        text("DELETE FROM vec_embeddings WHERE article_id = :article_id"),
+                        {"article_id": article_id}
+                    )
+                except Exception:
+                    # vec_embeddings 表可能不存在，忽略错误
+                    pass
+                
+                # 然后删除文章
                 session.delete(article)
                 session.commit()
                 return True

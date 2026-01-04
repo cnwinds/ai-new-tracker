@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.app.db.models import Article, CollectionLog, NotificationLog, RSSSource
+from backend.app.db.models import Article, ArticleEmbedding, CollectionLog, NotificationLog, RSSSource
 from backend.app.core.dependencies import get_database
 from pydantic import BaseModel
 from typing import List, Optional
@@ -68,6 +68,23 @@ async def cleanup_data(
                     conditions.append(Article.source.in_(source_names))
                 
                 if conditions:
+                    # 先获取要删除的文章ID列表
+                    article_ids = [a.id for a in db.query(Article.id).filter(or_(*conditions)).all()]
+                    # 删除关联的 ArticleEmbedding 记录
+                    if article_ids:
+                        db.query(ArticleEmbedding).filter(
+                            ArticleEmbedding.article_id.in_(article_ids)
+                        ).delete(synchronize_session=False)
+                        # 删除 vec_embeddings 表中的相关记录
+                        try:
+                            from sqlalchemy import text
+                            db.execute(
+                                text("DELETE FROM vec_embeddings WHERE article_id IN :article_ids"),
+                                {"article_ids": tuple(article_ids)}
+                            )
+                        except Exception:
+                            pass
+                    
                     count = db.query(Article).filter(
                         or_(*conditions)
                     ).delete(synchronize_session=False)
@@ -76,12 +93,50 @@ async def cleanup_data(
         # 清理旧文章
         if request.delete_articles_older_than_days:
             threshold = datetime.now() - timedelta(days=request.delete_articles_older_than_days)
+            # 先获取要删除的文章ID列表
+            article_ids = [a.id for a in db.query(Article.id).filter(
+                Article.created_at < threshold
+            ).all()]
+            # 删除关联的 ArticleEmbedding 记录
+            if article_ids:
+                db.query(ArticleEmbedding).filter(
+                    ArticleEmbedding.article_id.in_(article_ids)
+                ).delete(synchronize_session=False)
+                # 删除 vec_embeddings 表中的相关记录
+                try:
+                    from sqlalchemy import text
+                    db.execute(
+                        text("DELETE FROM vec_embeddings WHERE article_id IN :article_ids"),
+                        {"article_ids": tuple(article_ids)}
+                    )
+                except Exception:
+                    pass
+            
             deleted_articles += db.query(Article).filter(
                 Article.created_at < threshold
             ).delete(synchronize_session=False)
         
         # 清理未分析的文章
         if request.delete_unanalyzed_articles:
+            # 先获取要删除的文章ID列表
+            article_ids = [a.id for a in db.query(Article.id).filter(
+                Article.is_processed == False
+            ).all()]
+            # 删除关联的 ArticleEmbedding 记录
+            if article_ids:
+                db.query(ArticleEmbedding).filter(
+                    ArticleEmbedding.article_id.in_(article_ids)
+                ).delete(synchronize_session=False)
+                # 删除 vec_embeddings 表中的相关记录
+                try:
+                    from sqlalchemy import text
+                    db.execute(
+                        text("DELETE FROM vec_embeddings WHERE article_id IN :article_ids"),
+                        {"article_ids": tuple(article_ids)}
+                    )
+                except Exception:
+                    pass
+            
             deleted_articles += db.query(Article).filter(
                 Article.is_processed == False
             ).delete(synchronize_session=False)
