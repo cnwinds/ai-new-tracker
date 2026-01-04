@@ -166,7 +166,6 @@ ai-news-tracker/
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vite.config.ts
-├── main.py                     # CLI命令行工具
 ├── requirements.txt            # Python依赖
 ├── logs/                       # 日志目录
 └── README.md                   # 项目文档
@@ -206,43 +205,28 @@ npm install
 创建 `.env` 文件（在项目根目录）：
 
 ```env
-# LLM API（OpenAI兼容接口）
-OPENAI_API_BASE=https://api.openai.com/v1
-OPENAI_API_KEY=your-api-key-here
-OPENAI_MODEL=gpt-4-turbo-preview
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
-
-# 飞书机器人（可选）
-FEISHU_BOT_WEBHOOK=your-feishu-webhook-url
-
-# 数据库（默认SQLite）
+# 数据库（默认SQLite，可选）
 DATABASE_URL=sqlite:///./backend/app/data/ai_news.db
 
-# Web服务器配置
+# Web服务器配置（可选）
 WEB_HOST=0.0.0.0
 WEB_PORT=8000
 
-# 日志配置
+# 日志配置（可选）
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
 ```
 
-### 4. 初始化项目
+**注意**：LLM API 配置（API地址、密钥、模型等）和飞书机器人配置现在通过 Web 界面的"系统设置"页面进行配置，存储在数据库中。启动服务后，访问系统设置页面进行配置。
 
-```bash
-# 初始化数据库和配置文件
-python main.py init
-```
+**注意**：数据库会在首次启动时自动初始化，无需手动初始化。
 
-### 5. 启动服务
+### 4. 启动服务
 
 #### 启动后端API服务
 
 ```bash
-# 方式1: 使用CLI工具
-python main.py web
-
-# 方式2: 直接运行
+# 启动FastAPI服务器
 python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -257,55 +241,21 @@ npm run dev
 
 访问 http://localhost:5173 查看Web界面
 
-#### 启动定时任务调度器（可选）
+#### 配置系统设置
 
-```bash
-python main.py schedule
-```
+启动服务后，首次使用需要配置系统设置：
+
+1. 访问 Web 界面：http://localhost:5173
+2. 进入"系统设置"页面
+3. 配置以下内容：
+   - **LLM设置**：填写 OpenAI API 地址、密钥、模型名称等（必需，用于AI分析和RAG功能）
+   - **通知设置**：填写飞书Webhook URL（可选，用于推送通知）
+   - **采集设置**：配置自动采集频率等
+   - **摘要设置**：配置每日/每周摘要时间等
+
+**注意**：定时任务调度器会在后端服务启动时自动启动（如果系统设置中启用了自动采集）。无需单独启动。
 
 ## 📖 使用指南
-
-### CLI命令行工具
-
-#### 📥 采集数据
-
-```bash
-# 基础采集（不含AI分析）
-python main.py collect --no-ai
-
-# 完整采集（含AI分析）
-python main.py collect --enable-ai
-```
-
-#### 📝 查看文章
-
-```bash
-# 列出最近24小时的文章
-python main.py list
-
-# 列出最近3天的高重要性文章
-python main.py list --hours 72 --importance high
-
-# 显示最近50篇
-python main.py list --limit 50
-```
-
-#### 📊 生成摘要
-
-```bash
-# 生成每日摘要（控制台显示）
-python main.py summary
-
-# 自定义时间范围和数量
-python main.py summary --hours 48 --limit 20
-```
-
-#### 📤 推送到飞书
-
-```bash
-# 发送每日摘要到飞书
-python main.py send
-```
 
 ### Web界面使用
 
@@ -359,15 +309,31 @@ curl -X POST http://localhost:8000/api/v1/rag/index/all?batch_size=10
 
 ### 系统设置（Web界面）
 
+**重要**：以下配置均通过 Web 界面的"系统设置"页面进行配置，存储在数据库中，无需在 `.env` 文件中配置。
+
 通过Web界面的"系统设置"页面可以配置：
+
 - **采集设置**: 自动采集开关、采集频率、最大文章数等
 - **摘要设置**: 每日/每周摘要开关、摘要时间、摘要数量等
-- **LLM设置**: API地址、模型名称、温度等
-- **通知设置**: 飞书Webhook、推送开关等
+- **LLM设置**: 
+  - API地址（如 `https://api.openai.com/v1`）
+  - API密钥
+  - 模型名称（如 `gpt-4-turbo-preview`）
+  - 嵌入模型（如 `text-embedding-3-small`）
+  - 温度等参数
+- **通知设置**: 
+  - 飞书Webhook URL
+  - 推送开关等
+
+**配置步骤**：
+1. 启动后端和前端服务
+2. 访问 Web 界面（http://localhost:5173）
+3. 进入"系统设置"页面
+4. 在相应的配置项中填写信息并保存
 
 ### AI分析配置
 
-支持的LLM API（通过 `OPENAI_API_BASE` 配置）：
+支持的LLM API（在系统设置的"LLM设置"中配置）：
 - OpenAI官方
 - Azure OpenAI
 - 各种兼容OpenAI格式的第三方API（如DeepSeek、Claude等）
@@ -376,7 +342,7 @@ curl -X POST http://localhost:8000/api/v1/rag/index/all?batch_size=10
 
 1. 在飞书群组中创建自定义机器人
 2. 获取Webhook URL
-3. 在系统设置中填写Webhook URL
+3. 在Web界面的"系统设置" → "通知设置"中填写Webhook URL并保存
 
 ## 🔧 高级功能
 
@@ -412,7 +378,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # 启动命令
-CMD ["python", "main.py", "web"]
+CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 构建运行：
@@ -457,18 +423,20 @@ docker run -d --env-file .env -p 8000:8000 ai-news-tracker
 - 查看日志文件 `logs/app.log`
 
 ### 问题2：AI分析报错
-- 检查 `OPENAI_API_KEY` 是否正确
+- 检查系统设置中的"LLM设置"是否已正确配置
+- 检查API密钥是否正确（在系统设置中查看）
 - 检查API额度是否充足
-- 尝试更换API端点
-- 检查模型名称是否正确
+- 尝试更换API端点（在系统设置中修改）
+- 检查模型名称是否正确（在系统设置中查看）
 
 ### 问题3：飞书推送失败
-- 确认Webhook URL正确
+- 确认系统设置中的"通知设置"已填写Webhook URL
+- 检查Webhook URL是否正确
 - 检查飞书机器人权限
 - 查看推送日志
 
 ### 问题4：RAG功能异常
-- 确保已配置 `OPENAI_API_KEY`
+- 确保系统设置中的"LLM设置"已正确配置（包括API密钥和嵌入模型）
 - 检查向量索引是否已创建
 - 查看RAG服务日志
 
