@@ -23,8 +23,8 @@ router = APIRouter()
 
 class CleanupRequest(BaseModel):
     """清理请求"""
-    delete_articles_older_than_days: int = None
-    delete_logs_older_than_days: int = None
+    delete_articles_older_than_days: Optional[int] = None
+    delete_logs_older_than_days: Optional[int] = None
     delete_unanalyzed_articles: bool = False
     delete_articles_by_sources: Optional[List[str]] = None  # 订阅源名称列表
 
