@@ -107,8 +107,20 @@ class Settings:
         """检查通知是否启用"""
         return bool(self.NOTIFICATION_WEBHOOK_URL)
     
-    def load_settings_from_db(self):
-        """从数据库加载所有配置（在数据库初始化后调用）"""
+    def load_settings_from_db(self, force_reload: bool = False):
+        """从数据库加载所有配置（在数据库初始化后调用）
+        
+        Args:
+            force_reload: 如果为True，强制重新加载所有配置（忽略缓存）
+        """
+        if force_reload:
+            # 重置所有加载标志，强制重新加载
+            self._collection_settings_loaded = False
+            self._summary_settings_loaded = False
+            self._llm_settings_loaded = False
+            self._collector_settings_loaded = False
+            self._notification_settings_loaded = False
+        
         self._load_collection_settings()
         self._load_summary_settings()
         self._load_llm_settings()
@@ -492,6 +504,7 @@ class Settings:
             # 记录加载结果（用于调试）
             logger.debug(f"LLM配置加载完成: API_KEY={'已配置' if self.OPENAI_API_KEY else '未配置'}, "
                         f"BASE={self.OPENAI_API_BASE}, MODEL={self.OPENAI_MODEL}, "
+                        f"EMBEDDING_MODEL={self.OPENAI_EMBEDDING_MODEL}, "
                         f"LLM_PROVIDER_ID={self.SELECTED_LLM_PROVIDER_ID}, "
                         f"EMBEDDING_PROVIDER_ID={self.SELECTED_EMBEDDING_PROVIDER_ID}")
             
@@ -499,6 +512,11 @@ class Settings:
         except Exception as e:
             # 如果数据库未初始化或读取失败，使用默认值（环境变量）
             logger.debug(f"从数据库加载LLM配置失败，使用环境变量: {e}")
+    
+    def load_llm_settings(self):
+        """公共方法：强制重新加载LLM配置（从数据库读取最新值）"""
+        self._llm_settings_loaded = False
+        self._load_llm_settings()
     
     def save_llm_settings(self, selected_llm_provider_id: Optional[int] = None,
                           selected_embedding_provider_id: Optional[int] = None,
@@ -641,6 +659,11 @@ class Settings:
         except Exception as e:
             # 如果数据库未初始化或读取失败，使用默认值（环境变量）
             logger.debug(f"从数据库加载采集器配置失败，使用环境变量: {e}")
+    
+    def load_collector_settings(self):
+        """公共方法：强制重新加载采集器配置（从数据库读取最新值）"""
+        self._collector_settings_loaded = False
+        self._load_collector_settings()
     
     def save_collector_settings(self, collection_interval_hours: int, max_articles_per_source: int, request_timeout: int):
         """保存采集器配置到数据库"""
