@@ -104,20 +104,42 @@ mkdir -p logs
 # 设置环境变量
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 
+# 获取公网IP并确定监听地址
+PUBLIC_IP=$(get_public_ip)
+# 检查公网IP是否在本地网络接口上
+LOCAL_IPS=$(hostname -I 2>/dev/null || ip addr show 2>/dev/null | grep -oP 'inet \K[\d.]+' | tr '\n' ' ')
+HOST_TO_BIND="0.0.0.0"
+BIND_INFO="所有网络接口"
+
+# 如果公网IP在本地接口上，使用公网IP；否则使用0.0.0.0
+if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "localhost" ]; then
+    for ip in $LOCAL_IPS; do
+        if [ "$ip" = "$PUBLIC_IP" ]; then
+            HOST_TO_BIND="$PUBLIC_IP"
+            BIND_INFO="公网IP: ${PUBLIC_IP}"
+            break
+        fi
+    done
+    # 如果公网IP不在本地接口上（可能是弹性IP或NAT），使用0.0.0.0
+    # 0.0.0.0会监听所有接口，包括可以通过公网IP访问的接口
+fi
+
 # 在后台启动后端
 nohup python3 -m uvicorn backend.app.main:app \
     --reload \
-    --host 0.0.0.0 \
+    --host "$HOST_TO_BIND" \
     --port 8000 \
     --log-level info \
     > logs/backend.log 2>&1 &
 
 BACKEND_PID=$!
-PUBLIC_IP=$(get_public_ip)
 echo "$BACKEND_PID" > "$BACKEND_PID_FILE"
 echo -e "${GREEN}后端服务已启动 (PID: $BACKEND_PID)${NC}"
+echo -e "${YELLOW}  - 监听地址: ${HOST_TO_BIND}:8000 (${BIND_INFO})${NC}"
 echo -e "${YELLOW}  - API 文档: http://localhost:8000/docs${NC}"
-echo -e "${YELLOW}  - API 文档: http://${PUBLIC_IP}:8000/docs (公网)${NC}"
+if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "localhost" ]; then
+    echo -e "${YELLOW}  - API 文档: http://${PUBLIC_IP}:8000/docs (公网)${NC}"
+fi
 echo -e "${YELLOW}  - 健康检查: http://localhost:8000/health${NC}"
 echo -e "${YELLOW}  - 日志文件: logs/backend.log${NC}"
 
