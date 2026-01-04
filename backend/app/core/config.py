@@ -21,12 +21,14 @@ class Settings:
     VERSION: str = "2.0.0"
     
     # CORS 配置
-    BACKEND_CORS_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://localhost:5173",  # Vite 默认端口
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ]
+    # 从环境变量读取，如果没有设置则允许所有来源（开发环境）
+    _cors_origins = os.getenv("BACKEND_CORS_ORIGINS", "")
+    if _cors_origins:
+        # 如果环境变量设置了，使用环境变量的值（逗号分隔）
+        BACKEND_CORS_ORIGINS: list = [origin.strip() for origin in _cors_origins.split(",")]
+    else:
+        # 默认允许所有来源（开发环境）
+        BACKEND_CORS_ORIGINS: list = ["*"]
     
     # 服务器配置
     HOST: str = app_settings.WEB_HOST
