@@ -156,7 +156,7 @@ class AIAnalyzer:
             
             # 处理 summary 字段：确保是字符串类型
             if "summary" not in result or not result["summary"]:
-                result["summary"] = result_text[:500] if result_text else ""
+                result["summary"] = result_text if result_text else ""  # 保存完整响应内容，方便后续研究问题
             else:
                 # 确保 summary 是字符串，而不是其他类型
                 summary_value = result["summary"]
@@ -289,7 +289,7 @@ URL: {url}
         """解析文本响应（当API返回的不是JSON时）"""
         result = {
             "importance": "medium",
-            "summary": text[:500],
+            "summary": text,  # 保存完整响应内容，方便后续研究问题
             "topics": [],
             "tags": [],
             "key_points": [],
