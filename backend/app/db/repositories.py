@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.app.db.models import Article, RSSSource, CollectionTask, CollectionLog
+from backend.app.db.models import Article, RSSSource, CollectionTask, CollectionLog, AppSettings
 
 
 class ArticleRepository:
@@ -314,3 +314,96 @@ class CollectionLogRepository:
         )
 
         return query.order_by(CollectionLog.started_at.desc()).all()
+
+
+class AppSettingsRepository:
+    """应用配置数据访问类"""
+
+    @staticmethod
+    def get_setting(session: Session, key: str, default_value=None):
+        """
+        获取配置值
+
+        Args:
+            session: 数据库会话
+            key: 配置键
+            default_value: 默认值
+
+        Returns:
+            配置值
+        """
+        setting = session.query(AppSettings).filter(AppSettings.key == key).first()
+        if not setting:
+            return default_value
+        
+        # 根据类型转换值
+        if setting.value_type == "int":
+            return int(setting.value) if setting.value else default_value
+        elif setting.value_type == "bool":
+            return setting.value.lower() in ("true", "1", "yes") if setting.value else default_value
+        elif setting.value_type == "json":
+            import json
+            return json.loads(setting.value) if setting.value else default_value
+        else:
+            return setting.value if setting.value else default_value
+
+    @staticmethod
+    def set_setting(session: Session, key: str, value, value_type: str = "string", description: str = None):
+        """
+        设置配置值
+
+        Args:
+            session: 数据库会话
+            key: 配置键
+            value: 配置值
+            value_type: 值类型（string/int/bool/json）
+            description: 配置说明
+
+        Returns:
+            是否成功
+        """
+        try:
+            # 转换值为字符串
+            if value_type == "json":
+                import json
+                value_str = json.dumps(value, ensure_ascii=False)
+            else:
+                value_str = str(value)
+            
+            setting = session.query(AppSettings).filter(AppSettings.key == key).first()
+            if setting:
+                setting.value = value_str
+                setting.value_type = value_type
+                if description:
+                    setting.description = description
+            else:
+                setting = AppSettings(
+                    key=key,
+                    value=value_str,
+                    value_type=value_type,
+                    description=description
+                )
+                session.add(setting)
+            
+            session.commit()
+            return True
+        except Exception as e:
+            session.rollback()
+            raise e
+
+    @staticmethod
+    def get_all_settings(session: Session) -> dict:
+        """
+        获取所有配置
+
+        Args:
+            session: 数据库会话
+
+        Returns:
+            配置字典 {key: value}
+        """
+        settings = session.query(AppSettings).all()
+        result = {}
+        for setting in settings:
+            result[setting.key] = AppSettingsRepository.get_setting(session, setting.key)
+        return result

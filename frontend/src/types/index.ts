@@ -141,7 +141,9 @@ export interface CollectionSettings {
 
 export interface AutoCollectionSettings {
   enabled: boolean;
-  time: string; // 格式：HH:MM，如 "09:00"
+  interval_hours: number; // 采集间隔（小时）
+  max_articles_per_source: number; // 每次采集每源最多获取文章数
+  request_timeout: number; // 请求超时（秒）
 }
 
 export interface SummarySettings {
@@ -149,6 +151,19 @@ export interface SummarySettings {
   daily_summary_time: string; // 格式：HH:MM，如 "09:00"
   weekly_summary_enabled: boolean;
   weekly_summary_time: string; // 格式：HH:MM，如 "09:00"，在周六执行
+}
+
+export interface LLMSettings {
+  openai_api_key: string;
+  openai_api_base: string;
+  openai_model: string;
+  openai_embedding_model: string;
+}
+
+export interface CollectorSettings {
+  collection_interval_hours: number;
+  max_articles_per_source: number;
+  request_timeout: number;
 }
 
 export interface WebSocketMessage {
@@ -162,6 +177,63 @@ export interface SummaryGenerateRequest {
   summary_type: 'daily' | 'weekly';
   date?: string; // 指定日期 (YYYY-MM-DD格式)
   week?: string; // 指定周 (YYYY-WW格式，如2024-01表示2024年第1周)
+}
+
+// RAG相关类型定义
+export interface ArticleSearchResult {
+  id: number;
+  title: string;
+  title_zh?: string;
+  url: string;
+  summary?: string;
+  source: string;
+  published_at?: string;
+  importance?: 'high' | 'medium' | 'low';
+  topics?: string[];
+  tags?: string[];
+  similarity: number; // 相似度分数 (0-1)
+}
+
+export interface RAGSearchRequest {
+  query: string;
+  top_k?: number;
+  sources?: string[];
+  importance?: string[];
+  time_from?: string;
+  time_to?: string;
+}
+
+export interface RAGSearchResponse {
+  query: string;
+  results: ArticleSearchResult[];
+  total: number;
+}
+
+export interface RAGQueryRequest {
+  question: string;
+  top_k?: number;
+}
+
+export interface RAGQueryResponse {
+  question: string;
+  answer: string;
+  sources: string[];
+  articles: ArticleSearchResult[];
+}
+
+export interface RAGStatsResponse {
+  total_articles: number;
+  indexed_articles: number;
+  unindexed_articles: number;
+  index_coverage: number; // 索引覆盖率 (0-1)
+  source_stats: Record<string, number>;
+}
+
+export interface RAGBatchIndexResponse {
+  total: number;
+  success: number;
+  failed: number;
+  message: string;
 }
 
 

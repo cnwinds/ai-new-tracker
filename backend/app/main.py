@@ -32,6 +32,22 @@ async def lifespan(app: FastAPI):
     # 启动事件
     logger.info("🚀 应用启动中...")
     
+    # 初始化数据库（确保数据库已创建）
+    try:
+        from backend.app.db import get_db
+        db = get_db()
+        logger.info("✅ 数据库已初始化")
+    except Exception as e:
+        logger.warning(f"⚠️  数据库初始化失败: {e}")
+    
+    # 从数据库加载配置
+    try:
+        from backend.app.core.settings import settings as app_settings
+        app_settings.load_settings_from_db()
+        logger.info("✅ 配置已从数据库加载")
+    except Exception as e:
+        logger.warning(f"⚠️  从数据库加载配置失败: {e}")
+    
     # 可选：启动定时任务调度器
     # 如果环境变量 ENABLE_SCHEDULER=true，则启动调度器
     if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":

@@ -1,8 +1,8 @@
 /**
  * Dashboard 主页面
  */
-import { useState, useEffect } from 'react';
-import { Layout, Menu, Tabs, Badge } from 'antd';
+import { useState } from 'react';
+import { Layout, Tabs, Badge } from 'antd';
 import {
   FileTextOutlined,
   HistoryOutlined,
@@ -10,6 +10,8 @@ import {
   SettingOutlined,
   DeleteOutlined,
   ReadOutlined,
+  SearchOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import ArticleList from '@/components/ArticleList';
 import CollectionHistory from '@/components/CollectionHistory';
@@ -17,9 +19,11 @@ import DailySummary from '@/components/DailySummary';
 import Statistics from '@/components/Statistics';
 import SourceManagement from '@/components/SourceManagement';
 import DataCleanup from '@/components/DataCleanup';
+import RAG from '@/components/RAG';
+import SystemSettings from '@/components/SystemSettings';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
-const { Header, Content, Sider } = Layout;
+const { Header, Content } = Layout;
 
 export default function Dashboard() {
   const [selectedTab, setSelectedTab] = useState('articles');
@@ -85,6 +89,26 @@ export default function Dashboard() {
         </span>
       ),
       children: <DataCleanup />,
+    },
+    {
+      key: 'rag',
+      label: (
+        <span>
+          <SearchOutlined />
+          智能搜索
+        </span>
+      ),
+      children: <RAG />,
+    },
+    {
+      key: 'system',
+      label: (
+        <span>
+          <ToolOutlined />
+          系统配置
+        </span>
+      ),
+      children: <SystemSettings />,
     },
   ];
 

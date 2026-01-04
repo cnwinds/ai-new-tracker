@@ -31,4 +31,5 @@ def create_ai_analyzer(api_key: Optional[str] = None) -> Optional[AIAnalyzer]:
         api_key=key,
         base_url=settings.OPENAI_API_BASE,
         model=settings.OPENAI_MODEL,
+        embedding_model=settings.OPENAI_EMBEDDING_MODEL,
     )

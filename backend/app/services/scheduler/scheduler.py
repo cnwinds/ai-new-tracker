@@ -3,6 +3,7 @@
 """
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta
 import logging
 import sys
@@ -68,32 +69,32 @@ class TaskScheduler:
         self.db = get_db()
         logger.info("✅ 数据库初始化成功")
 
-    def add_collection_job(self, cron_expression: str = None):
+    def add_collection_job(self, interval_hours: int = None):
         """
-        添加定时采集任务
+        添加定时采集任务（使用间隔时间）
 
         Args:
-            cron_expression: cron表达式，默认从配置读取
+            interval_hours: 采集间隔（小时），默认从配置读取
         """
-        if cron_expression is None:
-            cron_expression = settings.COLLECTION_CRON
+        if interval_hours is None:
+            interval_hours = settings.get_auto_collection_interval_hours()
+            if interval_hours is None:
+                # 如果自动采集未启用，使用默认的 COLLECTION_INTERVAL_HOURS
+                interval_hours = settings.COLLECTION_INTERVAL_HOURS
         
         try:
-            # 解析cron表达式
-            # 格式: 分 时 日 月 周
-            parts = cron_expression.split()
-            if len(parts) != 5:
-                raise ValueError(f"无效的cron表达式: {cron_expression}")
+            if interval_hours <= 0:
+                raise ValueError(f"无效的采集间隔: {interval_hours} 小时")
 
             self.scheduler.add_job(
                 func=self._run_collection,
-                trigger=CronTrigger.from_crontab(cron_expression),
+                trigger=IntervalTrigger(hours=interval_hours),
                 id="collection_job",
                 name="定时数据采集",
                 replace_existing=True,
             )
 
-            logger.info(f"✅ 定时采集任务已添加: {cron_expression}")
+            logger.info(f"✅ 定时采集任务已添加: 每 {interval_hours} 小时执行一次")
 
         except Exception as e:
             logger.error(f"❌ 添加定时采集任务失败: {e}")
@@ -335,17 +336,20 @@ class TaskScheduler:
             logger.info(f"📅 当前时间: {datetime.now()}")
 
             # 添加任务
-            # 如果启用了自动采集，使用自动采集时间；否则使用默认的COLLECTION_CRON
+            # 如果启用了自动采集，使用自动采集间隔；否则使用默认的COLLECTION_INTERVAL_HOURS
             if settings.AUTO_COLLECTION_ENABLED:
-                cron_expr = settings.get_auto_collection_cron()
-                if cron_expr:
-                    logger.info(f"⏰ 使用自动采集时间: {settings.AUTO_COLLECTION_TIME}")
-                    self.add_collection_job(cron_expr)
+                interval_hours = settings.get_auto_collection_interval_hours()
+                if interval_hours:
+                    logger.info(f"⏰ 使用自动采集间隔: 每 {interval_hours} 小时执行一次")
+                    self.add_collection_job(interval_hours)
                 else:
-                    logger.warning("⚠️  自动采集时间配置无效，使用默认配置")
+                    logger.warning("⚠️  自动采集间隔配置无效，使用默认配置")
                     self.add_collection_job()
             else:
-                self.add_collection_job()
+                # 即使未启用自动采集，也可以使用默认间隔（如果需要）
+                logger.info(f"⏰ 自动采集未启用，使用默认间隔: 每 {settings.COLLECTION_INTERVAL_HOURS} 小时")
+                # 注意：如果不需要，可以注释掉下面这行
+                # self.add_collection_job()
             
             # 添加总结任务
             if settings.DAILY_SUMMARY_ENABLED:

@@ -17,6 +17,14 @@ import type {
   CollectionSettings,
   AutoCollectionSettings,
   SummarySettings,
+  LLMSettings,
+  CollectorSettings,
+  RAGSearchRequest,
+  RAGSearchResponse,
+  RAGQueryRequest,
+  RAGQueryResponse,
+  RAGStatsResponse,
+  RAGBatchIndexResponse,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -235,6 +243,54 @@ class ApiService {
 
   async updateSummarySettings(data: SummarySettings): Promise<SummarySettings> {
     const response = await this.client.put<SummarySettings>('/settings/summary', data);
+    return response.data;
+  }
+
+  // LLM配置相关
+  async getLLMSettings(): Promise<LLMSettings> {
+    const response = await this.client.get<LLMSettings>('/settings/llm');
+    return response.data;
+  }
+
+  async updateLLMSettings(data: LLMSettings): Promise<LLMSettings> {
+    const response = await this.client.put<LLMSettings>('/settings/llm', data);
+    return response.data;
+  }
+
+  // 采集器配置相关
+  async getCollectorSettings(): Promise<CollectorSettings> {
+    const response = await this.client.get<CollectorSettings>('/settings/collector');
+    return response.data;
+  }
+
+  async updateCollectorSettings(data: CollectorSettings): Promise<CollectorSettings> {
+    const response = await this.client.put<CollectorSettings>('/settings/collector', data);
+    return response.data;
+  }
+
+  // RAG相关
+  async searchArticles(request: RAGSearchRequest): Promise<RAGSearchResponse> {
+    const response = await this.client.post<RAGSearchResponse>('/rag/search', request);
+    return response.data;
+  }
+
+  async queryArticles(request: RAGQueryRequest): Promise<RAGQueryResponse> {
+    const response = await this.client.post<RAGQueryResponse>('/rag/query', request);
+    return response.data;
+  }
+
+  async getRAGStats(): Promise<RAGStatsResponse> {
+    const response = await this.client.get<RAGStatsResponse>('/rag/stats');
+    return response.data;
+  }
+
+  async indexArticle(articleId: number): Promise<any> {
+    const response = await this.client.post(`/rag/index/${articleId}`);
+    return response.data;
+  }
+
+  async indexAllUnindexedArticles(batchSize: number = 10): Promise<RAGBatchIndexResponse> {
+    const response = await this.client.post<RAGBatchIndexResponse>(`/rag/index/all?batch_size=${batchSize}`);
     return response.data;
   }
 }

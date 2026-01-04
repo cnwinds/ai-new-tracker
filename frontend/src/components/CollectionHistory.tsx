@@ -20,7 +20,6 @@ import {
   Empty,
   Spin,
   Switch,
-  TimePicker,
 } from 'antd';
 import { PlayCircleOutlined, ReloadOutlined, EyeOutlined, SettingOutlined, StopOutlined } from '@ant-design/icons';
 import { LinkOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
@@ -105,10 +104,11 @@ export default function CollectionHistory() {
   // 初始化表单
   useEffect(() => {
     if (autoCollectionSettings && autoCollectionModalVisible) {
-      const [hour, minute] = autoCollectionSettings.time.split(':');
       autoCollectionForm.setFieldsValue({
         enabled: autoCollectionSettings.enabled,
-        time: dayjs().hour(parseInt(hour)).minute(parseInt(minute)),
+        interval_hours: autoCollectionSettings.interval_hours,
+        max_articles_per_source: autoCollectionSettings.max_articles_per_source,
+        request_timeout: autoCollectionSettings.request_timeout,
       });
     }
   }, [autoCollectionSettings, autoCollectionModalVisible, autoCollectionForm]);
@@ -473,10 +473,11 @@ export default function CollectionHistory() {
           form={autoCollectionForm}
           layout="vertical"
           onFinish={(values) => {
-            const timeStr = values.time.format('HH:mm');
             updateAutoCollectionMutation.mutate({
               enabled: values.enabled,
-              time: timeStr,
+              interval_hours: values.interval_hours,
+              max_articles_per_source: values.max_articles_per_source,
+              request_timeout: values.request_timeout,
             });
           }}
         >
@@ -488,21 +489,64 @@ export default function CollectionHistory() {
           >
             <Switch />
           </Form.Item>
+          
           <Form.Item
-            name="time"
-            label="每日采集时间"
-            rules={[{ required: true, message: '请选择采集时间' }]}
-            tooltip="设置每日自动采集的时间，格式：HH:MM"
+            name="interval_hours"
+            label="采集间隔（小时）"
+            rules={[
+              { required: true, message: '请输入采集间隔' },
+              { type: 'number', min: 1, message: '采集间隔至少为1小时' },
+            ]}
+            tooltip="设置自动采集的间隔时间，单位为小时"
           >
-            <TimePicker
-              format="HH:mm"
+            <InputNumber
+              min={1}
+              max={24}
               style={{ width: '100%' }}
-              placeholder="选择时间"
+              placeholder="请输入间隔小时数"
+              addonAfter="小时"
             />
           </Form.Item>
+          
+          <Form.Item
+            name="max_articles_per_source"
+            label="每源最大文章数"
+            rules={[
+              { required: true, message: '请输入每源最大文章数' },
+              { type: 'number', min: 1, message: '每源最大文章数至少为1' },
+            ]}
+            tooltip="每次采集时，从每个数据源最多获取的文章数量"
+          >
+            <InputNumber
+              min={1}
+              max={1000}
+              style={{ width: '100%' }}
+              placeholder="请输入最大文章数"
+              addonAfter="篇"
+            />
+          </Form.Item>
+          
+          <Form.Item
+            name="request_timeout"
+            label="请求超时（秒）"
+            rules={[
+              { required: true, message: '请输入请求超时时间' },
+              { type: 'number', min: 1, message: '请求超时时间至少为1秒' },
+            ]}
+            tooltip="HTTP请求的超时时间，单位为秒"
+          >
+            <InputNumber
+              min={1}
+              max={300}
+              style={{ width: '100%' }}
+              placeholder="请输入超时时间"
+              addonAfter="秒"
+            />
+          </Form.Item>
+          
           {autoCollectionSettings?.enabled && (
             <Alert
-              message={`当前已启用自动采集，每日 ${autoCollectionSettings.time} 执行`}
+              message={`当前已启用自动采集，每 ${autoCollectionSettings.interval_hours} 小时执行一次`}
               type="info"
               showIcon
               style={{ marginTop: 16 }}

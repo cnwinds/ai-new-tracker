@@ -29,8 +29,4 @@ apscheduler>=3.10.0
 # Utilities
 python-dateutil>=2.8.0
 
-# Optional: SQLite Vector Extension
-# sqlite-vss>=0.1.0  # Uncomment if you want to use sqlite-vss for vector search
-# Note: sqlite-vss requires compilation and may not work on all platforms
-# The current implementation uses Python-based vector calculations (numpy)
-
+sqlite-vec

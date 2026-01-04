@@ -4,10 +4,12 @@ RAG服务 - 实现文章向量索引、搜索和问答功能
 import json
 import logging
 import numpy as np
+import struct
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, text
+from sqlalchemy.engine import Connection
 
 from backend.app.db.models import Article, ArticleEmbedding
 from backend.app.services.analyzer.ai_analyzer import AIAnalyzer
@@ -28,17 +30,29 @@ class RAGService:
         """
         self.ai_analyzer = ai_analyzer
         self.db = db
-        self._init_vector_extension()
+        self._use_sqlite_vec = self._check_sqlite_vec_available()
 
-    def _init_vector_extension(self):
-        """初始化sqlite-vss扩展（如果可用）"""
+    def _check_sqlite_vec_available(self) -> bool:
+        """检查sqlite-vec扩展是否可用"""
         try:
-            # 尝试加载sqlite-vss扩展
-            # 注意：这需要在SQLite连接上执行，而不是在SQLAlchemy会话上
-            # 我们将在实际使用时处理
-            logger.info("✅ RAG服务初始化完成（使用Python向量计算）")
+            # 尝试查询vec0虚拟表
+            result = self.db.execute(text("SELECT 1 FROM vec_embeddings LIMIT 1"))
+            result.fetchone()
+            logger.info("✅ sqlite-vec扩展可用，将使用SQL向量搜索")
+            return True
         except Exception as e:
-            logger.warning(f"⚠️  sqlite-vss扩展不可用，将使用Python向量计算: {e}")
+            logger.info(f"ℹ️  sqlite-vec扩展不可用，将使用Python向量计算: {e}")
+            return False
+
+    def _vector_to_blob(self, vector: List[float]) -> bytes:
+        """将向量转换为BLOB格式（sqlite-vec需要）"""
+        # sqlite-vec期望的格式：浮点数数组（小端序）
+        return struct.pack(f'{len(vector)}f', *vector)
+
+    def _vector_to_match_string(self, vector: List[float]) -> str:
+        """将向量转换为MATCH操作符需要的字符串格式"""
+        # sqlite-vec的MATCH操作符需要JSON数组格式的字符串
+        return json.dumps(vector)
 
     def _combine_article_text(self, article: Article) -> str:
         """
@@ -159,6 +173,23 @@ class RAGService:
                 self.db.add(embedding_obj)
             
             self.db.commit()
+            
+            # 如果sqlite-vec可用，同步到vec0虚拟表
+            if self._use_sqlite_vec:
+                try:
+                    # sqlite-vec的vec0表需要存储浮点数数组（BLOB格式）
+                    vector_blob = self._vector_to_blob(embedding)
+                    self.db.execute(
+                        text("""
+                            INSERT OR REPLACE INTO vec_embeddings (article_id, embedding)
+                            VALUES (:article_id, :embedding)
+                        """),
+                        {"article_id": article.id, "embedding": vector_blob}
+                    )
+                    self.db.commit()
+                except Exception as e:
+                    logger.warning(f"⚠️  同步向量到vec0表失败: {e}")
+            
             logger.info(f"✅ 文章 {article.id} 索引成功")
             return True
             
@@ -260,72 +291,182 @@ class RAGService:
                 logger.error("❌ 查询向量生成失败")
                 return []
             
-            # 获取所有已索引的文章嵌入
-            query_obj = self.db.query(ArticleEmbedding, Article).join(
-                Article, ArticleEmbedding.article_id == Article.id
-            )
-            
-            # 应用过滤条件
-            if filters:
-                if filters.get("sources"):
-                    query_obj = query_obj.filter(Article.source.in_(filters["sources"]))
-                
-                if filters.get("importance"):
-                    query_obj = query_obj.filter(Article.importance.in_(filters["importance"]))
-                
-                if filters.get("time_from"):
-                    query_obj = query_obj.filter(Article.published_at >= filters["time_from"])
-                
-                if filters.get("time_to"):
-                    query_obj = query_obj.filter(Article.published_at <= filters["time_to"])
-            
-            # 获取所有匹配的文章嵌入
-            embeddings = query_obj.all()
-            
-            if not embeddings:
-                logger.warning("⚠️  没有找到已索引的文章")
-                return []
-            
-            # 计算相似度
-            results = []
-            for embedding_obj, article in embeddings:
-                similarity = self._cosine_similarity(query_embedding, embedding_obj.embedding)
-                results.append({
-                    "article": article,
-                    "similarity": similarity,
-                    "embedding_id": embedding_obj.id
-                })
-            
-            # 按相似度排序
-            results.sort(key=lambda x: x["similarity"], reverse=True)
-            
-            # 返回top_k
-            top_results = results[:top_k]
-            
-            # 转换为字典格式
-            search_results = []
-            for result in top_results:
-                article = result["article"]
-                search_results.append({
-                    "id": article.id,
-                    "title": article.title,
-                    "title_zh": article.title_zh,
-                    "url": article.url,
-                    "summary": article.summary,
-                    "source": article.source,
-                    "published_at": article.published_at.isoformat() if article.published_at else None,
-                    "importance": article.importance,
-                    "topics": article.topics,
-                    "tags": article.tags,
-                    "similarity": result["similarity"]
-                })
-            
-            logger.info(f"✅ 搜索完成，找到 {len(search_results)} 个结果")
-            return search_results
+            # 如果sqlite-vec可用，使用SQL向量搜索
+            if self._use_sqlite_vec:
+                return self._search_with_sqlite_vec(query_embedding, top_k, filters)
+            else:
+                # 回退到Python向量计算
+                return self._search_with_python(query_embedding, top_k, filters)
             
         except Exception as e:
             logger.error(f"❌ 搜索失败: {e}")
             return []
+
+    def _search_with_sqlite_vec(
+        self,
+        query_embedding: List[float],
+        top_k: int,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """使用sqlite-vec进行向量搜索"""
+        try:
+            # sqlite-vec使用MATCH操作符，需要JSON数组格式的字符串
+            # 或者可以直接使用BLOB格式
+            query_vector_str = self._vector_to_match_string(query_embedding)
+            
+            # 构建基础查询 - 使用MATCH操作符
+            # vec0 的 MATCH 需要明确指定 k 参数：MATCH ? AND k = 10
+            # 注意：k 参数必须大于等于 top_k，我们使用 top_k * 2 以确保有足够的结果用于过滤
+            # k 参数必须直接写在 SQL 中，不能作为参数绑定
+            k_value = max(top_k * 2, 10)  # 至少返回 10 个结果
+            
+            # 构建基础查询
+            sql = f"""
+                SELECT 
+                    v.article_id,
+                    distance,
+                    a.id, a.title, a.title_zh, a.url, a.summary, a.source,
+                    a.published_at, a.importance, a.topics, a.tags
+                FROM vec_embeddings v
+                JOIN articles a ON v.article_id = a.id
+                WHERE v.embedding MATCH :query_vector AND k = {k_value}
+            """
+            
+            params = {
+                "query_vector": query_vector_str
+            }
+            
+            # 添加过滤条件
+            if filters:
+                conditions = []
+                if filters.get("sources"):
+                    placeholders = ",".join([f":source_{i}" for i in range(len(filters["sources"]))])
+                    conditions.append(f"a.source IN ({placeholders})")
+                    for i, source in enumerate(filters["sources"]):
+                        params[f"source_{i}"] = source
+                
+                if filters.get("importance"):
+                    placeholders = ",".join([f":importance_{i}" for i in range(len(filters["importance"]))])
+                    conditions.append(f"a.importance IN ({placeholders})")
+                    for i, imp in enumerate(filters["importance"]):
+                        params[f"importance_{i}"] = imp
+                
+                if filters.get("time_from"):
+                    conditions.append("a.published_at >= :time_from")
+                    params["time_from"] = filters["time_from"]
+                
+                if filters.get("time_to"):
+                    conditions.append("a.published_at <= :time_to")
+                    params["time_to"] = filters["time_to"]
+                
+                if conditions:
+                    sql += " AND " + " AND ".join(conditions)
+            
+            # 最后限制返回的结果数量（k 已经限制了 KNN 结果，这里再限制最终返回数量）
+            sql += f" ORDER BY distance LIMIT {top_k}"
+            
+            # 执行查询
+            result = self.db.execute(text(sql), params)
+            rows = result.fetchall()
+            
+            # 转换为字典格式
+            search_results = []
+            for row in rows:
+                # sqlite-vec返回的distance是欧氏距离，需要转换为相似度
+                # 相似度 = 1 / (1 + distance)
+                distance = float(row[1]) if row[1] is not None else float('inf')
+                similarity = 1.0 / (1.0 + distance) if distance < float('inf') else 0.0
+                
+                search_results.append({
+                    "id": row[2],
+                    "title": row[3],
+                    "title_zh": row[4],
+                    "url": row[5],
+                    "summary": row[6],
+                    "source": row[7],
+                    "published_at": row[8].isoformat() if row[8] else None,
+                    "importance": row[9],
+                    "topics": row[10],
+                    "tags": row[11],
+                    "similarity": similarity
+                })
+            
+            logger.info(f"✅ 搜索完成（使用sqlite-vec），找到 {len(search_results)} 个结果")
+            return search_results
+            
+        except Exception as e:
+            logger.error(f"❌ sqlite-vec搜索失败: {e}，回退到Python计算")
+            return self._search_with_python(query_embedding, top_k, filters)
+
+    def _search_with_python(
+        self,
+        query_embedding: List[float],
+        top_k: int,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """使用Python进行向量搜索（回退方案）"""
+        # 获取所有已索引的文章嵌入
+        query_obj = self.db.query(ArticleEmbedding, Article).join(
+            Article, ArticleEmbedding.article_id == Article.id
+        )
+        
+        # 应用过滤条件
+        if filters:
+            if filters.get("sources"):
+                query_obj = query_obj.filter(Article.source.in_(filters["sources"]))
+            
+            if filters.get("importance"):
+                query_obj = query_obj.filter(Article.importance.in_(filters["importance"]))
+            
+            if filters.get("time_from"):
+                query_obj = query_obj.filter(Article.published_at >= filters["time_from"])
+            
+            if filters.get("time_to"):
+                query_obj = query_obj.filter(Article.published_at <= filters["time_to"])
+        
+        # 获取所有匹配的文章嵌入
+        embeddings = query_obj.all()
+        
+        if not embeddings:
+            logger.warning("⚠️  没有找到已索引的文章")
+            return []
+        
+        # 计算相似度
+        results = []
+        for embedding_obj, article in embeddings:
+            similarity = self._cosine_similarity(query_embedding, embedding_obj.embedding)
+            results.append({
+                "article": article,
+                "similarity": similarity,
+                "embedding_id": embedding_obj.id
+            })
+        
+        # 按相似度排序
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        
+        # 返回top_k
+        top_results = results[:top_k]
+        
+        # 转换为字典格式
+        search_results = []
+        for result in top_results:
+            article = result["article"]
+            search_results.append({
+                "id": article.id,
+                "title": article.title,
+                "title_zh": article.title_zh,
+                "url": article.url,
+                "summary": article.summary,
+                "source": article.source,
+                "published_at": article.published_at.isoformat() if article.published_at else None,
+                "importance": article.importance,
+                "topics": article.topics,
+                "tags": article.tags,
+                "similarity": result["similarity"]
+            })
+        
+        logger.info(f"✅ 搜索完成（使用Python计算），找到 {len(search_results)} 个结果")
+        return search_results
 
     def query_articles(self, question: str, top_k: int = 5) -> Dict[str, Any]:
         """

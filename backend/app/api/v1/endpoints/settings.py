@@ -11,7 +11,13 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.app.schemas.settings import CollectionSettings, AutoCollectionSettings, SummarySettings
+from backend.app.schemas.settings import (
+    CollectionSettings, 
+    AutoCollectionSettings, 
+    SummarySettings,
+    LLMSettings,
+    CollectorSettings
+)
 from backend.app.core.settings import settings
 
 router = APIRouter()
@@ -20,6 +26,8 @@ router = APIRouter()
 @router.get("/collection", response_model=CollectionSettings)
 async def get_collection_settings():
     """获取采集配置"""
+    # 确保从数据库加载最新配置
+    settings.load_settings_from_db()
     return CollectionSettings(
         max_article_age_days=settings.MAX_ARTICLE_AGE_DAYS,
         max_analysis_age_days=settings.MAX_ANALYSIS_AGE_DAYS,
@@ -48,9 +56,13 @@ async def update_collection_settings(
 @router.get("/auto-collection", response_model=AutoCollectionSettings)
 async def get_auto_collection_settings():
     """获取自动采集配置"""
+    # 确保从数据库加载最新配置
+    settings.load_settings_from_db()
     return AutoCollectionSettings(
         enabled=settings.AUTO_COLLECTION_ENABLED,
-        time=settings.AUTO_COLLECTION_TIME,
+        interval_hours=settings.COLLECTION_INTERVAL_HOURS,
+        max_articles_per_source=settings.MAX_ARTICLES_PER_SOURCE,
+        request_timeout=settings.REQUEST_TIMEOUT,
     )
 
 
@@ -61,7 +73,9 @@ async def update_auto_collection_settings(
     """更新自动采集配置"""
     success = settings.save_auto_collection_settings(
         enabled=new_settings.enabled,
-        time=new_settings.time,
+        interval_hours=new_settings.interval_hours,
+        max_articles_per_source=new_settings.max_articles_per_source,
+        request_timeout=new_settings.request_timeout,
     )
     if not success:
         from fastapi import HTTPException
@@ -73,9 +87,9 @@ async def update_auto_collection_settings(
         if scheduler:
             # 如果启用了自动采集，更新或添加任务
             if new_settings.enabled:
-                cron_expr = settings.get_auto_collection_cron()
-                if cron_expr:
-                    scheduler.add_collection_job(cron_expr)
+                interval_hours = settings.get_auto_collection_interval_hours()
+                if interval_hours:
+                    scheduler.add_collection_job(interval_hours)
             else:
                 # 如果禁用了，移除任务
                 try:
@@ -89,13 +103,17 @@ async def update_auto_collection_settings(
     
     return AutoCollectionSettings(
         enabled=settings.AUTO_COLLECTION_ENABLED,
-        time=settings.AUTO_COLLECTION_TIME,
+        interval_hours=settings.COLLECTION_INTERVAL_HOURS,
+        max_articles_per_source=settings.MAX_ARTICLES_PER_SOURCE,
+        request_timeout=settings.REQUEST_TIMEOUT,
     )
 
 
 @router.get("/summary", response_model=SummarySettings)
 async def get_summary_settings():
     """获取总结配置"""
+    # 确保从数据库加载最新配置
+    settings.load_settings_from_db()
     return SummarySettings(
         daily_summary_enabled=settings.DAILY_SUMMARY_ENABLED,
         daily_summary_time=settings.DAILY_SUMMARY_TIME,
@@ -154,5 +172,74 @@ async def update_summary_settings(
         daily_summary_time=settings.DAILY_SUMMARY_TIME,
         weekly_summary_enabled=settings.WEEKLY_SUMMARY_ENABLED,
         weekly_summary_time=settings.WEEKLY_SUMMARY_TIME,
+    )
+
+
+@router.get("/llm", response_model=LLMSettings)
+async def get_llm_settings():
+    """获取LLM配置"""
+    # 确保从数据库加载最新配置
+    settings.load_settings_from_db()
+    return LLMSettings(
+        openai_api_key=settings.OPENAI_API_KEY,
+        openai_api_base=settings.OPENAI_API_BASE,
+        openai_model=settings.OPENAI_MODEL,
+        openai_embedding_model=settings.OPENAI_EMBEDDING_MODEL,
+    )
+
+
+@router.put("/llm", response_model=LLMSettings)
+async def update_llm_settings(
+    new_settings: LLMSettings,
+):
+    """更新LLM配置"""
+    success = settings.save_llm_settings(
+        api_key=new_settings.openai_api_key,
+        api_base=new_settings.openai_api_base,
+        model=new_settings.openai_model,
+        embedding_model=new_settings.openai_embedding_model,
+    )
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="保存LLM配置失败")
+    
+    return LLMSettings(
+        openai_api_key=settings.OPENAI_API_KEY,
+        openai_api_base=settings.OPENAI_API_BASE,
+        openai_model=settings.OPENAI_MODEL,
+        openai_embedding_model=settings.OPENAI_EMBEDDING_MODEL,
+    )
+
+
+@router.get("/collector", response_model=CollectorSettings)
+async def get_collector_settings():
+    """获取采集器配置"""
+    # 确保从数据库加载最新配置
+    settings.load_settings_from_db()
+    return CollectorSettings(
+        collection_interval_hours=settings.COLLECTION_INTERVAL_HOURS,
+        max_articles_per_source=settings.MAX_ARTICLES_PER_SOURCE,
+        request_timeout=settings.REQUEST_TIMEOUT,
+    )
+
+
+@router.put("/collector", response_model=CollectorSettings)
+async def update_collector_settings(
+    new_settings: CollectorSettings,
+):
+    """更新采集器配置"""
+    success = settings.save_collector_settings(
+        collection_interval_hours=new_settings.collection_interval_hours,
+        max_articles_per_source=new_settings.max_articles_per_source,
+        request_timeout=new_settings.request_timeout,
+    )
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="保存采集器配置失败")
+    
+    return CollectorSettings(
+        collection_interval_hours=settings.COLLECTION_INTERVAL_HOURS,
+        max_articles_per_source=settings.MAX_ARTICLES_PER_SOURCE,
+        request_timeout=settings.REQUEST_TIMEOUT,
     )
 
