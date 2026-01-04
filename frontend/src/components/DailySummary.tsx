@@ -29,7 +29,7 @@ import weekOfYear from 'dayjs/plugin/weekOfYear';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents } from '@/utils/markdown';
-import { getThemeColor } from '@/utils/theme';
+import { getThemeColor, getSelectedStyle } from '@/utils/theme';
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
