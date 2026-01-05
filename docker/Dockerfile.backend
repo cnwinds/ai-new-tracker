@@ -1,8 +1,5 @@
 # 后端 Dockerfile
-# 注意：建议配置 Docker daemon 使用国内镜像加速器（见 DOCKER_MIRROR.md）
-# 如果未配置加速器，可以尝试使用以下镜像源：
-# FROM docker.mirrors.ustc.edu.cn/library/python:3.11-slim  # 中科大镜像
-FROM python:3.11-slim
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim
 
 # 设置工作目录
 WORKDIR /app
@@ -30,7 +27,6 @@ RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r re
 
 # 复制后端代码
 COPY backend/ /app/backend/
-COPY app/ /app/app/ 2>/dev/null || true
 
 # 创建必要的目录
 RUN mkdir -p /app/backend/app/data \
