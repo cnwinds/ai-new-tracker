@@ -22,10 +22,10 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR" || exit 1
 
-# 创建必要的目录（在项目根目录）
+# 创建必要的目录（在 docker 目录中）
 echo "📁 创建必要的目录..."
-mkdir -p ../data
-mkdir -p ../logs
+mkdir -p ./data
+mkdir -p ./logs
 
 # 使用 docker compose (Docker Compose V2)
 DOCKER_COMPOSE_CMD="docker compose"

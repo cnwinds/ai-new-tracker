@@ -46,10 +46,10 @@ docker compose -f docker/docker-compose.yml down -v
 ## 📂 数据持久化
 
 数据库文件会映射到本地目录：
-- 数据库文件：`../data/` → 容器内 `/app/backend/app/data/`（数据库文件存储在项目根目录的 `data` 目录中）
-- 日志文件：`../logs/` → 容器内 `/app/logs/`（日志文件存储在项目根目录的 `logs` 目录中）
+- 数据库文件：`./data/` → 容器内 `/app/backend/app/data/`（数据库文件存储在 `docker/data` 目录中）
+- 日志文件：`./logs/` → 容器内 `/app/logs/`（日志文件存储在 `docker/logs` 目录中）
 
-这样即使容器删除，数据也不会丢失。
+这样即使容器删除，数据也不会丢失。所有数据都存储在 `docker` 目录中，便于管理和备份。
 
 ## 🌐 访问服务
 
