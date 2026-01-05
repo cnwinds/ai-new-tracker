@@ -80,72 +80,103 @@ class AIAnalyzer:
             # 构建提示词
             prompt = self._build_analysis_prompt(title, content, url, source)
             
-            # 调用OpenAI API
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "你是一个专业的内容改写专家，擅长将长篇文章改写成结构完整、信息齐全、逻辑严密的精简短文。你的任务是提取文章的核心思想，为时间宝贵的核心读者（如投资人、合作伙伴、高级决策者）准备浓缩精华版，使其成为一篇独立、完整、且有说服力的作品。请使用中文输出所有内容。"
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.3,
-                max_tokens=4000,  # 增加token限制以支持更详细的摘要（最长800字）
-            )
+            # 最多尝试3次（初始1次 + 重试2次）
+            max_retries = 3
+            result = None
+            result_text = None
             
-            # 解析响应
-            result_text = response.choices[0].message.content.strip()
+            for attempt in range(max_retries):
+                try:
+                    if attempt > 0:
+                        logger.info(f"🔄 第 {attempt + 1} 次尝试解析AI响应...")
+                    
+                    # 调用OpenAI API
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "你是一个专业的内容改写专家，擅长将长篇文章改写成结构完整、信息齐全、逻辑严密的精简短文。你的任务是提取文章的核心思想，为时间宝贵的核心读者（如投资人、合作伙伴、高级决策者）准备浓缩精华版，使其成为一篇独立、完整、且有说服力的作品。请使用中文输出所有内容。"
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        temperature=0.3,
+                        max_tokens=4000,  # 增加token限制以支持更详细的摘要（最长800字）
+                    )
+                    
+                    # 解析响应
+                    result_text = response.choices[0].message.content.strip()
 
-            logger.info(f"📦 AI原始响应长度: {len(result_text)} 字符")
+                    logger.info(f"📦 AI原始响应长度: {len(result_text)} 字符")
 
-            # 尝试解析JSON响应
-            try:
-                # 处理可能包含 ```json 标记的情况
-                json_text = result_text
-                if result_text.startswith('```'):
-                    # 提取JSON部分（去除 ```json 和 ``` 标记）
-                    lines = result_text.split('\n')
-                    json_lines = []
-                    started = False
-                    for line in lines:
-                        if line.strip().startswith('```'):
-                            if not started:
-                                started = True
-                                continue
-                            else:
-                                break
-                        if started:
-                            json_lines.append(line)
-                    json_text = '\n'.join(json_lines)
-                    logger.info(f"✂️  去除Markdown标记后长度: {len(json_text)} 字符")
+                    # 尝试解析JSON响应
+                    # 处理可能包含 ```json 标记的情况
+                    json_text = result_text
+                    if result_text.startswith('```'):
+                        # 提取JSON部分（去除 ```json 和 ``` 标记）
+                        lines = result_text.split('\n')
+                        json_lines = []
+                        started = False
+                        for line in lines:
+                            if line.strip().startswith('```'):
+                                if not started:
+                                    started = True
+                                    continue
+                                else:
+                                    break
+                            if started:
+                                json_lines.append(line)
+                        json_text = '\n'.join(json_lines)
+                        logger.info(f"✂️  去除Markdown标记后长度: {len(json_text)} 字符")
 
-                # 检查JSON是否完整（以{开头，以}结尾）
-                if json_text and not json_text.startswith('{'):
-                    logger.error(f"❌ JSON内容不完整：不是以 '{{' 开头")
-                    logger.error(f"   前200字符: {json_text[:200]}")
-                elif json_text and not json_text.rstrip().endswith('}'):
-                    logger.error(f"❌ JSON内容不完整：不是以 '}}' 结尾")
-                    logger.error(f"   后200字符: {json_text[-200:]}")
-                    logger.error(f"   完整长度: {len(json_text)}")
+                    # 检查JSON是否完整（以{开头，以}结尾）- 仅用于日志记录
+                    if json_text and not json_text.startswith('{'):
+                        logger.error(f"❌ JSON内容不完整：不是以 '{{' 开头")
+                        logger.error(f"   前200字符: {json_text[:200]}")
+                    elif json_text and not json_text.rstrip().endswith('}'):
+                        logger.error(f"❌ JSON内容不完整：不是以 '}}' 结尾")
+                        logger.error(f"   后200字符: {json_text[-200:]}")
+                        logger.error(f"   完整长度: {len(json_text)}")
 
-                result = json.loads(json_text)
-                logger.info(f"✅ JSON解析成功")
+                    # 尝试解析JSON，如果格式不正确会自动抛出JSONDecodeError
+                    result = json.loads(json_text)
+                    logger.info(f"✅ JSON解析成功（第 {attempt + 1} 次尝试）")
 
-                # 确保 result 是字典类型
-                if not isinstance(result, dict):
-                    logger.warning(f"⚠️  JSON解析结果不是字典类型，使用文本解析: {type(result)}")
-                    result = self._parse_text_response(result_text)
-            except json.JSONDecodeError as e:
-                # 如果不是JSON格式，尝试提取关键信息
-                logger.error(f"❌ JSON解析失败: {e}")
-                logger.error(f"   响应内容前500字符:\n{result_text[:500]}")
-                logger.error(f"   响应内容后200字符:\n{result_text[-200:]}")
-                logger.error(f"   完整响应长度: {len(result_text)} 字符")
-                result = self._parse_text_response(result_text)
+                    # 确保 result 是字典类型
+                    if not isinstance(result, dict):
+                        logger.warning(f"⚠️  JSON解析结果不是字典类型，使用文本解析: {type(result)}")
+                        result = self._parse_text_response(result_text)
+                    
+                    # 解析成功，跳出循环
+                    break
+                    
+                except json.JSONDecodeError as e:
+                    # JSON解析失败
+                    logger.error(f"❌ 第 {attempt + 1} 次尝试JSON解析失败: {e}")
+                    if attempt < max_retries - 1:
+                        logger.warning(f"⚠️  将进行第 {attempt + 2} 次重试...")
+                        # 继续下一次循环
+                        continue
+                    else:
+                        # 3次都失败了，使用文本解析作为后备方案
+                        logger.error(f"❌ 3次尝试均失败，使用文本解析作为后备方案")
+                        logger.error(f"   响应内容前500字符:\n{result_text[:500] if result_text else '无响应'}")
+                        logger.error(f"   响应内容后200字符:\n{result_text[-200:] if result_text else '无响应'}")
+                        logger.error(f"   完整响应长度: {len(result_text) if result_text else 0} 字符")
+                        result = self._parse_text_response(result_text) if result_text else self._parse_text_response("")
+                except Exception as e:
+                    # 其他异常（如API调用失败）
+                    logger.error(f"❌ 第 {attempt + 1} 次尝试失败: {e}")
+                    if attempt < max_retries - 1:
+                        logger.warning(f"⚠️  将进行第 {attempt + 2} 次重试...")
+                        # 继续下一次循环
+                        continue
+                    else:
+                        # 3次都失败了，抛出异常
+                        raise
             
             # 确保所有必需字段存在
             result.setdefault("importance", "low")
