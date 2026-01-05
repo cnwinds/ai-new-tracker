@@ -554,7 +554,7 @@ export default function SystemSettings() {
                 name="instant_notification_enabled"
                 label="启用即时通知"
                 valuePropName="checked"
-                tooltip="是否启用即时通知：当采集到高重要性文章时立即推送"
+                tooltip="是否启用即时通知：当采集到高重要性文章并且在一小时内时立即推送，内容总结立即通知"
               >
                 <Switch />
               </Form.Item>

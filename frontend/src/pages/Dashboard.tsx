@@ -2,7 +2,7 @@
  * Dashboard 主页面
  */
 import { useState } from 'react';
-import { Layout, Tabs, Badge, Button, Space } from 'antd';
+import { Layout, Tabs, Button, Space } from 'antd';
 import {
   FileTextOutlined,
   BarChartOutlined,
@@ -17,14 +17,12 @@ import DailySummary from '@/components/DailySummary';
 import Statistics from '@/components/Statistics';
 import RAG from '@/components/RAG';
 import SystemSettings from '@/components/SystemSettings';
-import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTheme } from '@/contexts/ThemeContext';
 
 const { Header, Content } = Layout;
 
 export default function Dashboard() {
   const [selectedTab, setSelectedTab] = useState('articles');
-  const { connected } = useWebSocket();
   const { theme, toggleTheme } = useTheme();
 
   const tabs = [
@@ -113,10 +111,6 @@ export default function Dashboard() {
             >
               {theme === 'dark' ? '浅色' : '深色'}
             </Button>
-            <Badge 
-              status={connected ? 'success' : 'error'} 
-              text={<span style={{ color: '#fff' }}>{connected ? '已连接' : '未连接'}</span>} 
-            />
           </Space>
         </div>
       </Header>

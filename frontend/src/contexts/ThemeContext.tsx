@@ -91,6 +91,15 @@ const darkThemeConfig: ThemeConfig = {
       colorPrimaryHover: '#69b7ff',
       colorPrimaryActive: '#0958d9',
     },
+    // 优化 Modal 组件
+    Modal: {
+      contentBg: '#1f1f1f',
+      headerBg: '#1f1f1f',
+      titleColor: '#ffffff',
+      colorText: '#ffffff',
+      colorTextHeading: '#ffffff',
+      colorBorder: '#303030',
+    },
   },
 };
 

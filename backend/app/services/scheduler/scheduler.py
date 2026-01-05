@@ -266,7 +266,7 @@ class TaskScheduler:
 
             # 总结生成完成后，自动触发推送
             if self.notifier and hasattr(self.notifier, 'send_daily_summary'):
-                logger.info("📤 开始推送每日摘要到飞书...")
+                logger.info("📤 开始推送每日摘要...")
                 summary_content = summary_obj.summary_content
                 success = self.notifier.send_daily_summary(summary_content, self.db, limit=20)
                 if success:

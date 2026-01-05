@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { Card, Tag, Button, Space, Typography, Popconfirm } from 'antd';
-import { LinkOutlined, DeleteOutlined, RobotOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
+import { LinkOutlined, DeleteOutlined, RobotOutlined, UpOutlined, DownOutlined, ReloadOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import type { Article } from '@/types';
@@ -12,7 +12,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface ArticleCardProps {
   article: Article;
@@ -75,136 +75,112 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
   return (
     <Card
-      style={{ marginBottom: 16 }}
+      style={{ marginBottom: 8 }}
+      bodyStyle={{ padding: '12px 16px' }}
     >
       <Space direction="vertical" size="small" style={{ width: '100%' }}>
-        {/* 第一行：importance + 标题 + source */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        {/* 第一行（概览）：日期Tag + 重要程度Tag + 标题 + 来源Tag，整行可点击 */}
+        <div 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            flexWrap: 'wrap', 
+            gap: 6,
+            cursor: 'pointer',
+            padding: '2px 0',
+          }}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {/* 日期Tag（最前面） */}
+          <Tag color="default" style={{ flexShrink: 0 }}>
+            {article.published_at
+              ? dayjs(article.published_at).format('YYYY-MM-DD')
+              : '未知日期'}
+          </Tag>
+          
+          {/* 重要程度Tag */}
           {article.importance && (
             <Tag color={importanceColors[article.importance]} style={{ flexShrink: 0 }}>
               {article.importance === 'high' ? '高' : article.importance === 'medium' ? '中' : '低'}
             </Tag>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flex: '1 1 auto', minWidth: 0 }}>
-            <Title level={5} style={{ marginBottom: 0 }}>
+          
+          {/* 标题 + 来源Tag（紧跟在标题后面，靠左显示） */}
+          <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Title level={5} style={{ marginBottom: 0, display: 'inline' }}>
               {article.title_zh || article.title}
             </Title>
-            <Space size="small">
-              <Tag color="blue">{article.source}</Tag>
-              {!article.is_processed && <Tag>未分析</Tag>}
-            </Space>
+            <Tag color="blue" style={{ flexShrink: 0 }}>{article.source}</Tag>
           </div>
+          
+          {/* 展开/收起图标 */}
+          <Button
+            type="text"
+            icon={expanded ? <UpOutlined /> : <DownOutlined />}
+            size="small"
+            style={{ flexShrink: 0 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }}
+          />
         </div>
 
-        {/* 第二行：日期和作者 */}
-        <div>
-          <Space size="small">
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {article.published_at
-                ? dayjs(article.published_at).format('YYYY-MM-DD HH:mm')
-                : '未知时间'}
-            </Text>
-            {article.author && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                作者: {article.author}
-              </Text>
-            )}
-          </Space>
-        </div>
+        {/* 展开后的详情区域 */}
+        {expanded && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${getThemeColor(theme, 'border')}` }}>
+            {/* 日期和作者 */}
+            <div style={{ marginBottom: 8 }}>
+              <Space size="small">
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {article.published_at
+                    ? dayjs(article.published_at).format('YYYY-MM-DD HH:mm')
+                    : '未知时间'}
+                </Text>
+                {article.author && (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    作者: {article.author}
+                  </Text>
+                )}
+                {!article.is_processed && <Tag>未分析</Tag>}
+              </Space>
+            </div>
 
-        {/* 摘要区域：摘要内容（Markdown格式） */}
-        {summaryText ? (
-          <div style={{ marginBottom: 8 }}>
-            <div
-              style={{
-                marginBottom: 8,
-                maxHeight: expanded ? 'none' : '4.5em', // 约3行高度 (1.5em * 3)
-                overflow: 'hidden',
-                lineHeight: '1.5em',
-                position: 'relative',
-              }}
-            >
-              {!expanded && (
+            {/* 摘要区域：摘要内容（Markdown格式） */}
+            {summaryText ? (
+              <div style={{ marginBottom: 12 }}>
+                {article.is_processed && (
+                  <Tag icon={<RobotOutlined />} color="purple" style={{ marginBottom: 8 }}>
+                    AI生成的精简摘要
+                  </Tag>
+                )}
                 <div
                   style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    width: '100%',
-                    height: '1.5em',
-                    background: theme === 'dark' 
-                      ? `linear-gradient(to bottom, transparent, ${getThemeColor(theme, 'bgElevated')})` 
-                      : 'linear-gradient(to bottom, transparent, white)',
-                    pointerEvents: 'none',
+                    fontSize: 14,
+                    color: getThemeColor(theme, 'text'),
+                    lineHeight: '1.6',
                   }}
-                />
-              )}
-              <div
-                style={{
-                  fontSize: 14,
-                  color: getThemeColor(theme, 'text'),
-                }}
-              >
-                <ReactMarkdown components={createMarkdownComponents(theme)}>
-                  {summaryText}
-                </ReactMarkdown>
+                >
+                  <ReactMarkdown components={createMarkdownComponents(theme)}>
+                    {summaryText}
+                  </ReactMarkdown>
+                </div>
               </div>
-            </div>
-            {/* AI生成的精简摘要标签（右边）+ 查看原文 + 折叠按钮（左边） */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Space>
-                <Button
-                  type="link"
-                  icon={<LinkOutlined />}
-                  href={article.url}
-                  target="_blank"
-                  size="small"
-                >
-                  查看原文
-                </Button>
-                <Button
-                  type="text"
-                  icon={expanded ? <UpOutlined /> : <DownOutlined />}
-                  onClick={() => setExpanded(!expanded)}
-                  size="small"
-                  title={expanded ? '收起' : '展开'}
-                />
-              </Space>
-              {article.is_processed && (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  🤖 AI生成的精简摘要
-                </Text>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* 未分析的文章：显示查看原文和折叠按钮 */
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <Space>
-                <Button
-                  type="link"
-                  icon={<LinkOutlined />}
-                  href={article.url}
-                  target="_blank"
-                  size="small"
-                >
-                  查看原文
-                </Button>
-                <Button
-                  type="text"
-                  icon={expanded ? <UpOutlined /> : <DownOutlined />}
-                  onClick={() => setExpanded(!expanded)}
-                  size="small"
-                />
-              </Space>
-            </div>
-          </div>
-        )}
+            ) : null}
 
-        {/* 展开区域：标签（tags）和功能按钮 */}
-        {expanded && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+            {/* 查看原文按钮 */}
+            <div style={{ marginBottom: 12 }}>
+              <Button
+                type="link"
+                icon={<LinkOutlined />}
+                href={article.url}
+                target="_blank"
+                size="small"
+              >
+                查看原文
+              </Button>
+            </div>
+
             {/* 标签区域（文章标签） */}
             {article.tags && article.tags.length > 0 && (
               <div style={{ marginBottom: 12 }}>
@@ -217,9 +193,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             )}
             
             {/* 功能按钮 */}
-            <Space>
+            <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
               <Button
-                type="text"
+                type="default"
                 icon={<RobotOutlined />}
                 onClick={handleAnalyze}
                 loading={analyzeMutation.isPending}
@@ -233,7 +209,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 cancelText="取消"
               >
                 <Button
-                  type="text"
+                  type="primary"
                   danger
                   icon={<DeleteOutlined />}
                   loading={deleteMutation.isPending}
@@ -241,7 +217,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                   删除
                 </Button>
               </Popconfirm>
-            </Space>
+              <Button
+                type="default"
+                icon={<UpOutlined />}
+                onClick={() => setExpanded(false)}
+              >
+                收起
+              </Button>
+            </div>
           </div>
         )}
       </Space>

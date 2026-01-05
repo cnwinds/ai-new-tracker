@@ -30,6 +30,8 @@ import isoWeek from 'dayjs/plugin/isoWeek';
 import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor, getSelectedStyle } from '@/utils/theme';
+import ArticleCard from './ArticleCard';
+import type { Article } from '@/types';
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -79,6 +81,8 @@ export default function DailySummary() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [selectedWeekDate, setSelectedWeekDate] = useState<dayjs.Dayjs | null>(null);
   const [hoveredWeekDate, setHoveredWeekDate] = useState<dayjs.Dayjs | null>(null);
+  const [recommendedArticles, setRecommendedArticles] = useState<Map<number, Article[]>>(new Map());
+  const [loadingArticles, setLoadingArticles] = useState<Set<number>>(new Set());
   const { theme } = useTheme();
 
   const { data: summaries, isLoading } = useQuery({
@@ -193,13 +197,57 @@ export default function DailySummary() {
     generateMutation.mutate(requestData);
   };
 
-  const toggleExpand = (summaryId: number) => {
+  // 加载推荐文章
+  const loadRecommendedArticles = async (summary: any) => {
+    if (!summary.recommended_articles || summary.recommended_articles.length === 0) {
+      return;
+    }
+
+    const summaryId = summary.id;
+    
+    // 如果已经加载过，直接返回
+    if (recommendedArticles.has(summaryId)) {
+      return;
+    }
+
+    // 设置加载状态
+    setLoadingArticles((prev) => new Set(prev).add(summaryId));
+
+    try {
+      // 并行获取所有推荐文章
+      const articlePromises = summary.recommended_articles.map((rec: any) =>
+        apiService.getArticle(rec.id)
+      );
+      const articles = await Promise.all(articlePromises);
+      
+      // 保存到状态
+      setRecommendedArticles((prev) => {
+        const newMap = new Map(prev);
+        newMap.set(summaryId, articles);
+        return newMap;
+      });
+    } catch (error) {
+      console.error('加载推荐文章失败:', error);
+      message.error('加载推荐文章失败');
+    } finally {
+      setLoadingArticles((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(summaryId);
+        return newSet;
+      });
+    }
+  };
+
+  const toggleExpand = (summary: any) => {
+    const summaryId = summary.id;
     setExpandedSummaries((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(summaryId)) {
         newSet.delete(summaryId);
       } else {
         newSet.add(summaryId);
+        // 展开时加载推荐文章
+        loadRecommendedArticles(summary);
       }
       return newSet;
     });
@@ -256,31 +304,48 @@ export default function DailySummary() {
           <List
             dataSource={summaries}
             renderItem={(summary) => (
-              <List.Item>
-                <Card style={{ width: '100%' }}>
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <div>
-                      <Space align="center" style={{ marginBottom: '8px' }}>
-                        <Title level={5} style={{ margin: 0 }}>
-                          {summary.summary_type === 'daily' 
-                            ? `每日摘要 - ${dayjs(summary.summary_date).format('YYYY-MM-DD')}`
-                            : `每周摘要 - ${dayjs(summary.start_date).format('YYYY-MM-DD')} 至 ${dayjs(summary.end_date).format('YYYY-MM-DD')}`
-                          }
-                        </Title>
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={expandedSummaries.has(summary.id) ? <UpOutlined /> : <DownOutlined />}
-                          onClick={() => toggleExpand(summary.id)}
-                        >
-                          {expandedSummaries.has(summary.id) ? '收起' : '展开'}
-                        </Button>
-                      </Space>
-                      <Space>
-                        <Tag>文章数: {summary.total_articles}</Tag>
-                        <Tag color="red">高重要性: {summary.high_importance_count}</Tag>
-                        <Tag color="orange">中重要性: {summary.medium_importance_count}</Tag>
-                      </Space>
+              <List.Item style={{ padding: 0, marginBottom: 8 }}>
+                <Card 
+                  style={{ width: '100%', marginBottom: 0 }}
+                  bodyStyle={{ padding: '12px 16px' }}
+                >
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    {/* 第一行（概览）：标题 + 统计Tag + 展开按钮，整行可点击 */}
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        flexWrap: 'wrap', 
+                        gap: 6,
+                        cursor: 'pointer',
+                        padding: '2px 0',
+                      }}
+                      onClick={() => toggleExpand(summary)}
+                    >
+                      {/* 标题 */}
+                      <Title level={5} style={{ marginBottom: 0, display: 'inline', flexShrink: 0 }}>
+                        {summary.summary_type === 'daily' 
+                          ? `每日摘要 - ${dayjs(summary.summary_date).format('YYYY-MM-DD')}`
+                          : `每周摘要 - ${dayjs(summary.start_date).format('YYYY-MM-DD')} 至 ${dayjs(summary.end_date).format('YYYY-MM-DD')}`
+                        }
+                      </Title>
+                      
+                      {/* 统计Tag */}
+                      <Tag style={{ flexShrink: 0 }}>文章数: {summary.total_articles}</Tag>
+                      <Tag color="red" style={{ flexShrink: 0 }}>高重要性: {summary.high_importance_count}</Tag>
+                      <Tag color="orange" style={{ flexShrink: 0 }}>中重要性: {summary.medium_importance_count}</Tag>
+                      
+                      {/* 展开/收起图标 - 推到最右边 */}
+                      <Button
+                        type="text"
+                        icon={expandedSummaries.has(summary.id) ? <UpOutlined /> : <DownOutlined />}
+                        size="small"
+                        style={{ flexShrink: 0, marginLeft: 'auto' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpand(summary);
+                        }}
+                      />
                     </div>
                     {expandedSummaries.has(summary.id) && (
                       <>
@@ -309,6 +374,25 @@ export default function DailySummary() {
                             ))}
                           </div>
                         )}
+                        {/* 推荐文章列表 */}
+                        {summary.recommended_articles && summary.recommended_articles.length > 0 && (
+                          <div style={{ marginTop: '16px' }}>
+                            <Title level={5} style={{ marginBottom: '12px', color: getThemeColor(theme, 'text') }}>
+                              推荐文章 ({summary.recommended_articles.length})
+                            </Title>
+                            {loadingArticles.has(summary.id) ? (
+                              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                <Spin />
+                              </div>
+                            ) : recommendedArticles.has(summary.id) ? (
+                              <div>
+                                {recommendedArticles.get(summary.id)?.map((article) => (
+                                  <ArticleCard key={article.id} article={article} />
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                         <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
                           <Button
                             type="default"
@@ -326,6 +410,13 @@ export default function DailySummary() {
                             loading={deleteMutation.isPending}
                           >
                             删除
+                          </Button>
+                          <Button
+                            type="default"
+                            icon={<UpOutlined />}
+                            onClick={() => toggleExpand(summary)}
+                          >
+                            收起
                           </Button>
                         </div>
                       </>

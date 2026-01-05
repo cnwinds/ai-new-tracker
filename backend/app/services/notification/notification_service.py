@@ -8,11 +8,12 @@ import hashlib
 import base64
 import time
 import requests
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from sqlalchemy.orm import Session
 
 from backend.app.db.models import NotificationLog, Article
+from backend.app.db import DatabaseManager
 from backend.app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -167,7 +168,7 @@ class NotificationService:
 
     def _log_notification(
         self,
-        db: Session,
+        db: Union[Session, DatabaseManager],
         notification_type: str,
         status: str,
         articles_count: int = 0,
@@ -177,31 +178,49 @@ class NotificationService:
         记录通知日志
         
         Args:
-            db: 数据库会话
+            db: 数据库会话或数据库管理器
             notification_type: 通知类型（daily_summary/weekly_summary/instant）
             status: 状态（success/error）
             articles_count: 文章数量
             error_message: 错误信息（如果有）
         """
-        try:
-            log = NotificationLog(
-                notification_type=notification_type,
-                platform=self.platform,
-                status=status,
-                articles_count=articles_count,
-                error_message=error_message,
-                sent_at=datetime.now()
-            )
-            db.add(log)
-            db.commit()
-        except Exception as e:
-            logger.error(f"❌ 记录通知日志失败: {e}")
-            db.rollback()
+        # 如果是 DatabaseManager，使用上下文管理器获取会话
+        if isinstance(db, DatabaseManager):
+            try:
+                with db.get_session() as session:
+                    log = NotificationLog(
+                        notification_type=notification_type,
+                        platform=self.platform,
+                        status=status,
+                        articles_count=articles_count,
+                        error_message=error_message,
+                        sent_at=datetime.now()
+                    )
+                    session.add(log)
+                    session.commit()
+            except Exception as e:
+                logger.error(f"❌ 记录通知日志失败: {e}")
+        else:
+            # 如果是 Session，直接使用
+            try:
+                log = NotificationLog(
+                    notification_type=notification_type,
+                    platform=self.platform,
+                    status=status,
+                    articles_count=articles_count,
+                    error_message=error_message,
+                    sent_at=datetime.now()
+                )
+                db.add(log)
+                db.commit()
+            except Exception as e:
+                logger.error(f"❌ 记录通知日志失败: {e}")
+                db.rollback()
 
     def send_daily_summary(
         self,
         summary_content: str,
-        db: Session,
+        db: Union[Session, DatabaseManager],
         limit: int = 20
     ) -> bool:
         """
@@ -209,54 +228,99 @@ class NotificationService:
         
         Args:
             summary_content: 摘要内容
-            db: 数据库会话
+            db: 数据库会话或数据库管理器
             limit: 推荐文章数量限制
             
         Returns:
             是否发送成功
         """
-        try:
-            # 获取推荐文章
-            articles = (
-                db.query(Article)
-                .filter(Article.importance.in_(["high", "medium"]))
-                .order_by(Article.published_at.desc())
-                .limit(limit)
-                .all()
-            )
-            
-            # 构建消息内容
-            if self.platform == "feishu":
-                content = self._build_feishu_summary_message(summary_content, articles)
-            else:  # dingtalk
-                content = self._build_dingtalk_summary_message(summary_content, articles)
-            
-            # 发送消息
-            success = self._send_message(content)
-            
-            # 记录日志
-            self._log_notification(
-                db=db,
-                notification_type="daily_summary",
-                status="success" if success else "error",
-                articles_count=len(articles),
-                error_message=None if success else "发送失败"
-            )
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"❌ 发送摘要失败: {e}", exc_info=True)
-            self._log_notification(
-                db=db,
-                notification_type="daily_summary",
-                status="error",
-                articles_count=0,
-                error_message=str(e)
-            )
-            return False
+        # 如果是 DatabaseManager，使用上下文管理器获取会话
+        if isinstance(db, DatabaseManager):
+            try:
+                with db.get_session() as session:
+                    # 获取推荐文章
+                    articles = (
+                        session.query(Article)
+                        .filter(Article.importance.in_(["high", "medium"]))
+                        .order_by(Article.published_at.desc())
+                        .limit(limit)
+                        .all()
+                    )
+                    
+                    # 构建消息内容
+                    if self.platform == "feishu":
+                        content = self._build_feishu_summary_message(summary_content, articles)
+                    else:  # dingtalk
+                        content = self._build_dingtalk_summary_message(summary_content, articles)
+                    
+                    # 发送消息
+                    success = self._send_message(content)
+                    
+                    # 记录日志（传递 DatabaseManager，让 _log_notification 处理）
+                    self._log_notification(
+                        db=db,
+                        notification_type="daily_summary",
+                        status="success" if success else "error",
+                        articles_count=len(articles),
+                        error_message=None if success else "发送失败"
+                    )
+                    
+                    return success
+                    
+            except Exception as e:
+                logger.error(f"❌ 发送摘要失败: {e}", exc_info=True)
+                self._log_notification(
+                    db=db,
+                    notification_type="daily_summary",
+                    status="error",
+                    articles_count=0,
+                    error_message=str(e)
+                )
+                return False
+        else:
+            # 如果是 Session，直接使用
+            try:
+                # 获取推荐文章
+                articles = (
+                    db.query(Article)
+                    .filter(Article.importance.in_(["high", "medium"]))
+                    .order_by(Article.published_at.desc())
+                    .limit(limit)
+                    .all()
+                )
+                
+                # 构建消息内容
+                if self.platform == "feishu":
+                    content = self._build_feishu_summary_message(summary_content, articles)
+                else:  # dingtalk
+                    content = self._build_dingtalk_summary_message(summary_content, articles)
+                
+                # 发送消息
+                success = self._send_message(content)
+                
+                # 记录日志
+                self._log_notification(
+                    db=db,
+                    notification_type="daily_summary",
+                    status="success" if success else "error",
+                    articles_count=len(articles),
+                    error_message=None if success else "发送失败"
+                )
+                
+                return success
+                
+            except Exception as e:
+                logger.error(f"❌ 发送摘要失败: {e}", exc_info=True)
+                self._log_notification(
+                    db=db,
+                    notification_type="daily_summary",
+                    status="error",
+                    articles_count=0,
+                    error_message=str(e)
+                )
+                return False
 
-    def send_instant_alert(self, article: Article, db: Optional[Session] = None) -> bool:
+    def send_instant_alert(self, article: Article, db: Optional[Union[Session, DatabaseManager]] = None) -> bool:
         """
         发送即时提醒（高重要性文章）
         

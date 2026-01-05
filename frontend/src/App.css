@@ -197,6 +197,47 @@ body {
   color: #ffffff !important;
 }
 
+.dark-theme .ant-modal-body {
+  color: var(--ant-color-text) !important;
+}
+
+.dark-theme .ant-modal-confirm-title {
+  color: #ffffff !important;
+}
+
+.dark-theme .ant-modal-confirm-body {
+  color: #ffffff !important;
+}
+
+.dark-theme .ant-modal-confirm-content {
+  color: #ffffff !important;
+}
+
+/* 深色主题下的模态框按钮优化 */
+.dark-theme .ant-modal-confirm .ant-btn-default {
+  background: #262626 !important;
+  border-color: #434343 !important;
+  color: #ffffff !important;
+}
+
+.dark-theme .ant-modal-confirm .ant-btn-default:hover {
+  background: #303030 !important;
+  border-color: #555555 !important;
+  color: #ffffff !important;
+}
+
+.dark-theme .ant-modal-confirm .ant-btn-dangerous {
+  background: #ff4d4f !important;
+  border-color: #ff4d4f !important;
+  color: #ffffff !important;
+}
+
+.dark-theme .ant-modal-confirm .ant-btn-dangerous:hover {
+  background: #ff7875 !important;
+  border-color: #ff7875 !important;
+  color: #ffffff !important;
+}
+
 /* 深色主题下的下拉菜单优化 */
 .dark-theme .ant-dropdown-menu {
   background: #1f1f1f !important;

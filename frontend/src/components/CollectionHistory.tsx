@@ -28,6 +28,7 @@ const { Text, Paragraph } = Typography;
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useTheme } from '@/contexts/ThemeContext';
 import dayjs from 'dayjs';
 import type { CollectionTask, AutoCollectionSettings } from '@/types';
 
@@ -39,6 +40,7 @@ export default function CollectionHistory() {
   const [autoCollectionForm] = Form.useForm();
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
+  const { theme } = useTheme();
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['collection-tasks'],
@@ -203,6 +205,12 @@ export default function CollectionHistory() {
       okText: '停止',
       okType: 'danger',
       cancelText: '取消',
+      okButtonProps: {
+        danger: true,
+      },
+      cancelButtonProps: {
+        type: 'default',
+      },
       onOk: () => {
         stopCollectionMutation.mutate();
       },
