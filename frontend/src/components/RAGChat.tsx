@@ -2,7 +2,7 @@
  * RAG AI对话组件
  */
 import { useState, useRef, useEffect } from 'react';
-import { Card, Input, Button, List, Typography, Empty, Spin, Alert, Space, Tag, Avatar, Select } from 'antd';
+import { Card, Input, Button, List, Typography, Empty, Spin, Alert, Space, Tag, Avatar, Select, Tooltip } from 'antd';
 import { SendOutlined, UserOutlined, RobotOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -407,12 +407,24 @@ export default function RAGChat() {
                                     >
                                       [{articleNumber}]
                                     </a>
-                                    <Text style={{
-                                      fontSize: 14,
-                                      color: getThemeColor(theme, 'text'),
-                                    }}>
-                                      {article.title_zh || article.title}
-                                    </Text>
+                                    {article.title_zh ? (
+                                      <Tooltip title={article.title} placement="top">
+                                        <Text style={{
+                                          fontSize: 14,
+                                          color: getThemeColor(theme, 'text'),
+                                          cursor: 'help',
+                                        }}>
+                                          {article.title_zh}
+                                        </Text>
+                                      </Tooltip>
+                                    ) : (
+                                      <Text style={{
+                                        fontSize: 14,
+                                        color: getThemeColor(theme, 'text'),
+                                      }}>
+                                        {article.title}
+                                      </Text>
+                                    )}
                                     <Tag color="blue">{article.source}</Tag>
                                   </Space>
                                 </div>

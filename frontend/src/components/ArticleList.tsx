@@ -2,7 +2,8 @@
  * 文章列表组件
  */
 import { useState, useMemo } from 'react';
-import { Card, Select, Radio, Space, Pagination, Spin, Empty, Alert } from 'antd';
+import { Card, Select, Radio, Space, Pagination, Spin, Empty, Alert, Button } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useArticles } from '@/hooks/useArticles';
 import ArticleCard from './ArticleCard';
@@ -18,7 +19,7 @@ export default function ArticleList() {
     page_size: 20,
   });
 
-  const { data, isLoading, error } = useArticles(filter);
+  const { data, isLoading, error, refetch, isFetching } = useArticles(filter);
 
   // 获取所有订阅源列表
   const { data: sources } = useQuery({
@@ -73,10 +74,33 @@ export default function ArticleList() {
     setFilter({ ...filter, page, page_size: pageSize });
   };
 
+  const handleRefresh = () => {
+    refetch();
+  };
+
   return (
     <div>
       <Card
-        title="📰 最新AI资讯"
+        title={
+          <Space>
+            <span>📰 最新AI资讯</span>
+            {data && !isLoading && (
+              <>
+                <span style={{ color: '#8c8c8c', fontSize: '14px', fontWeight: 'normal' }}>
+                  找到 {data.total} 篇文章
+                </span>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<ReloadOutlined />}
+                  onClick={handleRefresh}
+                  loading={isFetching}
+                  title="刷新"
+                />
+              </>
+            )}
+          </Space>
+        }
         extra={
           <Space>
             <Select
@@ -127,11 +151,6 @@ export default function ArticleList() {
           <Empty description="暂无文章" />
         ) : (
           <>
-            <div style={{ marginBottom: 16 }}>
-              <Space>
-                <span>找到 {data.total} 篇文章</span>
-              </Space>
-            </div>
             {data.items.map((article) => (
               <ArticleCard key={article.id} article={article} />
             ))}

@@ -7,7 +7,7 @@ Twitter/X 数据采集器
 """
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 import logging
 import os
@@ -29,6 +29,26 @@ class TwitterCollector:
         self.twitter_bearer_token = os.getenv("TWITTER_BEARER_TOKEN", "")
         self.twitter_api_key = os.getenv("TWITTER_API_KEY", "")
         self.twitter_api_secret = os.getenv("TWITTER_API_SECRET", "")
+
+    def _convert_utc_to_local(self, utc_time_str: str) -> Optional[datetime]:
+        """
+        将UTC时间字符串转换为本地时间（UTC+8）
+        
+        Args:
+            utc_time_str: UTC时间字符串（ISO格式，如 "2025-01-05T13:08:26Z"）
+            
+        Returns:
+            本地时间的datetime对象（naive datetime）
+        """
+        try:
+            # 解析UTC时间
+            utc_time = datetime.fromisoformat(utc_time_str.replace("Z", "+00:00"))
+            # 转换为本地时间（UTC+8）
+            local_tz = timezone(timedelta(hours=8))
+            return utc_time.astimezone(local_tz).replace(tzinfo=None)
+        except Exception as e:
+            logger.warning(f"⚠️  时间转换失败: {utc_time_str}, 错误: {e}")
+            return None
 
     def fetch_tweets(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -251,7 +271,7 @@ class TwitterCollector:
                     "content": tweet.get("text", ""),
                     "source": source_name,
                     "author": f"@{username}",
-                    "published_at": datetime.fromisoformat(tweet.get("created_at", "").replace("Z", "+00:00")) if tweet.get("created_at") else None,
+                    "published_at": self._convert_utc_to_local(tweet.get("created_at")) if tweet.get("created_at") else None,
                     "category": "social",
                     "metadata": {
                         "tweet_id": tweet.get("id", ""),

@@ -2,7 +2,7 @@
  * RAG语义搜索组件
  */
 import { useState, useMemo } from 'react';
-import { Card, Input, Select, Space, List, Tag, Typography, Empty, Spin, Alert, Button, DatePicker } from 'antd';
+import { Card, Input, Select, Space, List, Tag, Typography, Empty, Spin, Alert, Button, DatePicker, Tooltip } from 'antd';
 import { SearchOutlined, LinkOutlined } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -246,9 +246,17 @@ export default function RAGSearch() {
                             <Tag color="purple">相似度: {formatSimilarity(item.similarity)}</Tag>
                           </div>
 
-                          <Title level={5} style={{ marginBottom: 8 }}>
-                            {item.title_zh || item.title}
-                          </Title>
+                          {item.title_zh ? (
+                            <Tooltip title={item.title} placement="top">
+                              <Title level={5} style={{ marginBottom: 8, cursor: 'help' }}>
+                                {item.title_zh}
+                              </Title>
+                            </Tooltip>
+                          ) : (
+                            <Title level={5} style={{ marginBottom: 8 }}>
+                              {item.title}
+                            </Title>
+                          )}
 
                           {item.summary && (
                             <div

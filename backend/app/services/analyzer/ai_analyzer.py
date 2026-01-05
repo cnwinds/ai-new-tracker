@@ -167,6 +167,20 @@ class AIAnalyzer:
                     # 如果不是字符串，转换为字符串
                     result["summary"] = str(summary_value) if summary_value else ""
             
+            # 处理 title_zh 字段：如果AI返回了，使用AI的翻译；否则如果标题是英文，单独翻译
+            if result.get("title_zh"):
+                # AI已经在分析时返回了翻译，直接使用
+                logger.info(f"✅ AI已返回标题翻译: {result.get('title_zh')[:30]}...")
+            elif title and self._is_english_title(title):
+                # AI没有返回翻译，且标题是英文，单独翻译
+                try:
+                    title_zh = self.translate_title_with_context(title, content)
+                    if title_zh and title_zh != title:
+                        result["title_zh"] = title_zh
+                        logger.info(f"✅ 标题翻译完成: {title[:30]}... -> {title_zh[:30]}...")
+                except Exception as e:
+                    logger.warning(f"⚠️  标题翻译失败: {e}")
+            
             logger.info(f"✅ 文章分析完成: {title[:50]}...")
             return result
             
@@ -214,6 +228,89 @@ class AIAnalyzer:
             logger.warning(f"⚠️  标题翻译失败: {e}")
             return title
 
+    def translate_title_with_context(self, title: str, content: str = "") -> str:
+        """
+        根据内容和标题翻译标题为中文
+        
+        Args:
+            title: 原标题
+            content: 文章内容（用于上下文理解）
+            
+        Returns:
+            翻译后的中文标题
+        """
+        try:
+            if not title:
+                return title
+            
+            # 提取内容的前2000字符作为上下文
+            content_preview = content[:2000] if content else ""
+            
+            prompt = f"""请根据文章标题和内容，将标题翻译成准确、自然的中文标题。
+
+标题: {title}
+{f"文章内容预览: {content_preview}" if content_preview else ""}
+
+要求：
+1. 翻译要准确、自然，符合中文表达习惯
+2. 如果是技术术语，使用通用的中文翻译
+3. 只返回翻译后的中文标题，不要添加任何解释或说明
+4. 保持标题的简洁性和吸引力
+
+中文标题："""
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是一个专业的翻译助手，擅长根据文章内容准确翻译技术文章标题。"
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=200,
+            )
+            
+            translated = response.choices[0].message.content.strip()
+            # 去除可能的引号
+            translated = translated.strip('"').strip("'").strip()
+            return translated
+            
+        except Exception as e:
+            logger.warning(f"⚠️  标题翻译失败: {e}")
+            return title
+
+    def _is_english_title(self, title: str) -> bool:
+        """
+        判断标题是否为英文
+        
+        Args:
+            title: 标题
+            
+        Returns:
+            是否为英文标题
+        """
+        if not title:
+            return False
+        
+        # 简单的判断：如果标题中大部分字符是英文字母、数字或常见英文标点，则认为是英文
+        # 如果包含中文字符，则不是英文
+        import re
+        # 检查是否包含中文字符
+        if re.search(r'[\u4e00-\u9fff]', title):
+            return False
+        
+        # 检查是否主要是英文字母、数字和常见标点
+        english_chars = re.findall(r'[a-zA-Z0-9\s\.,;:!?\'"\-()\[\]{}]', title)
+        english_ratio = len(english_chars) / len(title) if title else 0
+        
+        # 如果英文字符占比超过70%，认为是英文标题
+        return english_ratio > 0.7
+
     def _build_analysis_prompt(self, title: str, content: str, url: str = "", source: str = "") -> str:
         """构建分析提示词"""
         content_preview = content[:8000] if content else "无内容"
@@ -237,7 +334,8 @@ URL: {url}
     "tags": ["标签1", "标签2", "标签3"],
     "key_points": ["关键点1", "关键点2", "关键点3"],
     "target_audience": "researcher/engineer/general",
-    "related_papers": ["相关论文1", "相关论文2"]
+    "related_papers": ["相关论文1", "相关论文2"],
+    "title_zh": "如果文章标题是英文，请将其翻译成准确、自然的中文标题；如果标题已经是中文，则不输出该行"
 }}
 
 **重要提示：summary字段必须使用Markdown格式输出，可以使用以下Markdown语法：**

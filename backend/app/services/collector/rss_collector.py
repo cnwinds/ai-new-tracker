@@ -3,7 +3,7 @@ RSS数据采集器
 """
 import feedparser
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Tuple, Optional
 import logging
 from bs4 import BeautifulSoup
@@ -140,11 +140,20 @@ class RSSCollector:
             author = entry.get("author", "")
 
             # 发布时间
+            # feedparser返回的时间是UTC时间，需要转换为本地时间（UTC+8）
             published_at = None
             if hasattr(entry, "published_parsed") and entry.published_parsed:
-                published_at = datetime(*entry.published_parsed[:6])
+                # 创建UTC时间对象
+                utc_time = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                # 转换为本地时间（UTC+8）
+                local_tz = timezone(timedelta(hours=8))
+                published_at = utc_time.astimezone(local_tz).replace(tzinfo=None)
             elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
-                published_at = datetime(*entry.updated_parsed[:6])
+                # 创建UTC时间对象
+                utc_time = datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
+                # 转换为本地时间（UTC+8）
+                local_tz = timezone(timedelta(hours=8))
+                published_at = utc_time.astimezone(local_tz).replace(tzinfo=None)
 
             # 内容提取
             content = ""

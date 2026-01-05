@@ -1326,10 +1326,6 @@ class CollectionService:
                                 # 更新source字段，确保使用正确的订阅源名称
                                 existing.source = article.get("source", existing.source)
 
-                                # 如果没有中文标题，尝试翻译
-                                if not existing.title_zh and self.ai_analyzer:
-                                    self._translate_article_title_if_needed(existing)
-
                                 session.commit()
                                 return {"id": existing.id, "is_new": False}
                         return {"id": existing.id, "is_new": False}
@@ -1350,11 +1346,6 @@ class CollectionService:
                     session.add(new_article)
                     session.commit()
 
-                    # 如果没有中文标题，尝试翻译
-                    if not new_article.title_zh and self.ai_analyzer:
-                        self._translate_article_title_if_needed(new_article)
-                        session.commit()
-
                     # 返回新插入的文章ID
                     return {"id": new_article.id, "is_new": True}
 
@@ -1371,16 +1362,6 @@ class CollectionService:
 
         return None
 
-    def _translate_article_title_if_needed(self, article: Article):
-        """
-        如果文章标题是英文且没有中文翻译，则翻译为中文
-        注意：已禁用标题翻译功能，标题保持原样
-
-        Args:
-            article: 文章对象
-        """
-        # 标题保持原样，不进行翻译
-        return
 
     def _analyze_articles(self, db, batch_size: int = 50, max_age_days: int = None, max_workers: int = 3) -> Dict[str, Any]:
         """
@@ -1483,28 +1464,6 @@ class CollectionService:
                         if not article_obj:
                             return {"success": False, "reason": "article_not_found"}
 
-                        # 检查是否需要翻译标题（英文标题翻译成中文）
-                        # 放在is_processed检查之前，确保即使是已分析的文章也能翻译
-                        if not article_obj.title_zh:
-                            import re
-
-                            # 简单判断是否为英文：检查是否包含中文字符
-                            def is_english(text: str) -> bool:
-                                if not text:
-                                    return False
-                                chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
-                                return chinese_chars / len(text) < 0.3
-
-                            # 标题保持原样，不进行翻译
-                            # if is_english(article_obj.title):
-                            #     logger.info(f"  🌐 翻译标题: {article_obj.title[:50]}...")
-                            #     try:
-                            #         article_obj.title_zh = thread_ai_analyzer.translate_title(article_obj.title)
-                            #         article_session.commit()
-                            #     except Exception as e:
-                            #         logger.warning(f"  ⚠️  标题翻译失败: {e}")
-                            #         article_session.rollback()
-
                         # 如果已经分析过，跳过AI分析
                         if article_obj.is_processed:
                             return {"success": False, "reason": "already_processed"}
@@ -1542,6 +1501,9 @@ class CollectionService:
                         article_obj.target_audience = result.get("target_audience")
                         article_obj.key_points = result.get("key_points")
                         article_obj.related_papers = result.get("related_papers")
+                        # 保存中文标题（如果AI分析返回了title_zh）
+                        if result.get("title_zh"):
+                            article_obj.title_zh = result.get("title_zh")
                         article_obj.is_processed = True
 
                         article_session.commit()
@@ -1647,6 +1609,9 @@ class CollectionService:
                     article_obj.target_audience = result.get("target_audience")
                     article_obj.key_points = result.get("key_points")
                     article_obj.related_papers = result.get("related_papers")
+                    # 保存中文标题（如果AI分析返回了title_zh）
+                    if result.get("title_zh"):
+                        article_obj.title_zh = result.get("title_zh")
                     article_obj.is_processed = True
 
                     session.commit()

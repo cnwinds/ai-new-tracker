@@ -157,6 +157,9 @@ async def analyze_article(
         article.tags = analysis_result.get("tags", [])
         article.key_points = analysis_result.get("key_points", [])
         article.target_audience = analysis_result.get("target_audience")
+        # 保存中文标题（如果AI分析返回了title_zh）
+        if analysis_result.get("title_zh"):
+            article.title_zh = analysis_result.get("title_zh")
         
         # 确保 summary 字段是字符串，而不是 JSON 对象
         summary_value = analysis_result.get("summary", "")

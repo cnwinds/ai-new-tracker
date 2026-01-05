@@ -3,7 +3,7 @@ API数据采集器（arXiv, Hugging Face等）
 """
 import requests
 import feedparser
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 import logging
 import time
@@ -75,9 +75,14 @@ class ArXivCollector:
             pdf_url = entry.get("link", "").replace("/abs/", "/pdf/") + ".pdf" if "/abs/" in entry.get("link", "") else ""
 
             # 发布时间
+            # feedparser返回的时间是UTC时间，需要转换为本地时间（UTC+8）
             published_at = None
             if hasattr(entry, "published_parsed") and entry.published_parsed:
-                published_at = datetime(*entry.published_parsed[:6])
+                # 创建UTC时间对象
+                utc_time = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                # 转换为本地时间（UTC+8）
+                local_tz = timezone(timedelta(hours=8))
+                published_at = utc_time.astimezone(local_tz).replace(tzinfo=None)
 
             return {
                 "title": entry.get("title", ""),
@@ -149,10 +154,15 @@ class HuggingFaceCollector:
             author_str = ", ".join(authors[:5]) + ("..." if len(authors) > 5 else "")
 
             # 发布时间
+            # Hugging Face API返回的时间是UTC时间，需要转换为本地时间（UTC+8）
             published_at = None
             if item.get("publishedAt"):
                 try:
-                    published_at = datetime.fromisoformat(item["publishedAt"].replace("Z", "+00:00"))
+                    # 解析UTC时间
+                    utc_time = datetime.fromisoformat(item["publishedAt"].replace("Z", "+00:00"))
+                    # 转换为本地时间（UTC+8）
+                    local_tz = timezone(timedelta(hours=8))
+                    published_at = utc_time.astimezone(local_tz).replace(tzinfo=None)
                 except:
                     pass
 

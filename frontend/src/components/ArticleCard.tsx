@@ -2,7 +2,7 @@
  * 文章卡片组件
  */
 import { useState } from 'react';
-import { Card, Tag, Button, Space, Typography, Popconfirm } from 'antd';
+import { Card, Tag, Button, Space, Typography, Popconfirm, Tooltip } from 'antd';
 import { LinkOutlined, DeleteOutlined, RobotOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
@@ -107,9 +107,17 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           
           {/* 标题 + 来源Tag（紧跟在标题后面，靠左显示） */}
           <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <Title level={5} style={{ marginBottom: 0, display: 'inline' }}>
-              {article.title_zh || article.title}
-            </Title>
+            {article.title_zh ? (
+              <Tooltip title={article.title} placement="top">
+                <Title level={5} style={{ marginBottom: 0, display: 'inline', cursor: 'help' }}>
+                  {article.title_zh}
+                </Title>
+              </Tooltip>
+            ) : (
+              <Title level={5} style={{ marginBottom: 0, display: 'inline' }}>
+                {article.title}
+              </Title>
+            )}
             <Tag color="blue" style={{ flexShrink: 0 }}>{article.source}</Tag>
           </div>
           
