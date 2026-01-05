@@ -1,6 +1,6 @@
 # 后端 Dockerfile
 # 使用渡渡鸟（docker.aityp.com）提供的华为云镜像加速
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/prefecthq/prefect:3.6.5.dev4-python3.14
 
 # 设置工作目录
 WORKDIR /app

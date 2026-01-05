@@ -6,7 +6,7 @@
 
 项目的 Dockerfile 已经直接使用渡渡鸟提供的华为云镜像源：
 
-- **后端**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim`
+- **后端**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.14-slim`
 - **前端构建**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/node:18-alpine`
 - **前端运行**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nginx:alpine`
 
@@ -14,7 +14,7 @@
 
 如果需要使用其他 Docker 镜像，可以访问 [https://docker.aityp.com](https://docker.aityp.com) 查询对应的国内加速地址。
 
-在网站上搜索镜像名称（如 `python:3.11-slim`），即可获取对应的华为云镜像地址，格式为：
+在网站上搜索镜像名称（如 `python:3.14-slim`），即可获取对应的华为云镜像地址，格式为：
 ```
 swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/镜像名
 ```
@@ -23,7 +23,7 @@ swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/镜像名
 
 ```bash
 # 测试拉取镜像
-docker pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim
+docker pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.14-slim
 
 # 查看镜像信息
 docker images | grep python
