@@ -57,3 +57,36 @@ export function useDeleteArticle() {
   });
 }
 
+export function useFavoriteArticle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => apiService.favoriteArticle(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['article', variables] });
+      queryClient.invalidateQueries({ queryKey: ['articles'] });
+      queryClient.invalidateQueries({ queryKey: ['rag'] });
+      message.success('已收藏');
+    },
+    onError: () => {
+      message.error('收藏失败');
+    },
+  });
+}
+
+export function useUnfavoriteArticle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => apiService.unfavoriteArticle(id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['article', variables] });
+      queryClient.invalidateQueries({ queryKey: ['articles'] });
+      queryClient.invalidateQueries({ queryKey: ['rag'] });
+      message.success('已取消收藏');
+    },
+    onError: () => {
+      message.error('取消收藏失败');
+    },
+  });
+}

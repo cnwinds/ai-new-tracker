@@ -198,3 +198,37 @@ async def delete_article(
         raise HTTPException(status_code=404, detail="文章不存在")
     return {"message": "文章已删除", "article_id": article_id}
 
+
+@router.post("/{article_id}/favorite")
+async def favorite_article(
+    article_id: int,
+    db: Session = Depends(get_database),
+):
+    """收藏文章"""
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+    
+    article.is_favorited = True
+    article.updated_at = datetime.now()
+    db.commit()
+    
+    return {"message": "文章已收藏", "article_id": article_id, "is_favorited": True}
+
+
+@router.delete("/{article_id}/favorite")
+async def unfavorite_article(
+    article_id: int,
+    db: Session = Depends(get_database),
+):
+    """取消收藏文章"""
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+    
+    article.is_favorited = False
+    article.updated_at = datetime.now()
+    db.commit()
+    
+    return {"message": "已取消收藏", "article_id": article_id, "is_favorited": False}
+

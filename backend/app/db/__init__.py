@@ -108,10 +108,35 @@ class DatabaseManager:
             Base.metadata.create_all(bind=self.engine)
             # 注意：不在这里初始化 vec0 虚拟表，避免循环依赖
             # vec0 表的初始化将在配置加载后通过 init_sqlite_vec_table() 完成
+            
+            # 迁移：添加 is_favorited 字段（如果不存在）
+            self._migrate_add_is_favorited()
+            
             logger.info("✅ 数据库基础表初始化成功")
         except Exception as e:
             logger.error(f"❌ 数据库初始化失败: {e}")
             raise
+
+    def _migrate_add_is_favorited(self):
+        """迁移：为 articles 表添加 is_favorited 字段（如果不存在）"""
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(self.engine)
+            columns = [col['name'] for col in inspector.get_columns('articles')]
+            
+            if 'is_favorited' not in columns:
+                logger.info("🔄 检测到缺少 is_favorited 字段，正在添加...")
+                with self.engine.connect() as conn:
+                    # SQLite 不支持直接添加带默认值的列，需要分步操作
+                    conn.execute(text("""
+                        ALTER TABLE articles 
+                        ADD COLUMN is_favorited BOOLEAN DEFAULT 0
+                    """))
+                    conn.commit()
+                logger.info("✅ is_favorited 字段添加成功")
+        except Exception as e:
+            # 如果字段已存在或其他错误，记录但不中断
+            logger.debug(f"is_favorited 字段迁移检查: {e}")
 
     def init_sqlite_vec_table(self, embedding_model: str = None):
         """

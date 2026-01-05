@@ -50,6 +50,7 @@ class Article(ArticleBase):
     extra_data: Optional[dict] = None
     is_processed: bool = False
     is_sent: bool = False
+    is_favorited: bool = False
     collected_at: datetime
     created_at: datetime
     updated_at: datetime

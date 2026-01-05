@@ -24,6 +24,7 @@ export interface Article {
   extra_data?: Record<string, any>;
   is_processed: boolean;
   is_sent: boolean;
+  is_favorited: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -202,6 +203,7 @@ export interface SummaryGenerateRequest {
 
 // RAG相关类型定义
 export interface ArticleSearchResult {
+  is_favorited?: boolean;
   id: number;
   title: string;
   title_zh?: string;

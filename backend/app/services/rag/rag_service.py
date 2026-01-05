@@ -348,13 +348,13 @@ class RAGService:
             # k 参数必须直接写在 SQL 中，不能作为参数绑定
             k_value = max(top_k * 2, 10)  # 至少返回 10 个结果
             
-            # 构建基础查询
+            # 构建基础查询（包含 is_favorited 字段用于权重计算）
             sql = f"""
                 SELECT 
                     v.article_id,
                     distance,
                     a.id, a.title, a.title_zh, a.url, a.summary, a.source,
-                    a.published_at, a.importance, a.topics, a.tags
+                    a.published_at, a.importance, a.topics, a.tags, a.is_favorited
                 FROM vec_embeddings v
                 JOIN articles a ON v.article_id = a.id
                 WHERE v.embedding MATCH :query_vector AND k = {k_value}
@@ -404,6 +404,12 @@ class RAGService:
                 # 相似度 = 1 / (1 + distance)
                 distance = float(row[1]) if row[1] is not None else float('inf')
                 similarity = 1.0 / (1.0 + distance) if distance < float('inf') else 0.0
+                
+                # 如果文章被收藏，增加权重（提升相似度分数）
+                is_favorited = row[12] if len(row) > 12 else False
+                if is_favorited:
+                    # 增加 0.2 的相似度权重，确保收藏文章排在前面
+                    similarity = min(1.0, similarity + 0.2)
                 
                 # 处理 published_at：可能是 datetime 对象或字符串
                 published_at = row[8]
@@ -456,7 +462,8 @@ class RAGService:
                     "importance": row[9],
                     "topics": topics,
                     "tags": tags,
-                    "similarity": similarity
+                    "similarity": similarity,
+                    "is_favorited": is_favorited
                 })
             
             # 去重：按文章ID去重，保留相似度最高的记录
@@ -541,6 +548,12 @@ class RAGService:
                 continue
             
             similarity = self._cosine_similarity(query_embedding, embedding_obj.embedding)
+            
+            # 如果文章被收藏，增加权重（提升相似度分数）
+            if article.is_favorited:
+                # 增加 0.2 的相似度权重，确保收藏文章排在前面
+                similarity = min(1.0, similarity + 0.2)
+            
             results.append({
                 "article": article,
                 "similarity": similarity,
@@ -591,7 +604,8 @@ class RAGService:
                 "importance": article.importance,
                 "topics": topics,
                 "tags": tags,
-                "similarity": result["similarity"]
+                "similarity": result["similarity"],
+                "is_favorited": article.is_favorited
             })
         
         # 去重：按文章ID去重，保留相似度最高的记录

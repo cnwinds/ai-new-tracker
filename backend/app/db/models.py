@@ -47,6 +47,7 @@ class Article(Base):
     extra_data = Column(JSON, nullable=True)  # 额外信息（避免使用metadata，这是SQLAlchemy保留字）
     is_processed = Column(Boolean, default=False)  # 是否已AI分析
     is_sent = Column(Boolean, default=False)  # 是否已推送
+    is_favorited = Column(Boolean, default=False, index=True)  # 是否已收藏
 
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

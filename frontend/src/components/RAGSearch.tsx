@@ -3,7 +3,7 @@
  */
 import { useState, useMemo } from 'react';
 import { Card, Input, Select, Space, List, Tag, Typography, Empty, Spin, Alert, Button, DatePicker, Tooltip } from 'antd';
-import { SearchOutlined, LinkOutlined } from '@ant-design/icons';
+import { SearchOutlined, LinkOutlined, StarFilled } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { apiService } from '@/services/api';
@@ -243,6 +243,11 @@ export default function RAGSearch() {
                               </Tag>
                             )}
                             <Tag color="blue">{item.source}</Tag>
+                            {item.is_favorited && (
+                              <Tooltip title="已收藏">
+                                <StarFilled style={{ color: '#faad14', fontSize: 14 }} />
+                              </Tooltip>
+                            )}
                             <Tag color="purple">相似度: {formatSimilarity(item.similarity)}</Tag>
                           </div>
 

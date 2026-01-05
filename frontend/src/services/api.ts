@@ -140,6 +140,18 @@ class ApiService {
     );
   }
 
+  async favoriteArticle(id: number): Promise<any> {
+    return this.handleRequest(
+      this.client.post(`/articles/${id}/favorite`)
+    );
+  }
+
+  async unfavoriteArticle(id: number): Promise<any> {
+    return this.handleRequest(
+      this.client.delete(`/articles/${id}/favorite`)
+    );
+  }
+
   // 采集相关
   async startCollection(enableAi: boolean = true): Promise<CollectionTask> {
     return this.handleRequest(

@@ -3,11 +3,11 @@
  */
 import { useState } from 'react';
 import { Card, Tag, Button, Space, Typography, Popconfirm, Tooltip } from 'antd';
-import { LinkOutlined, DeleteOutlined, RobotOutlined, UpOutlined, DownOutlined } from '@ant-design/icons';
+import { LinkOutlined, DeleteOutlined, RobotOutlined, UpOutlined, DownOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import type { Article } from '@/types';
-import { useAnalyzeArticle, useDeleteArticle } from '@/hooks/useArticles';
+import { useAnalyzeArticle, useDeleteArticle, useFavoriteArticle, useUnfavoriteArticle } from '@/hooks/useArticles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
@@ -22,6 +22,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const [expanded, setExpanded] = useState(false);
   const analyzeMutation = useAnalyzeArticle();
   const deleteMutation = useDeleteArticle();
+  const favoriteMutation = useFavoriteArticle();
+  const unfavoriteMutation = useUnfavoriteArticle();
   const { theme } = useTheme();
 
   // 处理 summary 字段：如果是 JSON 字符串，尝试解析并提取 summary 字段
@@ -73,6 +75,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     deleteMutation.mutate(article.id);
   };
 
+  const handleFavorite = () => {
+    if (article.is_favorited) {
+      unfavoriteMutation.mutate(article.id);
+    } else {
+      favoriteMutation.mutate(article.id);
+    }
+  };
+
   return (
     <Card
       style={{ marginBottom: 8 }}
@@ -105,7 +115,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             </Tag>
           )}
           
-          {/* 标题 + 来源Tag（紧跟在标题后面，靠左显示） */}
+          {/* 标题 + 来源Tag + 收藏标记（紧跟在标题后面，靠左显示） */}
           <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {article.title_zh ? (
               <Tooltip title={article.title} placement="top">
@@ -119,6 +129,11 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               </Title>
             )}
             <Tag color="blue" style={{ flexShrink: 0 }}>{article.source}</Tag>
+            {article.is_favorited && (
+              <Tooltip title="已收藏">
+                <StarFilled style={{ color: '#faad14', fontSize: 14 }} />
+              </Tooltip>
+            )}
           </div>
           
           {/* 展开/收起图标 */}
@@ -202,6 +217,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             
             {/* 功能按钮 */}
             <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+              <Button
+                type={article.is_favorited ? "primary" : "default"}
+                icon={article.is_favorited ? <StarFilled /> : <StarOutlined />}
+                onClick={handleFavorite}
+                loading={favoriteMutation.isPending || unfavoriteMutation.isPending}
+              >
+                {article.is_favorited ? '已收藏' : '收藏'}
+              </Button>
               <Button
                 type="default"
                 icon={<RobotOutlined />}
