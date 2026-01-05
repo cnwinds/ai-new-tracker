@@ -1,103 +1,29 @@
 # Docker 镜像加速配置指南
 
-如果遇到 Docker 镜像拉取超时的问题，可以使用以下方法配置国内镜像加速。
+本项目使用渡渡鸟（[docker.aityp.com](https://docker.aityp.com)）提供的华为云镜像加速服务。
 
-## 方法一：配置 Docker Daemon 镜像加速器（推荐）
+## 当前配置
 
-这是最通用的方法，配置后所有 Docker 镜像拉取都会使用加速器。
+项目的 Dockerfile 已经直接使用渡渡鸟提供的华为云镜像源：
 
-### Linux 系统
+- **后端**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim`
+- **前端构建**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/node:18-alpine`
+- **前端运行**：`swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nginx:alpine`
 
-1. 编辑或创建 `/etc/docker/daemon.json` 文件：
+## 查询其他镜像
+
+如果需要使用其他 Docker 镜像，可以访问 [https://docker.aityp.com](https://docker.aityp.com) 查询对应的国内加速地址。
+
+在网站上搜索镜像名称（如 `python:3.11-slim`），即可获取对应的华为云镜像地址，格式为：
+```
+swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/镜像名
+```
+
+## 验证镜像拉取
 
 ```bash
-sudo mkdir -p /etc/docker
-sudo tee /etc/docker/daemon.json <<-'EOF'
-{
-  "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com",
-    "https://mirror.baidubce.com",
-    "https://registry.docker-cn.com"
-  ]
-}
-EOF
-```
-
-2. 重启 Docker 服务：
-
-```bash
-    sudo systemctl daemon-reload
-    sudo systemctl restart docker
-```
-
-3. 验证配置：
-
-```bash
-docker info | grep -A 10 "Registry Mirrors"
-```
-
-### Windows / macOS
-
-1. 打开 Docker Desktop
-2. 进入 Settings（设置）→ Docker Engine
-3. 在 JSON 配置中添加：
-
-```json
-{
-  "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com",
-    "https://mirror.baidubce.com",
-    "https://registry.docker-cn.com"
-  ]
-}
-```
-
-4. 点击 "Apply & Restart" 应用并重启
-
-## 方法二：使用阿里云容器镜像服务（推荐国内用户）
-
-1. 登录阿里云控制台：https://cr.console.aliyun.com/
-2. 进入"容器镜像服务" → "镜像加速器"
-3. 复制你的专属加速地址（格式类似：`https://xxxxx.mirror.aliyuncs.com`）
-4. 按照方法一的步骤配置，将加速地址添加到 `registry-mirrors` 中
-
-## 方法三：在 Dockerfile 中直接使用国内镜像源
-
-当前项目的 Dockerfile 已经配置使用阿里云镜像源：
-
-- 后端：`registry.cn-hangzhou.aliyuncs.com/acs/python:3.11-slim`
-- 前端构建：`registry.cn-hangzhou.aliyuncs.com/acs/node:18-alpine`
-- 前端运行：`registry.cn-hangzhou.aliyuncs.com/acs/nginx:alpine`
-
-如果这些镜像不可用，可以修改 Dockerfile 使用其他镜像源：
-
-### 可用的国内镜像源
-
-- **中科大镜像**：`docker.mirrors.ustc.edu.cn`
-- **网易镜像**：`hub-mirror.c.163.com`
-- **百度镜像**：`mirror.baidubce.com`
-- **阿里云镜像**：`registry.cn-hangzhou.aliyuncs.com`
-- **腾讯云镜像**：`mirror.ccs.tencentyun.com`
-
-### 修改示例
-
-如果需要使用其他镜像源，可以修改 Dockerfile：
-
-```dockerfile
-# 使用中科大镜像
-FROM docker.mirrors.ustc.edu.cn/library/python:3.11-slim
-
-# 或使用腾讯云镜像
-FROM ccr.ccs.tencentyun.com/library/python:3.11-slim
-```
-
-## 验证镜像加速是否生效
-
-```bash
-# 拉取一个测试镜像
-docker pull python:3.11-slim
+# 测试拉取镜像
+docker pull swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim
 
 # 查看镜像信息
 docker images | grep python
@@ -105,18 +31,14 @@ docker images | grep python
 
 ## 常见问题
 
-### 1. 配置后仍然很慢
+### 镜像拉取失败
 
-- 检查网络连接
-- 尝试更换其他镜像源
-- 检查防火墙设置
+如果遇到镜像拉取失败：
+1. 检查网络连接
+2. 访问 [docker.aityp.com](https://docker.aityp.com) 确认镜像是否已同步
+3. 某些镜像可能需要等待同步（通常 1 小时内完成）
 
-### 2. 某些镜像仍然拉取失败
-
-- 某些官方镜像可能不在镜像源中，需要直接从 Docker Hub 拉取
-- 可以尝试使用 `docker pull` 时指定镜像源
-
-### 3. 企业内网环境
+### 企业内网环境
 
 - 需要配置代理服务器
 - 或使用内网私有镜像仓库

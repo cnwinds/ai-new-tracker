@@ -16,7 +16,7 @@
 
 - 已安装 Docker 和 Docker Compose
 - 确保端口 8000（后端）和 5173（前端）未被占用
-- **重要**：如果在中国大陆，建议先配置 Docker 镜像加速器（见 [DOCKER_MIRROR.md](./DOCKER_MIRROR.md)），否则镜像拉取可能很慢或超时
+- **注意**：项目已配置使用渡渡鸟（[docker.aityp.com](https://docker.aityp.com)）提供的华为云镜像加速，无需额外配置
 
 ### 启动服务
 
