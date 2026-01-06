@@ -21,16 +21,22 @@ import {
   Spin,
   Switch,
 } from 'antd';
-import { PlayCircleOutlined, ReloadOutlined, SettingOutlined, StopOutlined } from '@ant-design/icons';
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
-
-const { Text, Paragraph } = Typography;
+import { 
+  PlayCircleOutlined, 
+  ReloadOutlined, 
+  SettingOutlined, 
+  StopOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined 
+} from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import dayjs from 'dayjs';
 import type { CollectionTask, AutoCollectionSettings } from '@/types';
+
+const { Text, Paragraph } = Typography;
 
 export default function CollectionHistory() {
   const { isAuthenticated } = useAuth();
@@ -79,8 +85,11 @@ export default function CollectionHistory() {
       queryClient.invalidateQueries({ queryKey: ['collection-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['collection-status'] });
     },
-    onError: (error: any) => {
-      message.error(`停止采集任务失败: ${error?.response?.data?.detail || error?.message || '未知错误'}`);
+    onError: (error) => {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '停止采集任务失败';
+      message.error(errorMessage);
     },
   });
 

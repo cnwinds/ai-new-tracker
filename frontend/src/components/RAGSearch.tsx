@@ -7,11 +7,13 @@ import { SearchOutlined, LinkOutlined, StarFilled } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { apiService } from '@/services/api';
-import type { RAGSearchRequest, ArticleSearchResult, RSSSource } from '@/types';
+import type { RAGSearchRequest, ArticleSearchResult } from '@/types';
 import dayjs from 'dayjs';
 import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
+import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
+import { IMPORTANCE_COLORS, getImportanceLabel } from '@/utils/article';
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -31,38 +33,11 @@ export default function RAGSearch() {
     queryFn: () => apiService.getSources(),
   });
 
-  // 规范化源类型
-  const normalizeSourceType = (type: string | undefined): string => {
-    if (!type) return 'rss';
-    const normalized = type.toLowerCase().trim();
-    if (normalized === 'social' || normalized === 'social_media') return 'social';
-    if (normalized === 'rss' || normalized === 'rss_feed') return 'rss';
-    if (normalized === 'api' || normalized === 'api_source') return 'api';
-    if (normalized === 'web' || normalized === 'web_source') return 'web';
-    return normalized;
-  };
-
-  // 按类型分组订阅源（与文章列表保持一致）
+  // 按类型分组订阅源
   const groupedSources = useMemo(() => {
     if (!sourcesList) return {};
-    
-    return sourcesList.reduce((acc: any, source: RSSSource) => {
-      const type = normalizeSourceType(source.source_type);
-      if (!acc[type]) {
-        acc[type] = [];
-      }
-      acc[type].push(source);
-      return acc;
-    }, {});
+    return groupSourcesByType(sourcesList);
   }, [sourcesList]);
-
-  // 源类型标签映射
-  const sourceTypeLabels: Record<string, string> = {
-    rss: 'RSS源',
-    api: 'API源',
-    web: 'Web源',
-    social: '社交媒体源',
-  };
 
   // 搜索mutation
   const searchMutation = useMutation({
@@ -99,12 +74,6 @@ export default function RAGSearch() {
 
   const formatSimilarity = (similarity: number): string => {
     return `${(similarity * 100).toFixed(1)}%`;
-  };
-
-  const importanceColors: Record<string, string> = {
-    high: 'red',
-    medium: 'orange',
-    low: 'green',
   };
 
   return (
@@ -157,12 +126,12 @@ export default function RAGSearch() {
                 return label.toLowerCase().includes(input.toLowerCase());
               }}
             >
-              {Object.entries(groupedSources).map(([type, sourcesList]: [string, any]) => (
+              {Object.entries(groupedSources).map(([type, sourcesList]) => (
                 <OptGroup 
                   key={type} 
-                  label={`${sourceTypeLabels[type] || type} (${sourcesList.length})`}
+                  label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
                 >
-                  {sourcesList.map((source: RSSSource) => (
+                  {sourcesList.map((source) => (
                     <Option key={source.id} value={source.name} label={source.name}>
                       {source.name}
                     </Option>
@@ -238,8 +207,8 @@ export default function RAGSearch() {
                         <Space direction="vertical" size="small" style={{ width: '100%' }}>
                           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                             {item.importance && (
-                              <Tag color={importanceColors[item.importance]}>
-                                {item.importance === 'high' ? '高' : item.importance === 'medium' ? '中' : '低'}
+                              <Tag color={IMPORTANCE_COLORS[item.importance]}>
+                                {getImportanceLabel(item.importance)}
                               </Tag>
                             )}
                             <Tag color="blue">{item.source}</Tag>

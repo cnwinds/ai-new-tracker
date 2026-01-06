@@ -112,14 +112,22 @@ class ApiService {
       if (axios.isAxiosError(error)) {
         const apiError: ApiError = {
           status: error.response?.status ?? 500,
-          message: error.response?.data?.detail ?? error.response?.data?.message ?? error.message ?? '请求失败',
+          message: error.response?.data?.detail 
+            ?? error.response?.data?.message 
+            ?? error.message 
+            ?? '请求失败',
           code: error.code,
           data: error.response?.data,
         };
         throw apiError;
       }
-      // 非 Axios 错误，直接抛出
-      throw error;
+      // 非 Axios 错误，包装为 ApiError
+      const apiError: ApiError = {
+        status: 500,
+        message: error instanceof Error ? error.message : '未知错误',
+        data: error,
+      };
+      throw apiError;
     }
   }
 

@@ -28,7 +28,7 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
   const [articleDetailModalOpen, setArticleDetailModalOpen] = useState(false);
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const inputRef = useRef<any>(null);
-  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 全局快捷键 Cmd/Ctrl + K
   useEffect(() => {

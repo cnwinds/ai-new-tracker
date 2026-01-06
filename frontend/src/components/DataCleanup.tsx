@@ -6,7 +6,7 @@ import { Card, Form, InputNumber, Switch, Button, message, Alert, Select } from 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { RSSSource } from '@/types';
+import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
 
 const { Option, OptGroup } = Select;
 
@@ -20,38 +20,11 @@ export default function DataCleanup() {
     queryFn: () => apiService.getSources(),
   });
 
-  // 规范化源类型
-  const normalizeSourceType = (type: string | undefined): string => {
-    if (!type) return 'rss';
-    const normalized = type.toLowerCase().trim();
-    if (normalized === 'social' || normalized === 'social_media') return 'social';
-    if (normalized === 'rss' || normalized === 'rss_feed') return 'rss';
-    if (normalized === 'api' || normalized === 'api_source') return 'api';
-    if (normalized === 'web' || normalized === 'web_source') return 'web';
-    return normalized;
-  };
-
   // 按类型分组订阅源
   const groupedSources = useMemo(() => {
     if (!sources) return {};
-    
-    return sources.reduce((acc: any, source: RSSSource) => {
-      const type = normalizeSourceType(source.source_type);
-      if (!acc[type]) {
-        acc[type] = [];
-      }
-      acc[type].push(source);
-      return acc;
-    }, {});
+    return groupSourcesByType(sources);
   }, [sources]);
-
-  // 源类型标签映射
-  const sourceTypeLabels: Record<string, string> = {
-    rss: 'RSS源',
-    api: 'API源',
-    web: 'Web源',
-    social: '社交媒体源',
-  };
 
   const cleanupMutation = useMutation({
     mutationFn: (data: {
@@ -128,12 +101,12 @@ export default function DataCleanup() {
                 return label.toLowerCase().includes(input.toLowerCase());
               }}
             >
-              {Object.entries(groupedSources).map(([type, sourcesList]: [string, any]) => (
+              {Object.entries(groupedSources).map(([type, sourcesList]) => (
                 <OptGroup 
                   key={type} 
-                  label={`${sourceTypeLabels[type] || type} (${sourcesList.length})`}
+                  label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
                 >
-                  {sourcesList.map((source: RSSSource) => (
+                  {sourcesList.map((source) => (
                     <Option key={source.id} value={source.name} label={source.name}>
                       {source.name}
                     </Option>

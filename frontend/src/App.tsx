@@ -12,11 +12,13 @@ import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
 import './App.css';
 
+// 创建 QueryClient 实例（单例模式）
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
+      staleTime: 5 * 60 * 1000, // 5分钟
     },
   },
 });

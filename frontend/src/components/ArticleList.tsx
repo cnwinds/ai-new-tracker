@@ -8,9 +8,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useArticles } from '@/hooks/useArticles';
 import ArticleCard from './ArticleCard';
 import { apiService } from '@/services/api';
-import type { ArticleFilter, RSSSource } from '@/types';
+import type { ArticleFilter } from '@/types';
+import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
 
 const { Option, OptGroup } = Select;
+
+const TIME_RANGES = ['今天', '最近3天', '最近7天', '最近30天', '全部'] as const;
 
 export default function ArticleList() {
   const [filter, setFilter] = useState<ArticleFilter>({
@@ -27,55 +30,26 @@ export default function ArticleList() {
     queryFn: () => apiService.getSources(),
   });
 
-  // 规范化源类型
-  const normalizeSourceType = (type: string | undefined): string => {
-    if (!type) return 'rss';
-    const normalized = type.toLowerCase().trim();
-    if (normalized === 'social' || normalized === 'social_media') return 'social';
-    if (normalized === 'rss' || normalized === 'rss_feed') return 'rss';
-    if (normalized === 'api' || normalized === 'api_source') return 'api';
-    if (normalized === 'web' || normalized === 'web_source') return 'web';
-    return normalized;
-  };
-
   // 按类型分组订阅源
   const groupedSources = useMemo(() => {
     if (!sources) return {};
-    
-    return sources.reduce((acc: any, source: RSSSource) => {
-      const type = normalizeSourceType(source.source_type);
-      if (!acc[type]) {
-        acc[type] = [];
-      }
-      acc[type].push(source);
-      return acc;
-    }, {});
+    return groupSourcesByType(sources);
   }, [sources]);
 
-  // 源类型标签映射
-  const sourceTypeLabels: Record<string, string> = {
-    rss: 'RSS源',
-    api: 'API源',
-    web: 'Web源',
-    social: '社交媒体源',
-  };
-
-  const timeRanges = ['今天', '最近3天', '最近7天', '最近30天', '全部'];
-
   const handleTimeRangeChange = (value: string) => {
-    setFilter({ ...filter, time_range: value, page: 1 });
+    setFilter((prev) => ({ ...prev, time_range: value, page: 1 }));
   };
 
   const handleSourceChange = (value: string[]) => {
-    setFilter({ ...filter, sources: value.length > 0 ? value : undefined, page: 1 });
+    setFilter((prev) => ({ 
+      ...prev, 
+      sources: value.length > 0 ? value : undefined, 
+      page: 1 
+    }));
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
-    setFilter({ ...filter, page, page_size: pageSize });
-  };
-
-  const handleRefresh = () => {
-    refetch();
+    setFilter((prev) => ({ ...prev, page, page_size: pageSize }));
   };
 
   return (
@@ -83,7 +57,7 @@ export default function ArticleList() {
       <Card
         title={
           <Space>
-            <span>📰 最新AI资讯</span>
+                <span>📰 最新AI资讯</span>
             {data && !isLoading && (
               <>
                 <span style={{ color: '#8c8c8c', fontSize: '14px', fontWeight: 'normal' }}>
@@ -93,7 +67,7 @@ export default function ArticleList() {
                   type="text"
                   size="small"
                   icon={<ReloadOutlined />}
-                  onClick={handleRefresh}
+                  onClick={() => refetch()}
                   loading={isFetching}
                   title="刷新"
                 />
@@ -118,12 +92,12 @@ export default function ArticleList() {
                 return label.toLowerCase().includes(input.toLowerCase());
               }}
             >
-              {Object.entries(groupedSources).map(([type, sourcesList]: [string, any]) => (
+              {Object.entries(groupedSources).map(([type, sourcesList]) => (
                 <OptGroup 
                   key={type} 
-                  label={`${sourceTypeLabels[type] || type} (${sourcesList.length})`}
+                  label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
                 >
-                  {sourcesList.map((source: RSSSource) => (
+                  {sourcesList.map((source) => (
                     <Option key={source.id} value={source.name} label={source.name}>
                       {source.name}
                     </Option>
@@ -134,7 +108,7 @@ export default function ArticleList() {
             <Radio.Group
               value={filter.time_range}
               onChange={(e) => handleTimeRangeChange(e.target.value)}
-              options={timeRanges.map((range) => ({ label: range, value: range }))}
+              options={TIME_RANGES.map((range) => ({ label: range, value: range }))}
               optionType="button"
               buttonStyle="solid"
             />

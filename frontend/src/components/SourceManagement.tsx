@@ -1,7 +1,7 @@
 /**
  * 订阅源管理组件
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Card,
   Button,
@@ -28,6 +28,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { RSSSource, RSSSourceCreate, RSSSourceUpdate } from '@/types';
+import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
+import { getDaysAgo, getDaysAgoText, formatDate, getDaysAgoColor } from '@/utils/date';
 
 export default function SourceManagement() {
   const { isAuthenticated } = useAuth();
@@ -139,28 +141,6 @@ export default function SourceManagement() {
     importMutation.mutate(selectedSources);
   };
 
-  // 规范化源类型
-  const normalizeSourceType = (type: string | undefined): string => {
-    if (!type) return 'rss';
-    const normalized = type.toLowerCase().trim();
-    // 支持多种可能的写法
-    if (normalized === 'social' || normalized === 'social_media') return 'social';
-    if (normalized === 'rss' || normalized === 'rss_feed') return 'rss';
-    if (normalized === 'api' || normalized === 'api_source') return 'api';
-    if (normalized === 'web' || normalized === 'web_source') return 'web';
-    return normalized; // 如果都不匹配，返回原值
-  };
-
-  // 按类型分组默认源
-  const groupedDefaultSources = defaultSources?.reduce((acc: any, source: any) => {
-    const type = normalizeSourceType(source.source_type);
-    if (!acc[type]) {
-      acc[type] = [];
-    }
-    acc[type].push(source);
-    return acc;
-  }, {}) || {};
-
   // 订阅源排序函数
   const sortSources = (sources: RSSSource[]): RSSSource[] => {
     return [...sources].sort((a, b) => {
@@ -182,21 +162,25 @@ export default function SourceManagement() {
     });
   };
 
-  // 按类型分组现有源
-  const groupedSources = sources?.reduce((acc: any, source: RSSSource) => {
-    const type = normalizeSourceType(source.source_type);
-    if (!acc[type]) {
-      acc[type] = [];
-    }
-    acc[type].push(source);
-    return acc;
-  }, {}) || {};
+  // 按类型分组默认源
+  const groupedDefaultSources = useMemo(() => {
+    if (!defaultSources) return {};
+    const grouped = groupSourcesByType(defaultSources);
+    return grouped;
+  }, [defaultSources]);
 
-  // 对每个类型的源进行排序
-  if (groupedSources.rss) groupedSources.rss = sortSources(groupedSources.rss);
-  if (groupedSources.api) groupedSources.api = sortSources(groupedSources.api);
-  if (groupedSources.web) groupedSources.web = sortSources(groupedSources.web);
-  if (groupedSources.social) groupedSources.social = sortSources(groupedSources.social);
+  // 按类型分组现有源并排序
+  const groupedSources = useMemo(() => {
+    if (!sources) return {};
+    const grouped = groupSourcesByType(sources);
+    
+    // 对每个类型的源进行排序
+    Object.keys(grouped).forEach((type) => {
+      grouped[type] = sortSources(grouped[type]);
+    });
+    
+    return grouped;
+  }, [sources]);
 
   // 检查源是否已存在
   const isSourceExists = (sourceName: string, sourceUrl: string) => {
@@ -205,38 +189,6 @@ export default function SourceManagement() {
     ) || false;
   };
 
-  // 计算距离今天的天数
-  const getDaysAgo = (dateString: string | undefined): number | null => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    const diffTime = today.getTime() - date.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  // 获取天数显示文本
-  const getDaysAgoText = (daysAgo: number | null): string => {
-    if (daysAgo === null) return '';
-    if (daysAgo === 0) return '今天';
-    if (daysAgo === 1) return '昨天';
-    return `${daysAgo}天前`;
-  };
-
-  // 格式化日期显示
-  const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '暂无';
-    const date = new Date(dateString);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   // 渲染源列表项（网格卡片样式）
   const renderSourceItem = (source: RSSSource) => {
@@ -245,9 +197,7 @@ export default function SourceManagement() {
       ? formatDate(source.latest_article_published_at)
       : '暂无';
     const daysAgoText = getDaysAgoText(daysAgo);
-    const daysAgoColor = daysAgo !== null 
-      ? (daysAgo > 30 ? '#ff4d4f' : daysAgo > 7 ? '#faad14' : '#52c41a')
-      : '#999';
+    const daysAgoColor = getDaysAgoColor(daysAgo);
 
     return (
       <Card
@@ -415,7 +365,7 @@ export default function SourceManagement() {
             items={[
               {
                 key: 'rss',
-                label: `RSS源 (${groupedSources.rss?.length || 0})`,
+                label: `${SOURCE_TYPE_LABELS.rss} (${groupedSources.rss?.length || 0})`,
                 children: (
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.rss?.length > 0 ? (
@@ -434,7 +384,7 @@ export default function SourceManagement() {
               },
               {
                 key: 'api',
-                label: `API源 (${groupedSources.api?.length || 0})`,
+                label: `${SOURCE_TYPE_LABELS.api} (${groupedSources.api?.length || 0})`,
                 children: (
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.api?.length > 0 ? (
@@ -453,7 +403,7 @@ export default function SourceManagement() {
               },
               {
                 key: 'web',
-                label: `Web源 (${groupedSources.web?.length || 0})`,
+                label: `${SOURCE_TYPE_LABELS.web} (${groupedSources.web?.length || 0})`,
                 children: (
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.web?.length > 0 ? (
@@ -472,7 +422,7 @@ export default function SourceManagement() {
               },
               {
                 key: 'social',
-                label: `社交媒体源 (${groupedSources.social?.length || 0})`,
+                label: `${SOURCE_TYPE_LABELS.social} (${groupedSources.social?.length || 0})`,
                 children: (
                   <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
                     {groupedSources.social?.length > 0 ? (
@@ -589,7 +539,7 @@ export default function SourceManagement() {
               items={[
                 {
                   key: 'rss',
-                  label: `RSS源 (${groupedDefaultSources.rss?.length || 0})`,
+                  label: `${SOURCE_TYPE_LABELS.rss} (${groupedDefaultSources.rss?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                       {groupedDefaultSources.rss?.map((source: any) => {
@@ -626,7 +576,7 @@ export default function SourceManagement() {
                 },
                 {
                   key: 'api',
-                  label: `API源 (${groupedDefaultSources.api?.length || 0})`,
+                  label: `${SOURCE_TYPE_LABELS.api} (${groupedDefaultSources.api?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                       {groupedDefaultSources.api?.map((source: any) => {
@@ -663,7 +613,7 @@ export default function SourceManagement() {
                 },
                 {
                   key: 'web',
-                  label: `Web源 (${groupedDefaultSources.web?.length || 0})`,
+                  label: `${SOURCE_TYPE_LABELS.web} (${groupedDefaultSources.web?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                       {groupedDefaultSources.web?.map((source: any) => {
@@ -700,7 +650,7 @@ export default function SourceManagement() {
                 },
                 {
                   key: 'social',
-                  label: `社交媒体源 (${groupedDefaultSources.social?.length || 0})`,
+                  label: `${SOURCE_TYPE_LABELS.social} (${groupedDefaultSources.social?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
                       {groupedDefaultSources.social?.map((source: any) => {

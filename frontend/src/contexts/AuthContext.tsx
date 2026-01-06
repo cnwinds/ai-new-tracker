@@ -79,8 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUsername(username);
       message.success('登录成功');
       return true;
-    } catch (error: any) {
-      message.error(error.message || '登录失败，请检查用户名和密码');
+    } catch (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '登录失败，请检查用户名和密码';
+      message.error(errorMessage);
       return false;
     }
   };

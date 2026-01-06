@@ -12,9 +12,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
+import { getSummaryText, IMPORTANCE_COLORS, getImportanceLabel } from '@/utils/article';
 
 const { TextArea } = Input;
-
 const { Title, Text } = Typography;
 
 interface ArticleCardProps {
@@ -26,6 +26,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const [isContentExpanded, setIsContentExpanded] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState(article.user_notes || '');
+  
   const analyzeMutation = useAnalyzeArticle();
   const deleteMutation = useDeleteArticle();
   const favoriteMutation = useFavoriteArticle();
@@ -34,42 +35,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const { theme } = useTheme();
   const { isAuthenticated } = useAuth();
 
-  // 处理 summary 字段：如果是 JSON 字符串，尝试解析并提取 summary 字段
-  const getSummaryText = (): string => {
-    if (!article.summary) return '';
-    
-    const summaryStr = String(article.summary).trim();
-    if (!summaryStr) return '';
-    
-    // 检查是否以 { 开头，可能是 JSON 对象字符串
-    if (summaryStr.startsWith('{') && summaryStr.includes('"summary"')) {
-      try {
-        // 尝试解析 JSON
-        const parsed = JSON.parse(summaryStr);
-        // 如果解析成功且是对象，提取 summary 字段
-        if (typeof parsed === 'object' && parsed !== null && parsed !== undefined) {
-          if ('summary' in parsed && typeof parsed.summary === 'string') {
-            return parsed.summary;
-          }
-          // 如果 summary 字段不存在，但整个对象看起来像是摘要内容，返回原始字符串
-        }
-      } catch (e) {
-        // JSON 解析失败，可能是格式不完整，返回原始字符串
-        console.warn('Failed to parse summary JSON:', e);
-      }
-    }
-    
-    // 如果不是 JSON 格式，直接返回原始字符串
-    return summaryStr;
-  };
-
-  const summaryText = getSummaryText();
-
-  const importanceColors: Record<string, string> = {
-    high: 'red',
-    medium: 'orange',
-    low: 'green',
-  };
+  const summaryText = getSummaryText(article);
 
   const handleAnalyze = () => {
     // 如果已分析，使用 force=true 强制重新分析
@@ -141,8 +107,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
           
           {/* 重要程度Tag */}
           {article.importance && (
-            <Tag color={importanceColors[article.importance]} style={{ flexShrink: 0 }}>
-              {article.importance === 'high' ? '高' : article.importance === 'medium' ? '中' : '低'}
+            <Tag color={IMPORTANCE_COLORS[article.importance]} style={{ flexShrink: 0 }}>
+              {getImportanceLabel(article.importance)}
             </Tag>
           )}
           

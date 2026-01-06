@@ -22,7 +22,7 @@ import {
 import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined, SettingOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
-import type { SummaryGenerateRequest } from '@/types';
+import type { SummaryGenerateRequest, Article } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
@@ -30,8 +30,8 @@ import isoWeek from 'dayjs/plugin/isoWeek';
 import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor, getSelectedStyle } from '@/utils/theme';
+import { showError } from '@/utils/error';
 import ArticleCard from './ArticleCard';
-import type { Article } from '@/types';
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -106,8 +106,8 @@ export default function DailySummary() {
       setHoveredWeekDate(null);
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
-    onError: (error: any) => {
-      message.error(`生成摘要失败: ${error?.response?.data?.detail || error?.message || '未知错误'}`);
+    onError: (error) => {
+      showError(error, '生成摘要失败');
     },
   });
 
@@ -118,8 +118,8 @@ export default function DailySummary() {
       message.success('摘要重新生成成功');
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
-    onError: (error: any) => {
-      message.error(`重新生成摘要失败: ${error?.response?.data?.detail || error?.message || '未知错误'}`);
+    onError: (error) => {
+      showError(error, '重新生成摘要失败');
     },
   });
 
@@ -129,8 +129,8 @@ export default function DailySummary() {
       message.success('摘要已删除');
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
-    onError: (error: any) => {
-      message.error(`删除摘要失败: ${error?.response?.data?.detail || error?.message || '未知错误'}`);
+    onError: (error) => {
+      showError(error, '删除摘要失败');
     },
   });
 
@@ -141,8 +141,8 @@ export default function DailySummary() {
       setConfigModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['summarySettings'] });
     },
-    onError: (error: any) => {
-      message.error(`保存配置失败: ${error?.response?.data?.detail || error?.message || '未知错误'}`);
+    onError: (error) => {
+      showError(error, '保存配置失败');
     },
   });
 
