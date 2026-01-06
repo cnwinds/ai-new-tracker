@@ -17,7 +17,7 @@ export default function GlobalNavigation() {
   const { theme, toggleTheme } = useTheme();
   const { openModal, setSearchQuery, searchQuery } = useAIConversation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
+  const [, setIsFocused] = useState(false);
   const [articleDetailModalOpen, setArticleDetailModalOpen] = useState(false);
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const inputRef = useRef<any>(null);
@@ -180,7 +180,7 @@ export default function GlobalNavigation() {
               setSearchQuery(searchQuery);
               handleSearch(searchQuery);
             }}
-            onSearchExecuted={(searchQuery) => {
+            onSearchExecuted={() => {
               // 搜索已执行，可以在这里做额外处理
               // 搜索历史已在 SmartDropdown 中保存
             }}

@@ -7,7 +7,6 @@ import { Modal, Typography, Spin, Tag, Space, Button, Divider, Empty } from 'ant
 import {
   CloseOutlined,
   LinkOutlined,
-  RobotOutlined,
   StarOutlined,
   StarFilled,
   DownOutlined,
@@ -15,14 +14,13 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
-import type { Article } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getThemeColor } from '@/utils/theme';
 import { createMarkdownComponents } from '@/utils/markdown';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface ArticleDetailModalProps {
   articleId: number | null;
@@ -140,7 +138,6 @@ export default function ArticleDetailModal({
                 strong
                 ellipsis={{
                   tooltip: article.title_zh || article.title,
-                  rows: 2,
                 }}
                 style={{
                   fontSize: isMobile ? '16px' : '18px',

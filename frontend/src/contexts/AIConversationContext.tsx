@@ -30,7 +30,7 @@ interface AIConversationContextType {
   currentChatId: string | null;
   setCurrentChatId: (chatId: string | null) => void;
   currentMessages: Message[];
-  setCurrentMessages: (messages: Message[]) => void;
+  setCurrentMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
   
   // 对话历史
   chatHistories: ChatHistory[];
@@ -51,9 +51,18 @@ const STORAGE_KEY = 'ai_conversation_history';
 export function AIConversationProvider({ children }: { children: ReactNode }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
+  const [currentMessages, setCurrentMessagesState] = useState<Message[]>([]);
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // 包装 setCurrentMessages 以支持函数式更新
+  const setCurrentMessages = useCallback((messages: Message[] | ((prev: Message[]) => Message[])) => {
+    if (typeof messages === 'function') {
+      setCurrentMessagesState(messages);
+    } else {
+      setCurrentMessagesState(messages);
+    }
+  }, []);
 
   // 从 localStorage 加载历史记录
   const loadHistoriesFromStorage = useCallback(() => {

@@ -11,7 +11,6 @@ import {
   Typography, 
   Spin, 
   List, 
-  Card, 
   Avatar, 
   Space, 
   Tag,
@@ -25,12 +24,10 @@ import {
   RobotOutlined,
   HistoryOutlined,
   DeleteOutlined,
-  LinkOutlined,
   UpOutlined,
   DownOutlined
 } from '@ant-design/icons';
 import { useAIConversation } from '@/contexts/AIConversationContext';
-import { useMutation } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import type { RAGQueryRequest, ArticleSearchResult } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -43,7 +40,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
 
 const { TextArea } = Input;
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 export default function AIConversationModal() {
   const { theme } = useTheme();
@@ -64,11 +61,10 @@ export default function AIConversationModal() {
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
-  const [topK, setTopK] = useState(5);
+  const [topK] = useState(5);
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const citationRefs = useRef<Record<number, HTMLDivElement>>({});
-  const modalRef = useRef<HTMLDivElement>(null);
   const hasAutoTriggeredRef = useRef(false); // 用于防止重复自动触发
 
   // 滚动到底部
@@ -137,7 +133,7 @@ export default function AIConversationModal() {
         receivedArticles = chunk.data.articles || [];
         receivedSources = chunk.data.sources || [];
         
-        setCurrentMessages((prevMessages) => {
+        setCurrentMessages((prevMessages: typeof currentMessages) => {
           return prevMessages.map((msg) => {
             if (msg.id === assistantMessageId) {
               return {
@@ -152,7 +148,7 @@ export default function AIConversationModal() {
       } else if (chunk.type === 'content') {
         accumulatedContent += chunk.data.content || '';
         
-        setCurrentMessages((prevMessages) => {
+        setCurrentMessages((prevMessages: typeof currentMessages) => {
           return prevMessages.map((msg) => {
             if (msg.id === assistantMessageId) {
               return {
@@ -179,7 +175,7 @@ export default function AIConversationModal() {
         setIsStreaming(false);
         const errorMessage = chunk.data.message || '未知错误';
         
-        setCurrentMessages((prevMessages) => {
+        setCurrentMessages((prevMessages: typeof currentMessages) => {
           return prevMessages.map((msg) => {
             if (msg.id === assistantMessageId) {
               return {
@@ -201,7 +197,7 @@ export default function AIConversationModal() {
       setIsStreaming(false);
       const errorMessage = error instanceof Error ? error.message : '未知错误';
       
-      setCurrentMessages((prevMessages) => {
+      setCurrentMessages((prevMessages: typeof currentMessages) => {
         return prevMessages.map((msg) => {
           if (msg.id === assistantMessageId) {
             return {
@@ -292,11 +288,11 @@ export default function AIConversationModal() {
   };
 
   // 提取引用编号
-  const extractCitations = (text: string): number[] => {
-    const matches = text.match(/\[(\d+)\]/g);
-    if (!matches) return [];
-    return matches.map((match) => parseInt(match.replace(/[\[\]]/g, '')));
-  };
+  // const extractCitations = (text: string): number[] => {
+  //   const matches = text.match(/\[(\d+)\]/g);
+  //   if (!matches) return [];
+  //   return matches.map((match) => parseInt(match.replace(/[\[\]]/g, '')));
+  // };
 
   // 响应式：检测移动端
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -411,7 +407,7 @@ export default function AIConversationModal() {
             dataSource={currentMessages}
             renderItem={(message) => {
               const isUser = message.type === 'user';
-              const citations = !isUser ? extractCitations(message.content) : [];
+              // const citations = !isUser ? extractCitations(message.content) : [];
 
               return (
                 <List.Item style={{ border: 'none', padding: '16px 0' }}>
