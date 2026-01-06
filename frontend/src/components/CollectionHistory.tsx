@@ -219,7 +219,12 @@ export default function CollectionHistory() {
       title: '开始时间',
       dataIndex: 'started_at',
       key: 'started_at',
-      render: (time: string) => dayjs(time).format('YYYY-MM-DD HH:mm:ss'),
+      render: (time: string) => (
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.5' }}>
+          <div>{dayjs(time).format('YYYY-MM-DD')}</div>
+          <div style={{ fontSize: '12px', color: '#999' }}>{dayjs(time).format('HH:mm:ss')}</div>
+        </div>
+      ),
     },
   ];
 
@@ -346,12 +351,18 @@ export default function CollectionHistory() {
                       </div>
                       <div>
                         <Text strong>开始时间：</Text>
-                        <Text>{dayjs(taskDetail.task.started_at).format('YYYY-MM-DD HH:mm:ss')}</Text>
+                        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+                          <Text>{dayjs(taskDetail.task.started_at).format('YYYY-MM-DD')}</Text>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>{dayjs(taskDetail.task.started_at).format('HH:mm:ss')}</Text>
+                        </div>
                       </div>
                       {taskDetail.task.completed_at && (
                         <div>
                           <Text strong>完成时间：</Text>
-                          <Text>{dayjs(taskDetail.task.completed_at).format('YYYY-MM-DD HH:mm:ss')}</Text>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 4 }}>
+                            <Text>{dayjs(taskDetail.task.completed_at).format('YYYY-MM-DD')}</Text>
+                            <Text type="secondary" style={{ fontSize: '12px' }}>{dayjs(taskDetail.task.completed_at).format('HH:mm:ss')}</Text>
+                          </div>
                         </div>
                       )}
                       <div>

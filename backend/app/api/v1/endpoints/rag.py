@@ -13,8 +13,6 @@ from sqlalchemy.orm import Session
 from backend.app.api.v1.endpoints.settings import require_auth
 from backend.app.core.dependencies import get_database
 from backend.app.db.models import Article, ArticleEmbedding
-from backend.app.core.dependencies import get_database
-from backend.app.api.v1.endpoints.settings import require_auth
 from backend.app.services.rag.rag_service import RAGService
 from backend.app.utils import create_ai_analyzer
 from backend.app.schemas.rag import (
@@ -28,6 +26,8 @@ from backend.app.schemas.rag import (
     RAGStatsResponse,
     ArticleSearchResult,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
