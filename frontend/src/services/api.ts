@@ -176,6 +176,12 @@ class ApiService {
     );
   }
 
+  async collectArticleFromUrl(url: string): Promise<Article> {
+    return this.handleRequest(
+      this.client.post<Article>(`/articles/collect?url=${encodeURIComponent(url)}`)
+    );
+  }
+
   // 采集相关
   async startCollection(enableAi: boolean = true): Promise<CollectionTask> {
     return this.handleRequest(
@@ -573,6 +579,15 @@ class ApiService {
   async getCurrentUser(): Promise<{ username: string }> {
     return this.handleRequest(
       this.client.get<{ username: string }>('/auth/me')
+    );
+  }
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    return this.handleRequest(
+      this.client.post<{ message: string }>('/auth/change-password', {
+        old_password: oldPassword,
+        new_password: newPassword,
+      })
     );
   }
 }

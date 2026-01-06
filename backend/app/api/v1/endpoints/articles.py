@@ -1,6 +1,7 @@
 """
 文章相关 API 端点
 """
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,6 +22,8 @@ from backend.app.schemas.article import (
     ArticleUpdate,
 )
 from backend.app.utils import create_ai_analyzer
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -261,4 +264,112 @@ async def update_article(
     db.refresh(article)
     
     return ArticleSchema.model_validate(article)
+
+
+@router.post("/collect", response_model=ArticleSchema)
+async def collect_article_from_url(
+    url: str = Query(..., description="要采集的文章URL"),
+    db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
+):
+    """从URL手动采集文章，并立即进行AI分析"""
+    from backend.app.services.collector.web_collector import WebCollector
+    from backend.app.utils import create_ai_analyzer
+    from urllib.parse import urlparse
+    import json
+    
+    # 验证URL格式
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            raise HTTPException(status_code=400, detail="无效的URL格式")
+    except Exception:
+        raise HTTPException(status_code=400, detail="无效的URL格式")
+    
+    # 检查文章是否已存在
+    existing_article = db.query(Article).filter(Article.url == url).first()
+    if existing_article:
+        raise HTTPException(status_code=409, detail=f"文章已存在 (ID: {existing_article.id})")
+    
+    # 使用WebCollector采集文章
+    collector = WebCollector()
+    article_data = collector.fetch_single_article(url)
+    
+    if not article_data:
+        raise HTTPException(status_code=500, detail="采集文章失败，请检查URL是否可访问")
+    
+    # 获取当前时间作为采集时间
+    now = datetime.now()
+    
+    # 优先使用解析出的发布时间，如果解析不出来则使用当前时间
+    published_at = article_data.get("published_at")
+    if not published_at:
+        published_at = now
+    
+    # 保存文章到数据库
+    try:
+        new_article = Article(
+            title=article_data.get("title", url),
+            url=article_data.get("url", url),
+            content=article_data.get("content", ""),
+            source=article_data.get("source", "手动采集-web页面"),
+            category=article_data.get("category", "手动采集-web页面"),
+            author=article_data.get("author"),  # 如果解析不出来就是 None
+            published_at=published_at,  # 优先使用解析出的日期，否则使用当前时间
+            collected_at=now,
+        )
+        
+        db.add(new_article)
+        db.flush()  # 刷新以获取ID，但不提交
+        
+        # 立即进行AI分析
+        ai_analyzer = create_ai_analyzer()
+        if ai_analyzer:
+            try:
+                analysis_result = ai_analyzer.analyze_article(
+                    title=new_article.title,
+                    content=new_article.content or "",
+                    url=new_article.url,
+                )
+                
+                # 更新文章分析结果
+                new_article.importance = analysis_result.get("importance")
+                new_article.topics = analysis_result.get("topics", [])
+                new_article.tags = analysis_result.get("tags", [])
+                new_article.key_points = analysis_result.get("key_points", [])
+                new_article.target_audience = analysis_result.get("target_audience")
+                
+                # 保存中文标题（如果AI分析返回了title_zh）
+                if analysis_result.get("title_zh"):
+                    new_article.title_zh = analysis_result.get("title_zh")
+                
+                # 确保 summary 字段是字符串，而不是 JSON 对象
+                summary_value = analysis_result.get("summary", "")
+                if isinstance(summary_value, dict):
+                    summary_value = json.dumps(summary_value, ensure_ascii=False)
+                elif not isinstance(summary_value, str):
+                    summary_value = str(summary_value) if summary_value else ""
+                
+                new_article.summary = summary_value
+                new_article.is_processed = True
+            except Exception as e:
+                # AI分析失败不影响文章保存，只记录错误
+                logger.warning(f"⚠️  AI分析失败: {e}")
+                new_article.is_processed = False
+        else:
+            # 如果没有配置AI分析器，标记为未分析
+            new_article.is_processed = False
+        
+        db.commit()
+        db.refresh(new_article)
+        
+        return ArticleSchema.model_validate(new_article)
+    except Exception as e:
+        db.rollback()
+        if "UNIQUE constraint failed" in str(e):
+            # 并发情况下可能已存在
+            existing = db.query(Article).filter(Article.url == url).first()
+            if existing:
+                return ArticleSchema.model_validate(existing)
+        raise HTTPException(status_code=500, detail=f"保存文章失败: {str(e)}")
 

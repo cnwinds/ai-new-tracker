@@ -358,3 +358,181 @@ class WebCollector:
             logger.warning(f"⚠️  获取完整内容失败 {url}: {e}")
             return ""
 
+    def fetch_single_article(self, url: str) -> Optional[Dict[str, Any]]:
+        """
+        智能提取单个URL的文章内容（用于手动采集）
+
+        Args:
+            url: 文章URL
+
+        Returns:
+            文章字典，包含 title, url, content, author, published_at 等
+        """
+        try:
+            logger.info(f"📄 正在采集文章: {url}")
+            
+            headers = {"User-Agent": self.user_agent}
+            response = requests.get(url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, "html.parser")
+            
+            # 提取标题
+            title = ""
+            title_selectors = [
+                'h1.entry-title',
+                'h1.post-title',
+                'h1.article-title',
+                'article h1',
+                'main h1',
+                'h1',
+                'title'
+            ]
+            
+            for selector in title_selectors:
+                title_elem = soup.select_one(selector)
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    if title and len(title) > 5:  # 确保标题有意义
+                        break
+            
+            # 如果还没找到标题，尝试从title标签获取
+            if not title or len(title) < 5:
+                title_tag = soup.find('title')
+                if title_tag:
+                    title = title_tag.get_text(strip=True)
+                    # 移除常见的后缀（如 " - Site Name"）
+                    title = re.sub(r'\s*[-|]\s*.*$', '', title)
+            
+            if not title:
+                title = url  # 如果还是找不到，使用URL作为标题
+            
+            # 提取内容
+            content = ""
+            content_selectors = [
+                'article .entry-content',
+                'article .post-content',
+                'article .article-content',
+                'article',
+                '.article-content',
+                '.post-content',
+                '.entry-content',
+                '.content',
+                'main article',
+                '[role="article"]',
+                '.blog-post-content',
+                '.post-body',
+            ]
+            
+            for selector in content_selectors:
+                elements = soup.select(selector)
+                if elements:
+                    content = elements[0].get_text(separator=" ", strip=True)
+                    if len(content) > 500:  # 确保内容足够长
+                        break
+            
+            # 如果还没找到足够的内容，尝试从main标签获取
+            if not content or len(content) < 500:
+                main_elem = soup.find('main')
+                if main_elem:
+                    # 移除导航、侧边栏等
+                    for tag in main_elem.find_all(['nav', 'aside', 'script', 'style', 'header', 'footer']):
+                        tag.decompose()
+                    content = main_elem.get_text(separator=" ", strip=True)
+            
+            # 如果还是不够，尝试从body获取（移除不需要的元素）
+            if not content or len(content) < 500:
+                for tag in soup.find_all(['nav', 'header', 'footer', 'aside', 'script', 'style', 'noscript']):
+                    tag.decompose()
+                body = soup.find('body')
+                if body:
+                    content = body.get_text(separator=" ", strip=True)
+            
+            # 清理内容（移除多余空白）
+            if content:
+                content = " ".join(content.split())
+            
+            # 提取作者
+            author = ""
+            author_selectors = [
+                '.author',
+                '.post-author',
+                '.article-author',
+                '[rel="author"]',
+                '.by-author',
+                'meta[name="author"]',
+            ]
+            
+            for selector in author_selectors:
+                author_elem = soup.select_one(selector)
+                if author_elem:
+                    if selector.startswith('meta'):
+                        author = author_elem.get('content', '')
+                    else:
+                        author = author_elem.get_text(strip=True)
+                    if author:
+                        break
+            
+            # 提取发布日期
+            published_at = None
+            
+            # 尝试从time标签的datetime属性获取
+            time_elem = soup.select_one("time[datetime]")
+            if time_elem:
+                datetime_attr = time_elem.get("datetime")
+                if datetime_attr:
+                    try:
+                        published_at = datetime.fromisoformat(datetime_attr.replace("Z", "+00:00"))
+                    except:
+                        pass
+            
+            # 尝试从meta标签获取
+            if not published_at:
+                meta_date = soup.select_one('meta[property="article:published_time"]')
+                if meta_date:
+                    datetime_attr = meta_date.get("content")
+                    if datetime_attr:
+                        try:
+                            published_at = datetime.fromisoformat(datetime_attr.replace("Z", "+00:00"))
+                        except:
+                            pass
+            
+            # 尝试从常见的选择器获取日期文本
+            if not published_at:
+                date_selectors = [
+                    '.published',
+                    '.post-date',
+                    '.article-date',
+                    '.date',
+                    'time',
+                ]
+                for selector in date_selectors:
+                    date_elem = soup.select_one(selector)
+                    if date_elem:
+                        date_text = date_elem.get_text(strip=True)
+                        if date_text:
+                            published_at = self._parse_date(date_text)
+                            if published_at:
+                                break
+            
+            logger.info(f"✅ 成功采集文章: {title[:50]}...")
+            
+            return {
+                "title": title,
+                "url": url,
+                "content": content,
+                "source": "手动采集-web页面",
+                "author": author if author else None,
+                "published_at": published_at,
+                "category": "手动采集-web页面",
+            }
+            
+        except requests.RequestException as e:
+            logger.error(f"❌ 请求失败 {url}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ 解析文章失败 {url}: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+

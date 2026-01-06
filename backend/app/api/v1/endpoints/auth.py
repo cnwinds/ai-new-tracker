@@ -14,7 +14,8 @@ from backend.app.core.paths import setup_python_path
 setup_python_path()
 
 from backend.app.core.settings import settings
-from backend.app.db import get_db
+from backend.app.core.dependencies import get_database
+from backend.app.db.repositories import AppSettingsRepository
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -99,24 +100,65 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123"  # 首次登录后应修改
 
+# AppSettings中的键名
+ADMIN_USERNAME_KEY = "admin_username"
+ADMIN_PASSWORD_HASH_KEY = "admin_password_hash"
+
+
+def get_stored_username(db: Session) -> str:
+    """获取存储的用户名，如果不存在则返回默认值"""
+    username = AppSettingsRepository.get_setting(db, ADMIN_USERNAME_KEY, DEFAULT_ADMIN_USERNAME)
+    if not username:
+        # 如果不存在，初始化默认用户名
+        AppSettingsRepository.set_setting(
+            db, ADMIN_USERNAME_KEY, DEFAULT_ADMIN_USERNAME, "string", "管理员用户名"
+        )
+        return DEFAULT_ADMIN_USERNAME
+    return username
+
+
+def get_stored_password_hash(db: Session) -> Optional[str]:
+    """获取存储的密码哈希，如果不存在则初始化默认密码"""
+    password_hash = AppSettingsRepository.get_setting(db, ADMIN_PASSWORD_HASH_KEY, None)
+    if not password_hash:
+        # 如果不存在，初始化默认密码的哈希
+        default_hash = get_password_hash(DEFAULT_ADMIN_PASSWORD)
+        AppSettingsRepository.set_setting(
+            db, ADMIN_PASSWORD_HASH_KEY, default_hash, "string", "管理员密码哈希"
+        )
+        return default_hash
+    return password_hash
+
 
 @router.post("/login", response_model=LoginResponse)
-async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+async def login(login_data: LoginRequest, db: Session = Depends(get_database)):
     """用户登录"""
-    # 验证用户名和密码
-    # 这里使用简单的硬编码验证，实际项目中应该从数据库读取
-    if login_data.username == DEFAULT_ADMIN_USERNAME and login_data.password == DEFAULT_ADMIN_PASSWORD:
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(
-            data={"sub": login_data.username}, expires_delta=access_token_expires
-        )
-        return LoginResponse(access_token=access_token, token_type="bearer")
-    else:
+    # 从数据库获取用户名和密码哈希
+    stored_username = get_stored_username(db)
+    stored_password_hash = get_stored_password_hash(db)
+    
+    # 验证用户名
+    if login_data.username != stored_username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # 验证密码
+    if not verify_password(login_data.password, stored_password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户名或密码错误",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # 登录成功，生成token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": login_data.username}, expires_delta=access_token_expires
+    )
+    return LoginResponse(access_token=access_token, token_type="bearer")
 
 
 @router.post("/logout")
@@ -135,3 +177,42 @@ async def get_current_user(token_data: TokenData = Depends(verify_token)):
 async def verify_token_endpoint(token_data: TokenData = Depends(verify_token)):
     """验证token是否有效"""
     return {"valid": True, "username": token_data.username}
+
+
+class ChangePasswordRequest(BaseModel):
+    """修改密码请求"""
+    old_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(
+    password_data: ChangePasswordRequest,
+    token_data: TokenData = Depends(verify_token),
+    db: Session = Depends(get_database)
+):
+    """修改密码"""
+    # 获取当前存储的密码哈希
+    stored_password_hash = get_stored_password_hash(db)
+    
+    # 验证旧密码
+    if not verify_password(password_data.old_password, stored_password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="旧密码错误",
+        )
+    
+    # 验证新密码长度（至少6位）
+    if len(password_data.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="新密码长度至少为6位",
+        )
+    
+    # 生成新密码哈希并保存
+    new_password_hash = get_password_hash(password_data.new_password)
+    AppSettingsRepository.set_setting(
+        db, ADMIN_PASSWORD_HASH_KEY, new_password_hash, "string", "管理员密码哈希"
+    )
+    
+    return {"message": "密码修改成功"}

@@ -2,14 +2,16 @@
  * 智能下拉面板组件
  * 支持零态（历史记录）和输入态（意图分流）
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { List, Typography, Empty, Spin, Divider, Tag } from 'antd';
 import { 
   MessageOutlined, 
   FileTextOutlined,
   ThunderboltOutlined,
   HistoryOutlined,
-  SearchOutlined
+  SearchOutlined,
+  LinkOutlined,
+  LoadingOutlined
 } from '@ant-design/icons';
 import { useAIConversation } from '@/contexts/AIConversationContext';
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +30,7 @@ interface SmartDropdownProps {
   onSelectAIQuery: (query: string) => void;
   onSelectSearchHistory?: (searchQuery: string) => void;
   onSearchExecuted?: (searchQuery: string) => void;
+  onCollectUrl?: (url: string) => Promise<void>;
 }
 
 const SEARCH_HISTORY_KEY = 'ai_news_search_history';
@@ -71,17 +74,38 @@ export default function SmartDropdown({
   onSelectAIQuery,
   onSelectSearchHistory,
   onSearchExecuted,
+  onCollectUrl,
 }: SmartDropdownProps) {
   const { theme } = useTheme();
   const { chatHistories } = useAIConversation();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [isCollecting, setIsCollecting] = useState(false);
 
-  // 搜索文章（仅在输入时）
+  // 检测输入是否为URL
+  const isUrl = (text: string): boolean => {
+    if (!text.trim()) return false;
+    try {
+      const url = new URL(text.trim());
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      // 尝试添加 https:// 前缀
+      try {
+        const url = new URL(`https://${text.trim()}`);
+        return url.hostname.includes('.');
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  const isUrlInput = isUrl(query);
+
+  // 搜索文章（仅在输入时且不是URL）
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['article-search', query],
     queryFn: () => apiService.searchArticles({ query, top_k: 5 }),
-    enabled: query.trim().length > 0,
+    enabled: query.trim().length > 0 && !isUrlInput,
     staleTime: 30000,
   });
 
@@ -92,11 +116,36 @@ export default function SmartDropdown({
 
   const isZeroState = !query.trim();
 
+  // 处理URL采集
+  const handleCollectUrl = useCallback(async () => {
+    if (!onCollectUrl || !query.trim()) return;
+    
+    let url = query.trim();
+    // 如果URL没有协议，添加 https://
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = `https://${url}`;
+    }
+
+    setIsCollecting(true);
+    try {
+      await onCollectUrl(url);
+    } finally {
+      setIsCollecting(false);
+    }
+  }, [onCollectUrl, query]);
+
   // 计算选项列表
   const options = useMemo(() => {
     if (isZeroState) {
       // 零态：只显示历史记录
       return [];
+    } else if (isUrlInput) {
+      // URL输入态：只显示采集选项
+      return [{
+        type: 'collect' as const,
+        data: { url: query },
+        index: 0,
+      }];
     } else {
       // 输入态：AI 问答选项 + 相关文章
       const items: Array<{
@@ -125,7 +174,7 @@ export default function SmartDropdown({
 
       return items;
     }
-  }, [isZeroState, query, searchResults]);
+  }, [isZeroState, query, searchResults, isUrlInput]);
 
   // 键盘导航
   useEffect(() => {
@@ -142,7 +191,9 @@ export default function SmartDropdown({
           e.stopPropagation();
           const option = options[highlightedIndex];
           if (option) {
-            if (option.type === 'ai') {
+            if (option.type === 'collect') {
+              handleCollectUrl();
+            } else if (option.type === 'ai') {
               onSelectAIQuery(query);
             } else {
               // 保存搜索历史（用户用键盘选择了文章）
@@ -153,6 +204,11 @@ export default function SmartDropdown({
               onSelectArticle(option.data);
             }
           }
+        } else if (e.key === 'Enter' && isUrlInput && !isCollecting) {
+          // URL输入时，直接回车采集
+          e.preventDefault();
+          e.stopPropagation();
+          handleCollectUrl();
         }
       };
 
@@ -161,7 +217,7 @@ export default function SmartDropdown({
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isZeroState, options.length, highlightedIndex, query]);
+  }, [isZeroState, options.length, highlightedIndex, query, isUrlInput, isCollecting, handleCollectUrl, onSelectAIQuery, onSelectArticle]);
 
   // 响应式：检测移动端
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -341,6 +397,80 @@ export default function SmartDropdown({
             )}
           </div>
 
+        </div>
+      </div>
+    );
+  }
+
+  // 输入态：显示 AI 问答选项和相关文章，或URL采集提示
+  if (isUrlInput) {
+    // URL输入态：显示采集提示
+    return (
+      <div style={dropdownStyle}>
+        <div style={{ padding: '16px' }}>
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: getThemeColor(theme, 'selectedBg'),
+              borderRadius: '8px',
+              border: `1px solid ${getThemeColor(theme, 'primary')}`,
+              cursor: isCollecting ? 'not-allowed' : 'pointer',
+              opacity: isCollecting ? 0.7 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!isCollecting) {
+                e.currentTarget.style.backgroundColor = getThemeColor(theme, 'primaryHover');
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isCollecting) {
+                e.currentTarget.style.backgroundColor = getThemeColor(theme, 'selectedBg');
+              }
+            }}
+            onClick={handleCollectUrl}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {isCollecting ? (
+                <LoadingOutlined style={{ fontSize: '20px', color: getThemeColor(theme, 'primary') }} />
+              ) : (
+                <LinkOutlined style={{ fontSize: '20px', color: getThemeColor(theme, 'primary') }} />
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  marginBottom: '4px'
+                }}>
+                  <Text strong style={{ color: getThemeColor(theme, 'text'), fontSize: '14px' }}>
+                    {isCollecting ? '正在采集文章...' : '采集文章'}
+                  </Text>
+                  <Tag color="blue" style={{ margin: 0 }}>手动采集-web页面</Tag>
+                </div>
+                <Text 
+                  type="secondary" 
+                  style={{ 
+                    fontSize: '12px',
+                    display: 'block',
+                    wordBreak: 'break-all'
+                  }}
+                >
+                  {query.trim()}
+                </Text>
+                <Text 
+                  type="secondary" 
+                  style={{ 
+                    fontSize: '12px',
+                    display: 'block',
+                    marginTop: '8px',
+                    color: getThemeColor(theme, 'textTertiary')
+                  }}
+                >
+                  按回车键或点击此处开始采集
+                </Text>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

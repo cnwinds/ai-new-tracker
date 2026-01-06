@@ -3,7 +3,7 @@
  * 包含搜索框和快捷键支持
  */
 import { useState, useRef, useEffect } from 'react';
-import { Layout, Input, Button, Space } from 'antd';
+import { Layout, Input, Button, Space, message } from 'antd';
 import { SearchOutlined, SunOutlined, MoonOutlined, SettingOutlined } from '@ant-design/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAIConversation } from '@/contexts/AIConversationContext';
@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import SmartDropdown from './SmartDropdown';
 import ArticleDetailModal from './ArticleDetailModal';
 import { getThemeColor } from '@/utils/theme';
+import { apiService } from '@/services/api';
 
 const { Header } = Layout;
 
@@ -92,6 +93,32 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
     }
   };
 
+  // 处理URL采集
+  const handleCollectUrl = async (url: string) => {
+    try {
+      const article = await apiService.collectArticleFromUrl(url);
+      message.success(`成功采集文章: ${article.title}`);
+      setSearchQuery('');
+      setIsDropdownOpen(false);
+      // 打开文章详情
+      setSelectedArticleId(article.id);
+      setArticleDetailModalOpen(true);
+    } catch (error: any) {
+      if (error.status === 409) {
+        message.warning('文章已存在');
+        // 尝试从错误消息中提取文章ID
+        const match = error.message?.match(/ID:\s*(\d+)/);
+        if (match) {
+          const articleId = parseInt(match[1]);
+          setSelectedArticleId(articleId);
+          setArticleDetailModalOpen(true);
+        }
+      } else {
+        message.error(error.message || '采集文章失败');
+      }
+    }
+  };
+
   const headerStyle: React.CSSProperties = {
     padding: '0 24px',
     display: 'flex',
@@ -141,13 +168,12 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
       <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center' }}>
         <Input
           ref={inputRef}
-          placeholder="搜索新闻，或向 AI 提问 (Cmd+K)"
+          placeholder="搜索新闻，或向 AI 提问，或输入文章URL (Cmd+K)"
           value={searchQuery}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
           onBlur={handleInputBlur}
           onPressEnter={(e) => {
-            // 只有在没有打开下拉窗口时，才直接触发AI聊天
             // 如果下拉窗口打开，SmartDropdown会处理回车键
             if (!isDropdownOpen) {
               const value = (e.target as HTMLInputElement).value;
@@ -209,6 +235,7 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
               // 搜索已执行，可以在这里做额外处理
               // 搜索历史已在 SmartDropdown 中保存
             }}
+            onCollectUrl={handleCollectUrl}
           />
         )}
       </div>
