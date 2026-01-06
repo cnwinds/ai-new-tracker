@@ -17,8 +17,10 @@ import {
   Table,
   Modal,
   Popconfirm,
+  TimePicker,
 } from 'antd';
-import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined } from '@ant-design/icons';
+import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -184,7 +186,15 @@ export default function SystemSettings() {
 
   useEffect(() => {
     if (notificationSettings) {
-      notificationForm.setFieldsValue(notificationSettings);
+      // 将勿扰时段的时间字符串转换为dayjs对象
+      const formValues = {
+        ...notificationSettings,
+        quiet_hours: (notificationSettings.quiet_hours || []).map((qh: any) => ({
+          start_time: qh.start_time ? dayjs(qh.start_time, 'HH:mm') : null,
+          end_time: qh.end_time ? dayjs(qh.end_time, 'HH:mm') : null,
+        })),
+      };
+      notificationForm.setFieldsValue(formValues);
     }
   }, [notificationSettings, notificationForm]);
 
@@ -223,8 +233,16 @@ export default function SystemSettings() {
     });
   };
 
-  const handleNotificationSave = (values: NotificationSettings) => {
-    updateNotificationMutation.mutate(values);
+  const handleNotificationSave = (values: any) => {
+    // 将勿扰时段的dayjs对象转换为时间字符串
+    const notificationData: NotificationSettings = {
+      ...values,
+      quiet_hours: values.quiet_hours?.map((qh: any) => ({
+        start_time: qh.start_time ? qh.start_time.format('HH:mm') : '',
+        end_time: qh.end_time ? qh.end_time.format('HH:mm') : '',
+      })).filter((qh: any) => qh.start_time && qh.end_time) || [],
+    };
+    updateNotificationMutation.mutate(notificationData);
   };
 
   const handleProviderCreate = () => {
@@ -309,7 +327,13 @@ export default function SystemSettings() {
                     key: 'llm_model',
                     render: (text: string) => {
                       const models = text.split(',').map(m => m.trim()).filter(m => m);
-                      return models.length > 1 ? `${models[0]} 等${models.length}个` : text;
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {models.map((model, index) => (
+                            <div key={index}>{model}</div>
+                          ))}
+                        </div>
+                      );
                     },
                   },
                   {
@@ -319,7 +343,13 @@ export default function SystemSettings() {
                     render: (text: string) => {
                       if (!text) return '-';
                       const models = text.split(',').map(m => m.trim()).filter(m => m);
-                      return models.length > 1 ? `${models[0]} 等${models.length}个` : text;
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {models.map((model, index) => (
+                            <div key={index}>{model}</div>
+                          ))}
+                        </div>
+                      );
                     },
                   },
                   {
@@ -603,6 +633,75 @@ export default function SystemSettings() {
                 tooltip="是否启用即时通知：当采集到高重要性文章并且在一小时内时立即推送，内容总结立即通知"
               >
                 <Switch disabled={!isAuthenticated} />
+              </Form.Item>
+
+              <Form.Item
+                noStyle
+                shouldUpdate={(prevValues, currentValues) =>
+                  prevValues.instant_notification_enabled !== currentValues.instant_notification_enabled
+                }
+              >
+                {({ getFieldValue }) => {
+                  const instantEnabled = getFieldValue('instant_notification_enabled');
+                  return instantEnabled ? (
+                    <Form.Item
+                      name="quiet_hours"
+                      label="勿扰时段"
+                      tooltip="在勿扰时段内不会发送通知。可以配置多个时段，例如：22:00-08:00 表示晚上10点到早上8点"
+                    >
+                      <Form.List name="quiet_hours">
+                        {(fields, { add, remove }) => (
+                          <>
+                            {fields.map(({ key, name, ...restField }) => (
+                              <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                                <Form.Item
+                                  {...restField}
+                                  name={[name, 'start_time']}
+                                  rules={[{ required: true, message: '请选择开始时间' }]}
+                                >
+                                  <TimePicker
+                                    format="HH:mm"
+                                    placeholder="开始时间"
+                                    style={{ width: 120 }}
+                                    disabled={!isAuthenticated}
+                                  />
+                                </Form.Item>
+                                <span>至</span>
+                                <Form.Item
+                                  {...restField}
+                                  name={[name, 'end_time']}
+                                  rules={[{ required: true, message: '请选择结束时间' }]}
+                                >
+                                  <TimePicker
+                                    format="HH:mm"
+                                    placeholder="结束时间"
+                                    style={{ width: 120 }}
+                                    disabled={!isAuthenticated}
+                                  />
+                                </Form.Item>
+                                <MinusCircleOutlined
+                                  onClick={() => remove(name)}
+                                  style={{ color: '#ff4d4f', cursor: 'pointer' }}
+                                />
+                              </Space>
+                            ))}
+                            <Form.Item>
+                              <Button
+                                type="dashed"
+                                onClick={() => add()}
+                                block
+                                icon={<PlusOutlined />}
+                                disabled={!isAuthenticated}
+                              >
+                                添加勿扰时段
+                              </Button>
+                            </Form.Item>
+                          </>
+                        )}
+                      </Form.List>
+                    </Form.Item>
+                  ) : null;
+                }}
               </Form.Item>
 
               <Form.Item>

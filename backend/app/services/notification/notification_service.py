@@ -52,6 +52,68 @@ class NotificationService:
         else:
             logger.warning(f"⚠️  不支持的通知平台: {self.platform}")
 
+    def _is_in_quiet_hours(self) -> bool:
+        """
+        检查当前时间是否在勿扰时段内
+        
+        Returns:
+            如果在勿扰时段内返回True，否则返回False
+        """
+        from backend.app.core.settings import settings
+        
+        # 确保加载最新配置
+        settings.load_settings_from_db()
+        
+        quiet_hours = settings.QUIET_HOURS
+        if not quiet_hours:
+            return False
+        
+        now = datetime.now()
+        current_time = now.time()
+        current_hour = current_time.hour
+        current_minute = current_time.minute
+        current_minutes = current_hour * 60 + current_minute
+        
+        for qh in quiet_hours:
+            try:
+                start_time_str = qh.get("start_time", "")
+                end_time_str = qh.get("end_time", "")
+                
+                if not start_time_str or not end_time_str:
+                    continue
+                
+                # 解析时间字符串 (HH:MM格式)
+                start_parts = start_time_str.split(":")
+                end_parts = end_time_str.split(":")
+                
+                if len(start_parts) != 2 or len(end_parts) != 2:
+                    continue
+                
+                start_hour = int(start_parts[0])
+                start_minute = int(start_parts[1])
+                end_hour = int(end_parts[0])
+                end_minute = int(end_parts[1])
+                
+                start_minutes = start_hour * 60 + start_minute
+                end_minutes = end_hour * 60 + end_minute
+                
+                # 处理跨天的情况（例如22:00-08:00）
+                if start_minutes > end_minutes:
+                    # 跨天时段：从start到24:00，或从00:00到end
+                    if current_minutes >= start_minutes or current_minutes < end_minutes:
+                        logger.info(f"⏰ 当前时间 {current_time.strftime('%H:%M')} 在勿扰时段 {start_time_str}-{end_time_str} 内")
+                        return True
+                else:
+                    # 同一天时段
+                    if start_minutes <= current_minutes < end_minutes:
+                        logger.info(f"⏰ 当前时间 {current_time.strftime('%H:%M')} 在勿扰时段 {start_time_str}-{end_time_str} 内")
+                        return True
+            except (ValueError, KeyError, IndexError) as e:
+                logger.warning(f"⚠️  解析勿扰时段失败: {qh}, 错误: {e}")
+                continue
+        
+        return False
+
     def _sign_dingtalk(self, timestamp: str) -> str:
         """
         生成钉钉加签
@@ -234,6 +296,11 @@ class NotificationService:
         Returns:
             是否发送成功
         """
+        # 检查是否在勿扰时段内
+        if self._is_in_quiet_hours():
+            logger.info("⏰ 当前处于勿扰时段，跳过每日摘要通知")
+            return False
+        
         # 如果是 DatabaseManager，使用上下文管理器获取会话
         if isinstance(db, DatabaseManager):
             try:
@@ -331,6 +398,11 @@ class NotificationService:
         Returns:
             是否发送成功
         """
+        # 检查是否在勿扰时段内
+        if self._is_in_quiet_hours():
+            logger.info("⏰ 当前处于勿扰时段，跳过即时通知")
+            return False
+        
         try:
             # 构建消息内容
             if self.platform == "feishu":

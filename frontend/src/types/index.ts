@@ -182,11 +182,17 @@ export interface CollectorSettings {
   request_timeout: number;
 }
 
+export interface QuietHours {
+  start_time: string; // 格式: HH:MM
+  end_time: string; // 格式: HH:MM
+}
+
 export interface NotificationSettings {
   platform: 'feishu' | 'dingtalk';
   webhook_url: string;
   secret: string; // 钉钉加签密钥（可选）
   instant_notification_enabled: boolean;
+  quiet_hours?: QuietHours[]; // 勿扰时段列表
 }
 
 export interface WebSocketMessage {

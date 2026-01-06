@@ -5,7 +5,7 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -42,6 +42,7 @@ class Settings:
         self.NOTIFICATION_WEBHOOK_URL: str = os.getenv("FEISHU_BOT_WEBHOOK", "")  # 兼容旧配置
         self.NOTIFICATION_SECRET: str = ""  # 钉钉加签密钥（可选）
         self.INSTANT_NOTIFICATION_ENABLED: bool = True  # 是否启用即时通知
+        self.QUIET_HOURS: List[Dict[str, str]] = []  # 勿扰时段列表，格式：[{"start_time": "22:00", "end_time": "08:00"}]
         
         # 兼容旧配置（飞书机器人配置）
         self.FEISHU_BOT_WEBHOOK: str = os.getenv("FEISHU_BOT_WEBHOOK", "")
@@ -719,6 +720,15 @@ class Settings:
                 self.INSTANT_NOTIFICATION_ENABLED = AppSettingsRepository.get_setting(
                     session, "instant_notification_enabled", self.INSTANT_NOTIFICATION_ENABLED
                 )
+                # 加载勿扰时段（JSON格式）
+                quiet_hours_json = AppSettingsRepository.get_setting(
+                    session, "notification_quiet_hours", "[]"
+                )
+                try:
+                    import json
+                    self.QUIET_HOURS = json.loads(quiet_hours_json) if quiet_hours_json else []
+                except (json.JSONDecodeError, TypeError):
+                    self.QUIET_HOURS = []
             
             # 兼容旧配置：如果数据库中没有配置，但环境变量中有 FEISHU_BOT_WEBHOOK，使用它
             if not self.NOTIFICATION_WEBHOOK_URL and self.FEISHU_BOT_WEBHOOK:
@@ -735,10 +745,12 @@ class Settings:
         platform: str,
         webhook_url: str,
         secret: str = "",
-        instant_notification_enabled: bool = True
+        instant_notification_enabled: bool = True,
+        quiet_hours: Optional[List[Dict[str, str]]] = None
     ):
         """保存通知配置到数据库"""
         try:
+            import json
             from backend.app.db import get_db
             from backend.app.db.repositories import AppSettingsRepository
             
@@ -760,12 +772,19 @@ class Settings:
                     session, "instant_notification_enabled", instant_notification_enabled, "bool",
                     "是否启用即时通知"
                 )
+                # 保存勿扰时段（JSON格式）
+                quiet_hours_list = quiet_hours if quiet_hours is not None else []
+                AppSettingsRepository.set_setting(
+                    session, "notification_quiet_hours", json.dumps(quiet_hours_list), "string",
+                    "勿扰时段列表（JSON格式）"
+                )
             
             # 更新内存中的值
             self.NOTIFICATION_PLATFORM = platform
             self.NOTIFICATION_WEBHOOK_URL = webhook_url
             self.NOTIFICATION_SECRET = secret
             self.INSTANT_NOTIFICATION_ENABLED = instant_notification_enabled
+            self.QUIET_HOURS = quiet_hours_list
             return True
         except Exception as e:
             logger.error(f"保存通知配置失败: {e}")

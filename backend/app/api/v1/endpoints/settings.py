@@ -443,11 +443,19 @@ async def get_notification_settings(
     settings.load_settings_from_db()
     # 如果未登录，不返回加密密钥
     secret = settings.NOTIFICATION_SECRET if current_user else ""
+    # 转换勿扰时段格式
+    from backend.app.schemas.settings import QuietHours
+    quiet_hours = [
+        QuietHours(start_time=qh["start_time"], end_time=qh["end_time"])
+        for qh in settings.QUIET_HOURS
+    ] if settings.QUIET_HOURS else []
+    
     return NotificationSettings(
         platform=settings.NOTIFICATION_PLATFORM,
         webhook_url=settings.NOTIFICATION_WEBHOOK_URL,
         secret=secret,
         instant_notification_enabled=settings.INSTANT_NOTIFICATION_ENABLED,
+        quiet_hours=quiet_hours,
     )
 
 
@@ -457,20 +465,35 @@ async def update_notification_settings(
     current_user: str = Depends(require_auth),
 ):
     """更新通知配置"""
+    # 转换勿扰时段格式
+    quiet_hours_list = [
+        {"start_time": qh.start_time, "end_time": qh.end_time}
+        for qh in (new_settings.quiet_hours or [])
+    ]
+    
     success = settings.save_notification_settings(
         platform=new_settings.platform,
         webhook_url=new_settings.webhook_url,
         secret=new_settings.secret,
         instant_notification_enabled=new_settings.instant_notification_enabled,
+        quiet_hours=quiet_hours_list,
     )
     if not success:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail="保存通知配置失败")
+    
+    # 转换勿扰时段格式用于返回
+    from backend.app.schemas.settings import QuietHours
+    quiet_hours = [
+        QuietHours(start_time=qh["start_time"], end_time=qh["end_time"])
+        for qh in settings.QUIET_HOURS
+    ] if settings.QUIET_HOURS else []
     
     return NotificationSettings(
         platform=settings.NOTIFICATION_PLATFORM,
         webhook_url=settings.NOTIFICATION_WEBHOOK_URL,
         secret=settings.NOTIFICATION_SECRET,
         instant_notification_enabled=settings.INSTANT_NOTIFICATION_ENABLED,
+        quiet_hours=quiet_hours,
     )
 
