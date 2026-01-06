@@ -3,13 +3,12 @@
 """
 from datetime import datetime, timedelta
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from backend.app.core.paths import setup_python_path
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
+from backend.app.api.v1.endpoints.settings import require_auth
+from backend.app.core.dependencies import get_collection_service, get_database
 from backend.app.db.models import DailySummary
 from backend.app.core.dependencies import get_database, get_collection_service
 from backend.app.api.v1.endpoints.settings import require_auth

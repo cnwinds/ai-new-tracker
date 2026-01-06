@@ -1,14 +1,14 @@
 """
 配置相关 API 端点
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
-from backend.app.core.paths import setup_python_path
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
+from backend.app.core.settings import settings
+from backend.app.db import get_db
+from backend.app.db.repositories import LLMProviderRepository
 from backend.app.schemas.settings import (
     CollectionSettings, 
     AutoCollectionSettings, 
@@ -18,11 +18,8 @@ from backend.app.schemas.settings import (
     NotificationSettings,
     LLMProvider,
     LLMProviderCreate,
-    LLMProviderUpdate
+    LLMProviderUpdate,
 )
-from backend.app.core.settings import settings
-from backend.app.db import get_db
-from backend.app.db.repositories import LLMProviderRepository
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)

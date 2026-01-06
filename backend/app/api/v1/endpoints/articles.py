@@ -1,15 +1,13 @@
 """
 文章相关 API 端点
 """
+import json
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from backend.app.core.paths import setup_python_path
-
-# 确保项目根目录在 Python 路径中
-setup_python_path()
 
 from backend.app.db.repositories import ArticleRepository
 from backend.app.db.models import Article
@@ -18,7 +16,6 @@ from backend.app.api.v1.endpoints.settings import require_auth
 from backend.app.schemas.article import (
     Article as ArticleSchema,
     ArticleListResponse,
-    ArticleFilter,
     ArticleUpdate,
 )
 from backend.app.utils import create_ai_analyzer
@@ -28,20 +25,53 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _normalize_summary(summary_value) -> str:
+    """规范化 summary 字段为字符串格式"""
+    if isinstance(summary_value, dict):
+        return json.dumps(summary_value, ensure_ascii=False)
+    elif not isinstance(summary_value, str):
+        return str(summary_value) if summary_value else ""
+    return summary_value
+
+
+def _update_article_analysis(article: Article, analysis_result: dict) -> None:
+    """更新文章的分析结果"""
+    article.importance = analysis_result.get("importance")
+    article.topics = analysis_result.get("topics", [])
+    article.tags = analysis_result.get("tags", [])
+    article.key_points = analysis_result.get("key_points", [])
+    article.target_audience = analysis_result.get("target_audience")
+    
+    # 保存中文标题（如果AI分析返回了title_zh）
+    if analysis_result.get("title_zh"):
+        article.title_zh = analysis_result.get("title_zh")
+    
+    # 规范化 summary 字段
+    article.summary = _normalize_summary(analysis_result.get("summary", ""))
+    article.is_processed = True
+    article.updated_at = datetime.now()
+
+
+def _get_article_or_404(db: Session, article_id: int) -> Article:
+    """获取文章，如果不存在则抛出404异常"""
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="文章不存在")
+    return article
+
+
 def _parse_time_range(time_range: str) -> Optional[datetime]:
     """解析时间范围字符串"""
     now = datetime.now()
-    if time_range == "今天":
-        return now.replace(hour=0, minute=0, second=0, microsecond=0)
-    elif time_range == "最近3天":
-        return now - timedelta(days=3)
-    elif time_range == "最近7天":
-        return now - timedelta(days=7)
-    elif time_range == "最近30天":
-        return now - timedelta(days=30)
-    elif time_range == "全部":
-        return None
-    return None
+    time_range_map = {
+        "今天": lambda: now.replace(hour=0, minute=0, second=0, microsecond=0),
+        "最近3天": lambda: now - timedelta(days=3),
+        "最近7天": lambda: now - timedelta(days=7),
+        "最近30天": lambda: now - timedelta(days=30),
+        "全部": lambda: None,
+    }
+    parser = time_range_map.get(time_range)
+    return parser() if parser else None
 
 
 @router.get("", response_model=ArticleListResponse)
@@ -117,9 +147,7 @@ async def get_article(
     db: Session = Depends(get_database),
 ):
     """获取文章详情"""
-    article = db.query(Article).filter(Article.id == article_id).first()
-    if not article:
-        raise HTTPException(status_code=404, detail="文章不存在")
+    article = _get_article_or_404(db, article_id)
     return ArticleSchema.model_validate(article)
 
 
@@ -128,12 +156,10 @@ async def analyze_article(
     article_id: int,
     force: bool = Query(False, description="是否强制重新分析（即使已分析过）"),
     db: Session = Depends(get_database),
-    current_user: str = Depends(require_auth),
+    _current_user: str = Depends(require_auth),
 ):
     """触发文章AI分析（支持重新分析）"""
-    article = db.query(Article).filter(Article.id == article_id).first()
-    if not article:
-        raise HTTPException(status_code=404, detail="文章不存在")
+    article = _get_article_or_404(db, article_id)
     
     # 如果已分析且未强制重新分析，返回提示信息
     was_processed = article.is_processed
@@ -157,28 +183,8 @@ async def analyze_article(
             url=article.url,
         )
         
-        # 更新文章（无论是否已分析过，都更新）
-        article.importance = analysis_result.get("importance")
-        article.topics = analysis_result.get("topics", [])
-        article.tags = analysis_result.get("tags", [])
-        article.key_points = analysis_result.get("key_points", [])
-        article.target_audience = analysis_result.get("target_audience")
-        # 保存中文标题（如果AI分析返回了title_zh）
-        if analysis_result.get("title_zh"):
-            article.title_zh = analysis_result.get("title_zh")
-        
-        # 确保 summary 字段是字符串，而不是 JSON 对象
-        summary_value = analysis_result.get("summary", "")
-        if isinstance(summary_value, dict):
-            # 如果 summary 是字典，转换为字符串
-            import json
-            summary_value = json.dumps(summary_value, ensure_ascii=False)
-        elif not isinstance(summary_value, str):
-            summary_value = str(summary_value) if summary_value else ""
-        
-        article.summary = summary_value
-        article.is_processed = True
-        article.updated_at = datetime.now()
+        # 更新文章分析结果
+        _update_article_analysis(article, analysis_result)
         
         db.commit()
         
@@ -197,7 +203,7 @@ async def analyze_article(
 async def delete_article(
     article_id: int,
     db: Session = Depends(get_database),
-    current_user: str = Depends(require_auth),
+    _current_user: str = Depends(require_auth),
 ):
     """删除文章"""
     success = ArticleRepository.delete_article(db, article_id)
@@ -210,12 +216,10 @@ async def delete_article(
 async def favorite_article(
     article_id: int,
     db: Session = Depends(get_database),
-    current_user: str = Depends(require_auth),
+    _current_user: str = Depends(require_auth),
 ):
     """收藏文章"""
-    article = db.query(Article).filter(Article.id == article_id).first()
-    if not article:
-        raise HTTPException(status_code=404, detail="文章不存在")
+    article = _get_article_or_404(db, article_id)
     
     article.is_favorited = True
     article.updated_at = datetime.now()
@@ -228,12 +232,10 @@ async def favorite_article(
 async def unfavorite_article(
     article_id: int,
     db: Session = Depends(get_database),
-    current_user: str = Depends(require_auth),
+    _current_user: str = Depends(require_auth),
 ):
     """取消收藏文章"""
-    article = db.query(Article).filter(Article.id == article_id).first()
-    if not article:
-        raise HTTPException(status_code=404, detail="文章不存在")
+    article = _get_article_or_404(db, article_id)
     
     article.is_favorited = False
     article.updated_at = datetime.now()
@@ -247,12 +249,10 @@ async def update_article(
     article_id: int,
     article_update: ArticleUpdate,
     db: Session = Depends(get_database),
-    current_user: str = Depends(require_auth),
+    _current_user: str = Depends(require_auth),
 ):
     """更新文章"""
-    article = db.query(Article).filter(Article.id == article_id).first()
-    if not article:
-        raise HTTPException(status_code=404, detail="文章不存在")
+    article = _get_article_or_404(db, article_id)
     
     # 更新字段（只更新提供的字段）
     update_data = article_update.model_dump(exclude_unset=True)
@@ -270,13 +270,11 @@ async def update_article(
 async def collect_article_from_url(
     url: str = Query(..., description="要采集的文章URL"),
     db: Session = Depends(get_database),
-    current_user: str = Depends(require_auth),
+    _current_user: str = Depends(require_auth),
 ):
     """从URL手动采集文章，并立即进行AI分析"""
     from backend.app.services.collector.web_collector import WebCollector
-    from backend.app.utils import create_ai_analyzer
     from urllib.parse import urlparse
-    import json
     
     # 验证URL格式
     try:
@@ -333,25 +331,7 @@ async def collect_article_from_url(
                 )
                 
                 # 更新文章分析结果
-                new_article.importance = analysis_result.get("importance")
-                new_article.topics = analysis_result.get("topics", [])
-                new_article.tags = analysis_result.get("tags", [])
-                new_article.key_points = analysis_result.get("key_points", [])
-                new_article.target_audience = analysis_result.get("target_audience")
-                
-                # 保存中文标题（如果AI分析返回了title_zh）
-                if analysis_result.get("title_zh"):
-                    new_article.title_zh = analysis_result.get("title_zh")
-                
-                # 确保 summary 字段是字符串，而不是 JSON 对象
-                summary_value = analysis_result.get("summary", "")
-                if isinstance(summary_value, dict):
-                    summary_value = json.dumps(summary_value, ensure_ascii=False)
-                elif not isinstance(summary_value, str):
-                    summary_value = str(summary_value) if summary_value else ""
-                
-                new_article.summary = summary_value
-                new_article.is_processed = True
+                _update_article_analysis(new_article, analysis_result)
             except Exception as e:
                 # AI分析失败不影响文章保存，只记录错误
                 logger.warning(f"⚠️  AI分析失败: {e}")

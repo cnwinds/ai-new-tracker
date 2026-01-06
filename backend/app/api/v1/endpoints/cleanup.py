@@ -2,18 +2,21 @@
 数据清理相关 API 端点
 """
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from backend.app.core.paths import setup_python_path
-
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
-from backend.app.db.models import Article, ArticleEmbedding, CollectionLog, NotificationLog, RSSSource
-from backend.app.core.dependencies import get_database
-from backend.app.api.v1.endpoints.settings import require_auth
-from pydantic import BaseModel
 from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from backend.app.api.v1.endpoints.settings import require_auth
+from backend.app.core.dependencies import get_database
+from backend.app.db.models import (
+    Article,
+    ArticleEmbedding,
+    CollectionLog,
+    NotificationLog,
+    RSSSource,
+)
 
 router = APIRouter()
 

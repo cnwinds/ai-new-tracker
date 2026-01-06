@@ -1,18 +1,29 @@
 """
 采集相关 API 端点
 """
+import logging
+import threading
 from datetime import datetime, timedelta
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
-import threading
-import logging
-from backend.app.core.paths import setup_python_path
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
-from backend.app.db.repositories import CollectionTaskRepository, CollectionLogRepository
+from backend.app.api.v1.endpoints.settings import require_auth
+from backend.app.core.dependencies import get_collection_service, get_database
+from backend.app.db import get_db
+from backend.app.db.models import Article, CollectionLog, CollectionTask
+from backend.app.db.repositories import (
+    CollectionLogRepository,
+    CollectionTaskRepository,
+)
+from backend.app.schemas.collection import (
+    CollectionStats,
+    CollectionTask as CollectionTaskSchema,
+    CollectionTaskCreate,
+    CollectionTaskStatus,
+)
+from backend.app.services.collector import CollectionService
 from backend.app.db.models import CollectionTask, CollectionLog, Article
 from backend.app.core.dependencies import get_database, get_collection_service
 from backend.app.schemas.collection import (

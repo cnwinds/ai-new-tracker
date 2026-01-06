@@ -1,33 +1,25 @@
 """
 订阅源相关 API 端点
 """
-from typing import List
+import logging
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from backend.app.core.paths import setup_python_path, APP_ROOT
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
-from backend.app.db.repositories import RSSSourceRepository
-from backend.app.db.models import RSSSource
+from backend.app.api.v1.endpoints.settings import require_auth
+from backend.app.core import import_rss_sources
 from backend.app.core.dependencies import get_database
+from backend.app.core.paths import APP_ROOT
+from backend.app.db.models import RSSSource
+from backend.app.db.repositories import RSSSourceRepository
 from backend.app.schemas.source import (
     RSSSource as RSSSourceSchema,
     RSSSourceCreate,
     RSSSourceUpdate,
 )
-from backend.app.api.v1.endpoints.settings import require_auth
-# 导入配置模块
-import logging
-logger = logging.getLogger(__name__)
 
-try:
-    from backend.app.core import import_rss_sources
-    logger.info("成功加载 import_rss_sources 模块")
-except Exception as e:
-    logger.error(f"加载 import_rss_sources 模块失败: {e}", exc_info=True)
-    import_rss_sources = None
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

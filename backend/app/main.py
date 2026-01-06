@@ -1,27 +1,17 @@
 """
 FastAPI 应用入口
 """
-import sys
-from pathlib import Path
-
-# 在导入 backend 模块之前，先设置 Python 路径
-# 计算项目根目录（从当前文件位置：backend/app/main.py -> backend/app -> backend -> 项目根）
-_current_file = Path(__file__).resolve()
-_project_root = _current_file.parent.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
-import logging
-import os
-import traceback
-from backend.app.core.paths import setup_python_path
+from typing import Optional
 
-# 确保项目根目录在 Python 路径中（双重保险）
-setup_python_path()
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from backend.app.api.v1.api import api_router
+from backend.app.core.config import settings
+from backend.app.core.security import setup_cors
+from backend.app.utils import setup_logger
 
 from backend.app.core.config import settings
 from backend.app.core.security import setup_cors
@@ -31,7 +21,7 @@ from backend.app.utils import setup_logger
 logger = setup_logger(__name__)
 
 # 全局调度器实例
-scheduler = None
+scheduler: Optional[object] = None
 
 
 @asynccontextmanager
@@ -120,18 +110,23 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """捕获请求验证错误并记录详细信息"""
     logger.error(f"请求验证失败: URL={request.url}, method={request.method}")
     logger.error(f"查询参数: {request.query_params}")
     logger.error(f"路径参数: {request.path_params}")
     logger.error(f"验证错误详情: {exc.errors()}")
-    logger.error(f"请求体: {await request.body()}")
+    
+    body = await request.body()
+    logger.error(f"请求体: {body}")
+    
     return JSONResponse(
         status_code=422,
         content={
             "detail": exc.errors(),
-            "body": str(await request.body()) if hasattr(request, '_body') else None,
+            "body": body.decode("utf-8") if body else None,
             "query_params": dict(request.query_params),
             "path_params": dict(request.path_params),
         }
@@ -139,7 +134,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.get("/")
-async def root():
+async def root() -> JSONResponse:
     """根路径"""
     return JSONResponse({
         "message": "AI News Tracker API",
@@ -149,7 +144,7 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> JSONResponse:
     """健康检查"""
     return JSONResponse({"status": "healthy"})
 

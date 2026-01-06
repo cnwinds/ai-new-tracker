@@ -2,10 +2,7 @@
 FastAPI 应用配置
 """
 import os
-from backend.app.core.paths import setup_python_path
-
-# 确保项目根目录在 Python 路径中
-setup_python_path()
+from typing import List
 
 from backend.app.core.settings import settings as app_settings
 
@@ -23,10 +20,10 @@ class Settings:
     _cors_origins = os.getenv("BACKEND_CORS_ORIGINS", "")
     if _cors_origins:
         # 如果环境变量设置了，使用环境变量的值（逗号分隔）
-        BACKEND_CORS_ORIGINS: list = [origin.strip() for origin in _cors_origins.split(",")]
+        BACKEND_CORS_ORIGINS: List[str] = [origin.strip() for origin in _cors_origins.split(",")]
     else:
         # 默认允许所有来源（开发环境）
-        BACKEND_CORS_ORIGINS: list = ["*"]
+        BACKEND_CORS_ORIGINS: List[str] = ["*"]
     
     # 服务器配置
     HOST: str = app_settings.WEB_HOST

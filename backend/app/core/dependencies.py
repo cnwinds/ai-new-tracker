@@ -3,10 +3,6 @@
 """
 from typing import Generator
 from sqlalchemy.orm import Session
-from backend.app.core.paths import setup_python_path
-
-# 确保项目根目录在 Python 路径中
-setup_python_path()
 
 from backend.app.db import get_db
 from backend.app.services.collector import CollectionService

@@ -1,19 +1,20 @@
 """
 定时任务调度器 - 使用APScheduler BackgroundScheduler（适配FastAPI）
 """
+import logging
+import os
+from datetime import datetime, timedelta
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime, timedelta
-import logging
-import os
 from dotenv import load_dotenv
-from backend.app.core.paths import setup_python_path
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
+from backend.app.core.settings import settings
+from backend.app.db import get_db
+from backend.app.db.models import Article
 from backend.app.services.collector import CollectionService
+from backend.app.utils import create_ai_analyzer, setup_logger
 from backend.app.db import get_db
 from backend.app.db.models import Article
 from backend.app.utils import create_ai_analyzer, setup_logger

@@ -3,17 +3,17 @@
 """
 from datetime import datetime, timedelta
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from backend.app.core.paths import setup_python_path
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
-
+from backend.app.core.dependencies import get_database
 from backend.app.core.settings import settings
+from backend.app.db.repositories import AppSettingsRepository
 from backend.app.core.dependencies import get_database
 from backend.app.db.repositories import AppSettingsRepository
 from sqlalchemy.orm import Session

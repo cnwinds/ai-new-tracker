@@ -1,19 +1,16 @@
 """
 WebSocket 端点 - 实时推送采集进度和状态更新
 """
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import List
-import json
 import asyncio
+import json
 from datetime import datetime
-from backend.app.core.paths import setup_python_path
+from typing import List
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session
 
 from backend.app.db import get_db
 from backend.app.db.models import CollectionTask
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 

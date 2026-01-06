@@ -5,10 +5,6 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
-from backend.app.core.paths import setup_python_path
-
-# 确保项目根目录在 Python 路径中
-setup_python_path()
 
 from backend.app.core.settings import settings
 

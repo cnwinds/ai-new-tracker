@@ -1,17 +1,14 @@
 """
 数据库初始化和管理
 """
-from sqlalchemy import create_engine, text, event
-from sqlalchemy.orm import sessionmaker, Session
-from pathlib import Path
-from contextlib import contextmanager
-from typing import Generator
 import logging
 import sqlite3
-from backend.app.core.paths import setup_python_path
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Generator, Optional
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app.db.models import Base
 from backend.app.db.repositories import (

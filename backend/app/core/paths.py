@@ -4,15 +4,16 @@
 """
 from pathlib import Path
 import sys
+from typing import Final
 
 # 项目根目录（从当前文件位置计算）
 # backend/app/core/paths.py -> backend/app/core -> backend/app -> backend -> 项目根
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-BACKEND_ROOT = PROJECT_ROOT / "backend"
-APP_ROOT = BACKEND_ROOT / "app"
+PROJECT_ROOT: Final[Path] = Path(__file__).parent.parent.parent.parent
+BACKEND_ROOT: Final[Path] = PROJECT_ROOT / "backend"
+APP_ROOT: Final[Path] = BACKEND_ROOT / "app"
 
 
-def setup_python_path():
+def setup_python_path() -> None:
     """
     确保项目根目录在 Python 路径中
     

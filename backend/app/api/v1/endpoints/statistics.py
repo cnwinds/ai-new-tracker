@@ -1,18 +1,15 @@
 """
 统计相关 API 端点
 """
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
 from datetime import datetime
-from backend.app.core.paths import setup_python_path
 
-# 确保项目根目录在 Python 路径中
-setup_python_path()
+from fastapi import APIRouter, Depends
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
-from backend.app.db.repositories import ArticleRepository
-from backend.app.db.models import Article
 from backend.app.core.dependencies import get_database
+from backend.app.db.models import Article
+from backend.app.db.repositories import ArticleRepository
 from backend.app.schemas.statistics import Statistics
 
 router = APIRouter()
