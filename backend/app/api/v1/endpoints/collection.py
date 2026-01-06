@@ -23,6 +23,7 @@ from backend.app.schemas.collection import (
 )
 from backend.app.services.collector import CollectionService
 from backend.app.db import get_db
+from backend.app.api.v1.endpoints.settings import require_auth
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -132,6 +133,7 @@ async def start_collection(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_database),
     collection_service: CollectionService = Depends(get_collection_service),
+    current_user: str = Depends(require_auth),
 ):
     """启动采集任务"""
     # 先检查并恢复挂起的任务
@@ -224,6 +226,7 @@ async def get_collection_task(
 async def recover_stuck_tasks(
     db: Session = Depends(get_database),
     collection_service: CollectionService = Depends(get_collection_service),
+    current_user: str = Depends(require_auth),
 ):
     """手动恢复所有挂起的采集任务"""
     from backend.app.db import get_db
@@ -447,6 +450,7 @@ async def get_collection_status(
 @router.post("/stop")
 async def stop_collection(
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """停止当前运行的采集任务"""
     with _task_lock:

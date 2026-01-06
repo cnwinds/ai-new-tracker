@@ -5,12 +5,14 @@ import { useMemo } from 'react';
 import { Card, Form, InputNumber, Switch, Button, message, Alert, Select } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { RSSSource } from '@/types';
 
 const { Option, OptGroup } = Select;
 
 export default function DataCleanup() {
   const [form] = Form.useForm();
+  const { isAuthenticated } = useAuth();
 
   // 获取所有订阅源列表
   const { data: sources } = useQuery({
@@ -88,7 +90,7 @@ export default function DataCleanup() {
             label="删除超过多少天的文章"
             help="设置为0表示不删除"
           >
-            <InputNumber min={0} style={{ width: '100%' }} />
+            <InputNumber min={0} style={{ width: '100%' }} disabled={!isAuthenticated} />
           </Form.Item>
 
           <Form.Item
@@ -96,7 +98,7 @@ export default function DataCleanup() {
             label="删除超过多少天的日志"
             help="设置为0表示不删除"
           >
-            <InputNumber min={0} style={{ width: '100%' }} />
+            <InputNumber min={0} style={{ width: '100%' }} disabled={!isAuthenticated} />
           </Form.Item>
 
           <Form.Item
@@ -104,7 +106,7 @@ export default function DataCleanup() {
             label="删除未分析的文章"
             valuePropName="checked"
           >
-            <Switch />
+            <Switch disabled={!isAuthenticated} />
           </Form.Item>
 
           <Form.Item
@@ -119,6 +121,7 @@ export default function DataCleanup() {
               allowClear
               maxTagCount="responsive"
               showSearch
+              disabled={!isAuthenticated}
               filterOption={(input, option) => {
                 if (option?.type === 'group') return true;
                 const label = String(option?.label ?? '');
@@ -146,6 +149,7 @@ export default function DataCleanup() {
               danger
               htmlType="submit"
               loading={cleanupMutation.isPending}
+              disabled={!isAuthenticated}
             >
               执行清理
             </Button>

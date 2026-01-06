@@ -11,6 +11,7 @@ setup_python_path()
 
 from backend.app.db.models import Article, ArticleEmbedding, CollectionLog, NotificationLog, RSSSource
 from backend.app.core.dependencies import get_database
+from backend.app.api.v1.endpoints.settings import require_auth
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -37,6 +38,7 @@ class CleanupResponse(BaseModel):
 async def cleanup_data(
     request: CleanupRequest,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """执行数据清理"""
     deleted_articles = 0

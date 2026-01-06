@@ -2,12 +2,15 @@
  * Dashboard 主页面
  */
 import { useState, useEffect } from 'react';
-import { Layout, Tabs, Drawer } from 'antd';
+import { Layout, Tabs, Drawer, Button, Space } from 'antd';
 import {
   FileTextOutlined,
   BarChartOutlined,
   ReadOutlined,
+  LoginOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import ArticleList from '@/components/ArticleList';
 import DailySummary from '@/components/DailySummary';
 import Statistics from '@/components/Statistics';
@@ -15,6 +18,7 @@ import SystemSettings from '@/components/SystemSettings';
 import GlobalNavigation from '@/components/GlobalNavigation';
 import AIConversationModal from '@/components/AIConversationModal';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 
 const { Content } = Layout;
@@ -23,6 +27,8 @@ export default function Dashboard() {
   const [selectedTab, setSelectedTab] = useState('articles');
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
   const { theme } = useTheme();
+  const { isAuthenticated, username, logout } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   // 当打开设置页面时，自动刷新数据
@@ -89,7 +95,36 @@ export default function Dashboard() {
       </Layout>
       <AIConversationModal />
       <Drawer
-        title="系统设置"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>系统设置</span>
+            <Space>
+              {isAuthenticated ? (
+                <>
+                  <span style={{ marginRight: 8 }}>{username}</span>
+                  <Button
+                    type="text"
+                    icon={<LogoutOutlined />}
+                    onClick={() => {
+                      logout();
+                      navigate('/');
+                    }}
+                  >
+                    登出
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  type="primary"
+                  icon={<LoginOutlined />}
+                  onClick={() => navigate('/login')}
+                >
+                  登录
+                </Button>
+              )}
+            </Space>
+          </div>
+        }
         placement="right"
         width={800}
         open={settingsDrawerOpen}

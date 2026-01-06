@@ -7,6 +7,7 @@ import { Layout, Input, Button, Space } from 'antd';
 import { SearchOutlined, SunOutlined, MoonOutlined, SettingOutlined } from '@ant-design/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAIConversation } from '@/contexts/AIConversationContext';
+import { useAuth } from '@/contexts/AuthContext';
 import SmartDropdown from './SmartDropdown';
 import ArticleDetailModal from './ArticleDetailModal';
 import { getThemeColor } from '@/utils/theme';
@@ -20,6 +21,7 @@ interface GlobalNavigationProps {
 export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationProps) {
   const { theme, toggleTheme } = useTheme();
   const { openModal, setSearchQuery, searchQuery } = useAIConversation();
+  const { isAuthenticated, username } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [, setIsFocused] = useState(false);
   const [articleDetailModalOpen, setArticleDetailModalOpen] = useState(false);
@@ -194,6 +196,11 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
 
       <div style={{ marginLeft: 'auto', minWidth: '120px' }}>
         <Space>
+          {isAuthenticated && (
+            <span style={{ color: '#fff', marginRight: 8 }}>
+              {username}
+            </span>
+          )}
           <Button
             type="text"
             icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}

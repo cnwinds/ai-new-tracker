@@ -17,6 +17,7 @@ setup_python_path()
 
 from backend.app.db.models import Article, ArticleEmbedding
 from backend.app.core.dependencies import get_database
+from backend.app.api.v1.endpoints.settings import require_auth
 from backend.app.services.rag.rag_service import RAGService
 from backend.app.utils import create_ai_analyzer
 from backend.app.schemas.rag import (
@@ -289,6 +290,7 @@ async def index_articles_batch(
     request: RAGBatchIndexRequest,
     rag_service: RAGService = Depends(get_rag_service),
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """
     批量索引文章
@@ -343,6 +345,7 @@ async def index_all_articles(
     batch_size: int = Query(10, ge=1, le=100, description="批处理大小"),
     rag_service: RAGService = Depends(get_rag_service),
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """
     索引所有未索引的文章
@@ -397,6 +400,7 @@ async def index_all_articles(
 async def index_article(
     article_id: int,
     rag_service: RAGService = Depends(get_rag_service),
+    current_user: str = Depends(require_auth),
     db: Session = Depends(get_database),
 ):
     """

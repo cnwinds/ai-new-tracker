@@ -7,7 +7,9 @@ import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AIConversationProvider } from '@/contexts/AIConversationContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import Dashboard from '@/pages/Dashboard';
+import Login from '@/pages/Login';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -31,6 +33,7 @@ function AppContent() {
         }}
       >
         <Routes>
+          <Route path="/login" element={<Login />} />
           <Route path="/" element={<Dashboard />} />
         </Routes>
       </BrowserRouter>
@@ -42,9 +45,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AIConversationProvider>
-          <AppContent />
-        </AIConversationProvider>
+        <AuthProvider>
+          <AIConversationProvider>
+            <AppContent />
+          </AIConversationProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

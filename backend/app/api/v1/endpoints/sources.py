@@ -17,6 +17,7 @@ from backend.app.schemas.source import (
     RSSSourceCreate,
     RSSSourceUpdate,
 )
+from backend.app.api.v1.endpoints.settings import require_auth
 # 导入配置模块
 import logging
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ async def get_source(
 async def create_source(
     source_data: RSSSourceCreate,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """创建订阅源"""
     # 检查名称和URL是否已存在
@@ -87,6 +89,7 @@ async def update_source(
     source_id: int,
     source_data: RSSSourceUpdate,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """更新订阅源"""
     source = db.query(RSSSource).filter(RSSSource.id == source_id).first()
@@ -107,6 +110,7 @@ async def update_source(
 async def delete_source(
     source_id: int,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """删除订阅源"""
     source = db.query(RSSSource).filter(RSSSource.id == source_id).first()
@@ -214,6 +218,7 @@ async def get_default_sources(
 async def import_default_sources(
     source_names: List[str],
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """批量导入默认数据源"""
     # 如果模块加载失败，直接读取 JSON 文件

@@ -27,11 +27,13 @@ import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 const { Text, Paragraph } = Typography;
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import dayjs from 'dayjs';
 import type { CollectionTask, AutoCollectionSettings } from '@/types';
 
 export default function CollectionHistory() {
+  const { isAuthenticated } = useAuth();
   const [autoCollectionModalVisible, setAutoCollectionModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
@@ -244,6 +246,7 @@ export default function CollectionHistory() {
             <Button
               icon={<SettingOutlined />}
               onClick={() => setAutoCollectionModalVisible(true)}
+              disabled={!isAuthenticated}
             >
               自动采集设置
             </Button>
@@ -253,6 +256,7 @@ export default function CollectionHistory() {
                 danger
                 onClick={handleStopCollection}
                 loading={stopCollectionMutation.isPending}
+                disabled={!isAuthenticated}
               >
                 终止采集
               </Button>
@@ -262,6 +266,7 @@ export default function CollectionHistory() {
                 type="primary"
                 onClick={() => handleStartCollection(true)}
                 loading={startCollectionMutation.isPending}
+                disabled={!isAuthenticated}
               >
                 开始采集（AI分析）
               </Button>
@@ -269,6 +274,7 @@ export default function CollectionHistory() {
             <Button
               icon={<ReloadOutlined />}
               onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-tasks'] })}
+              disabled={!isAuthenticated}
             >
               刷新
             </Button>

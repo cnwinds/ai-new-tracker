@@ -1,7 +1,9 @@
 """
 配置相关 API 端点
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Optional
 from backend.app.core.paths import setup_python_path
 
 # 确保项目根目录在 Python 路径中
@@ -21,9 +23,33 @@ from backend.app.schemas.settings import (
 from backend.app.core.settings import settings
 from backend.app.db import get_db
 from backend.app.db.repositories import LLMProviderRepository
-from fastapi import HTTPException
 
 router = APIRouter()
+security = HTTPBearer(auto_error=False)
+
+
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Optional[str]:
+    """可选的用户认证，如果未提供token则返回None"""
+    if not credentials:
+        return None
+    try:
+        from backend.app.api.v1.endpoints.auth import verify_token
+        token_data = verify_token(credentials)
+        return token_data.username
+    except:
+        return None
+
+
+def require_auth(current_user: Optional[str] = Depends(get_current_user_optional)):
+    """要求用户已登录"""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="需要登录才能修改设置",
+        )
+    return current_user
 
 
 @router.get("/collection", response_model=CollectionSettings)
@@ -40,6 +66,7 @@ async def get_collection_settings():
 @router.put("/collection", response_model=CollectionSettings)
 async def update_collection_settings(
     new_settings: CollectionSettings,
+    current_user: str = Depends(require_auth),
 ):
     """更新采集配置"""
     success = settings.save_collection_settings(
@@ -72,6 +99,7 @@ async def get_auto_collection_settings():
 @router.put("/auto-collection", response_model=AutoCollectionSettings)
 async def update_auto_collection_settings(
     new_settings: AutoCollectionSettings,
+    current_user: str = Depends(require_auth),
 ):
     """更新自动采集配置"""
     success = settings.save_auto_collection_settings(
@@ -151,6 +179,7 @@ async def get_summary_settings():
 @router.put("/summary", response_model=SummarySettings)
 async def update_summary_settings(
     new_settings: SummarySettings,
+    current_user: str = Depends(require_auth),
 ):
     """更新总结配置"""
     success = settings.save_summary_settings(
@@ -217,6 +246,7 @@ async def get_llm_settings():
 @router.put("/llm", response_model=LLMSettings)
 async def update_llm_settings(
     new_settings: LLMSettings,
+    current_user: str = Depends(require_auth),
 ):
     """更新LLM配置"""
     success = settings.save_llm_settings(
@@ -239,15 +269,19 @@ async def update_llm_settings(
 
 
 @router.get("/providers", response_model=list[LLMProvider])
-async def get_providers(enabled_only: bool = False):
+async def get_providers(
+    enabled_only: bool = False,
+    current_user: Optional[str] = Depends(get_current_user_optional),
+):
     """获取所有提供商列表"""
     db = get_db()
     with db.get_session() as session:
         providers = LLMProviderRepository.get_all(session, enabled_only=enabled_only)
+        # 如果未登录，不返回API密钥
         return [LLMProvider(
             id=p.id,
             name=p.name,
-            api_key=p.api_key,
+            api_key=p.api_key if current_user else "",
             api_base=p.api_base,
             llm_model=p.llm_model,
             embedding_model=p.embedding_model,
@@ -256,7 +290,10 @@ async def get_providers(enabled_only: bool = False):
 
 
 @router.post("/providers", response_model=LLMProvider)
-async def create_provider(provider_data: LLMProviderCreate):
+async def create_provider(
+    provider_data: LLMProviderCreate,
+    current_user: str = Depends(require_auth),
+):
     """创建新提供商"""
     db = get_db()
     with db.get_session() as session:
@@ -285,17 +322,21 @@ async def create_provider(provider_data: LLMProviderCreate):
 
 
 @router.get("/providers/{provider_id}", response_model=LLMProvider)
-async def get_provider(provider_id: int):
+async def get_provider(
+    provider_id: int,
+    current_user: Optional[str] = Depends(get_current_user_optional),
+):
     """获取指定提供商"""
     db = get_db()
     with db.get_session() as session:
         provider = LLMProviderRepository.get_by_id(session, provider_id)
         if not provider:
             raise HTTPException(status_code=404, detail="提供商不存在")
+        # 如果未登录，不返回API密钥
         return LLMProvider(
             id=provider.id,
             name=provider.name,
-            api_key=provider.api_key,
+            api_key=provider.api_key if current_user else "",
             api_base=provider.api_base,
             llm_model=provider.llm_model,
             embedding_model=provider.embedding_model,
@@ -304,7 +345,11 @@ async def get_provider(provider_id: int):
 
 
 @router.put("/providers/{provider_id}", response_model=LLMProvider)
-async def update_provider(provider_id: int, provider_data: LLMProviderUpdate):
+async def update_provider(
+    provider_id: int,
+    provider_data: LLMProviderUpdate,
+    current_user: str = Depends(require_auth),
+):
     """更新提供商"""
     db = get_db()
     with db.get_session() as session:
@@ -332,7 +377,10 @@ async def update_provider(provider_id: int, provider_data: LLMProviderUpdate):
 
 
 @router.delete("/providers/{provider_id}")
-async def delete_provider(provider_id: int):
+async def delete_provider(
+    provider_id: int,
+    current_user: str = Depends(require_auth),
+):
     """删除提供商"""
     db = get_db()
     with db.get_session() as session:
@@ -370,6 +418,7 @@ async def get_collector_settings():
 @router.put("/collector", response_model=CollectorSettings)
 async def update_collector_settings(
     new_settings: CollectorSettings,
+    current_user: str = Depends(require_auth),
 ):
     """更新采集器配置"""
     success = settings.save_collector_settings(
@@ -389,14 +438,18 @@ async def update_collector_settings(
 
 
 @router.get("/notification", response_model=NotificationSettings)
-async def get_notification_settings():
+async def get_notification_settings(
+    current_user: Optional[str] = Depends(get_current_user_optional),
+):
     """获取通知配置"""
     # 确保从数据库加载最新配置
     settings.load_settings_from_db()
+    # 如果未登录，不返回加密密钥
+    secret = settings.NOTIFICATION_SECRET if current_user else ""
     return NotificationSettings(
         platform=settings.NOTIFICATION_PLATFORM,
         webhook_url=settings.NOTIFICATION_WEBHOOK_URL,
-        secret=settings.NOTIFICATION_SECRET,
+        secret=secret,
         instant_notification_enabled=settings.INSTANT_NOTIFICATION_ENABLED,
     )
 
@@ -404,6 +457,7 @@ async def get_notification_settings():
 @router.put("/notification", response_model=NotificationSettings)
 async def update_notification_settings(
     new_settings: NotificationSettings,
+    current_user: str = Depends(require_auth),
 ):
     """更新通知配置"""
     success = settings.save_notification_settings(

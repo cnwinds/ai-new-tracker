@@ -13,6 +13,7 @@ setup_python_path()
 from backend.app.db.repositories import ArticleRepository
 from backend.app.db.models import Article
 from backend.app.core.dependencies import get_database
+from backend.app.api.v1.endpoints.settings import require_auth
 from backend.app.schemas.article import (
     Article as ArticleSchema,
     ArticleListResponse,
@@ -124,6 +125,7 @@ async def analyze_article(
     article_id: int,
     force: bool = Query(False, description="是否强制重新分析（即使已分析过）"),
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """触发文章AI分析（支持重新分析）"""
     article = db.query(Article).filter(Article.id == article_id).first()
@@ -192,6 +194,7 @@ async def analyze_article(
 async def delete_article(
     article_id: int,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """删除文章"""
     success = ArticleRepository.delete_article(db, article_id)
@@ -239,6 +242,7 @@ async def update_article(
     article_id: int,
     article_update: ArticleUpdate,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """更新文章"""
     article = db.query(Article).filter(Article.id == article_id).first()

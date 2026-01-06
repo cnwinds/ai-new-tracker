@@ -26,9 +26,11 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { RSSSource, RSSSourceCreate, RSSSourceUpdate } from '@/types';
 
 export default function SourceManagement() {
+  const { isAuthenticated } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [editingSource, setEditingSource] = useState<RSSSource | null>(null);
@@ -273,6 +275,7 @@ export default function SourceManagement() {
             onClick={() => handleEdit(source)}
             size="small"
             style={{ height: 'auto' }}
+            disabled={!isAuthenticated}
           >
             编辑
           </Button>,
@@ -282,8 +285,16 @@ export default function SourceManagement() {
             onConfirm={() => deleteMutation.mutate(source.id)}
             okText="确定"
             cancelText="取消"
+            disabled={!isAuthenticated}
           >
-            <Button type="link" danger icon={<DeleteOutlined />} size="small" style={{ height: 'auto' }}>
+            <Button 
+              type="link" 
+              danger 
+              icon={<DeleteOutlined />} 
+              size="small" 
+              style={{ height: 'auto' }}
+              disabled={!isAuthenticated}
+            >
               删除
             </Button>
           </Popconfirm>,
@@ -375,10 +386,19 @@ export default function SourceManagement() {
         title="⚙️ 订阅源管理"
         extra={
           <Space>
-            <Button icon={<ImportOutlined />} onClick={() => setImportModalVisible(true)}>
+            <Button 
+              icon={<ImportOutlined />} 
+              onClick={() => setImportModalVisible(true)}
+              disabled={!isAuthenticated}
+            >
               导入默认源
             </Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />} 
+              onClick={handleAdd}
+              disabled={!isAuthenticated}
+            >
               添加订阅源
             </Button>
           </Space>

@@ -21,6 +21,7 @@ import {
 import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import SourceManagement from '@/components/SourceManagement';
 import DataCleanup from '@/components/DataCleanup';
 import CollectionHistory from '@/components/CollectionHistory';
@@ -28,6 +29,7 @@ import type { LLMSettings, NotificationSettings, LLMProvider, LLMProviderCreate,
 
 export default function SystemSettings() {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
   const [llmForm] = Form.useForm();
   const [notificationForm] = Form.useForm();
   const [providerForm] = Form.useForm();
@@ -53,8 +55,12 @@ export default function SystemSettings() {
       message.success('LLM配置已保存');
       queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
     },
-    onError: () => {
-      message.error('保存LLM配置失败');
+    onError: (error: any) => {
+      if (error.status === 401) {
+        message.error('需要登录才能保存LLM配置');
+      } else {
+        message.error('保存LLM配置失败');
+      }
     },
   });
 
@@ -68,7 +74,11 @@ export default function SystemSettings() {
       providerForm.resetFields();
     },
     onError: (error: any) => {
-      message.error(`创建提供商失败: ${error.response?.data?.detail || error.message}`);
+      if (error.status === 401) {
+        message.error('需要登录才能创建提供商');
+      } else {
+        message.error(`创建提供商失败: ${error.response?.data?.detail || error.message}`);
+      }
     },
   });
 
@@ -84,7 +94,11 @@ export default function SystemSettings() {
       providerForm.resetFields();
     },
     onError: (error: any) => {
-      message.error(`更新提供商失败: ${error.response?.data?.detail || error.message}`);
+      if (error.status === 401) {
+        message.error('需要登录才能更新提供商');
+      } else {
+        message.error(`更新提供商失败: ${error.response?.data?.detail || error.message}`);
+      }
     },
   });
 
@@ -97,7 +111,11 @@ export default function SystemSettings() {
       queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
     },
     onError: (error: any) => {
-      message.error(`删除提供商失败: ${error.response?.data?.detail || error.message}`);
+      if (error.status === 401) {
+        message.error('需要登录才能删除提供商');
+      } else {
+        message.error(`删除提供商失败: ${error.response?.data?.detail || error.message}`);
+      }
     },
   });
 
@@ -114,8 +132,12 @@ export default function SystemSettings() {
       message.success('通知配置已保存');
       queryClient.invalidateQueries({ queryKey: ['notification-settings'] });
     },
-    onError: () => {
-      message.error('保存通知配置失败');
+    onError: (error: any) => {
+      if (error.status === 401) {
+        message.error('需要登录才能保存通知配置');
+      } else {
+        message.error('保存通知配置失败');
+      }
     },
   });
 
@@ -230,6 +252,7 @@ export default function SystemSettings() {
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={handleProviderCreate}
+                  disabled={!isAuthenticated}
                 >
                   添加提供商
                 </Button>
@@ -287,6 +310,7 @@ export default function SystemSettings() {
                           type="link"
                           icon={<EditOutlined />}
                           onClick={() => handleProviderEdit(record)}
+                          disabled={!isAuthenticated}
                         >
                           编辑
                         </Button>
@@ -295,11 +319,13 @@ export default function SystemSettings() {
                           onConfirm={() => handleProviderDelete(record.id)}
                           okText="确定"
                           cancelText="取消"
+                          disabled={!isAuthenticated}
                         >
                           <Button
                             type="link"
                             danger
                             icon={<DeleteOutlined />}
+                            disabled={!isAuthenticated}
                           >
                             删除
                           </Button>
@@ -337,6 +363,7 @@ export default function SystemSettings() {
                   <Select
                     placeholder="选择大模型提供商"
                     style={{ width: '100%' }}
+                    disabled={!isAuthenticated}
                     options={enabledProviders.flatMap(p => {
                       const models = p.llm_model.split(',').map(m => m.trim()).filter(m => m);
                       // 为每个模型创建一个选项，格式为 provider_name(model_name)
@@ -357,6 +384,7 @@ export default function SystemSettings() {
                   <Select
                     placeholder="选择向量模型提供商"
                     style={{ width: '100%' }}
+                    disabled={!isAuthenticated}
                     options={embeddingProviders.flatMap(p => {
                       if (!p.embedding_model) return [];
                       const models = p.embedding_model.split(',').map(m => m.trim()).filter(m => m);
@@ -376,6 +404,7 @@ export default function SystemSettings() {
                       icon={<SaveOutlined />}
                       htmlType="submit"
                       loading={updateLLMMutation.isPending}
+                      disabled={!isAuthenticated}
                     >
                       保存配置
                     </Button>
@@ -494,6 +523,7 @@ export default function SystemSettings() {
                 <Select
                   placeholder="请选择通知平台"
                   style={{ width: '100%' }}
+                  disabled={!isAuthenticated}
                   options={[
                     { label: '飞书', value: 'feishu' },
                     { label: '钉钉', value: 'dingtalk' },
@@ -510,6 +540,7 @@ export default function SystemSettings() {
                 <Input
                   placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
                   style={{ width: '100%' }}
+                  disabled={!isAuthenticated}
                 />
               </Form.Item>
 
@@ -529,6 +560,7 @@ export default function SystemSettings() {
                       <Input.Password
                         placeholder="如果使用了加签，请输入密钥"
                         style={{ width: '100%' }}
+                        disabled={!isAuthenticated}
                       />
                     </Form.Item>
                   ) : null
@@ -541,7 +573,7 @@ export default function SystemSettings() {
                 valuePropName="checked"
                 tooltip="是否启用即时通知：当采集到高重要性文章并且在一小时内时立即推送，内容总结立即通知"
               >
-                <Switch />
+                <Switch disabled={!isAuthenticated} />
               </Form.Item>
 
               <Form.Item>
@@ -551,6 +583,7 @@ export default function SystemSettings() {
                     icon={<SaveOutlined />}
                     htmlType="submit"
                     loading={updateNotificationMutation.isPending}
+                    disabled={!isAuthenticated}
                   >
                     保存配置
                   </Button>
@@ -588,6 +621,15 @@ export default function SystemSettings() {
 
   return (
     <div>
+      {!isAuthenticated && (
+        <Alert
+          message="只读模式"
+          description="您当前未登录，只能查看设置，无法进行修改。请先登录以获取编辑权限。"
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Tabs items={tabItems} />
     </div>
   );

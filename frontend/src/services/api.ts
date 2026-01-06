@@ -45,6 +45,7 @@ export interface ApiError {
 
 class ApiService {
   private client: AxiosInstance;
+  private token: string | null = null;
 
   constructor() {
     this.client = axios.create({
@@ -54,9 +55,19 @@ class ApiService {
       },
     });
 
+    // 从localStorage加载token
+    const savedToken = localStorage.getItem('auth_token');
+    if (savedToken) {
+      this.token = savedToken;
+    }
+
     // 请求拦截器
     this.client.interceptors.request.use(
       (config) => {
+        // 如果有token，添加到请求头
+        if (this.token) {
+          config.headers.Authorization = `Bearer ${this.token}`;
+        }
         return config;
       },
       (error) => {
@@ -78,6 +89,13 @@ class ApiService {
         return Promise.reject(error);
       }
     );
+  }
+
+  /**
+   * 设置认证token
+   */
+  setToken(token: string | null) {
+    this.token = token;
   }
 
   /**
@@ -522,6 +540,39 @@ class ApiService {
   async indexAllUnindexedArticles(batchSize: number = 10): Promise<RAGBatchIndexResponse> {
     return this.handleRequest(
       this.client.post<RAGBatchIndexResponse>(`/rag/index/all?batch_size=${batchSize}`)
+    );
+  }
+
+  // 认证相关
+  async login(username: string, password: string): Promise<{ access_token: string; token_type: string }> {
+    return this.handleRequest(
+      this.client.post<{ access_token: string; token_type: string }>('/auth/login', {
+        username,
+        password,
+      })
+    );
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.handleRequest(this.client.post('/auth/logout'));
+    } catch (error) {
+      // 即使后端失败，也清除本地token
+      console.error('登出失败:', error);
+    } finally {
+      this.setToken(null);
+    }
+  }
+
+  async verifyToken(): Promise<{ valid: boolean; username: string }> {
+    return this.handleRequest(
+      this.client.get<{ valid: boolean; username: string }>('/auth/verify')
+    );
+  }
+
+  async getCurrentUser(): Promise<{ username: string }> {
+    return this.handleRequest(
+      this.client.get<{ username: string }>('/auth/me')
     );
   }
 }

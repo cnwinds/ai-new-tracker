@@ -30,3 +30,7 @@ apscheduler>=3.10.0
 python-dateutil>=2.8.0
 
 sqlite-vec
+
+# Authentication
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4

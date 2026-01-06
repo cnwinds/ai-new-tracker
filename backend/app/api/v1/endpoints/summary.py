@@ -12,6 +12,7 @@ setup_python_path()
 
 from backend.app.db.models import DailySummary
 from backend.app.core.dependencies import get_database, get_collection_service
+from backend.app.api.v1.endpoints.settings import require_auth
 from backend.app.schemas.summary import (
     DailySummary as DailySummarySchema,
     SummaryGenerateRequest,
@@ -54,6 +55,7 @@ async def get_summary(
 async def delete_summary(
     summary_id: int,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """删除摘要"""
     summary = db.query(DailySummary).filter(DailySummary.id == summary_id).first()
@@ -70,6 +72,7 @@ async def generate_summary(
     request: SummaryGenerateRequest,
     collection_service: CollectionService = Depends(get_collection_service),
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """生成新摘要（支持按天或按周，可指定日期/周）"""
     # 检查AI分析器
