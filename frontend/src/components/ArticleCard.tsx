@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 import type { Article } from '@/types';
 import { useAnalyzeArticle, useDeleteArticle, useFavoriteArticle, useUnfavoriteArticle, useUpdateArticle } from '@/hooks/useArticles';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
 
@@ -31,6 +32,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const unfavoriteMutation = useUnfavoriteArticle();
   const updateMutation = useUpdateArticle();
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   // 处理 summary 字段：如果是 JSON 字符串，尝试解析并提取 summary 字段
   const getSummaryText = (): string => {
@@ -111,7 +113,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       bodyStyle={{ padding: '12px 16px' }}
     >
       <Space direction="vertical" size="small" style={{ width: '100%' }}>
-        {/* 第一行（概览）：日期Tag + 重要程度Tag + 标题 + 来源Tag，整行可点击 */}
+        {/* 第一行（概览）：日期Tag + 重要程度Tag + 标题 + 来源Tag，整行可点击展开（除了来源Tag） */}
         <div 
           style={{ 
             display: 'flex', 
@@ -122,8 +124,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             padding: '2px 0',
           }}
           onClick={(e) => {
-            // 如果点击的是标题链接，不阻止默认行为
-            if ((e.target as HTMLElement).closest('a')) {
+            // 如果点击的是展开/收起按钮，不展开（按钮会自己处理点击事件）
+            // 来源 tag 已经有 stopPropagation，所以不需要特别检查
+            if ((e.target as HTMLElement).closest('button')) {
               return;
             }
             setExpanded(!expanded);
@@ -149,13 +152,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               <Tooltip title={article.title} placement="top">
                 <Title 
                   level={5} 
-                  style={{ marginBottom: 0, display: 'inline', cursor: 'pointer' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (article.url) {
-                      window.open(article.url, '_blank');
-                    }
-                  }}
+                  style={{ marginBottom: 0, display: 'inline' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.color = getThemeColor(theme, 'primary');
                   }}
@@ -169,13 +166,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             ) : (
               <Title 
                 level={5} 
-                style={{ marginBottom: 0, display: 'inline', cursor: 'pointer' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (article.url) {
-                    window.open(article.url, '_blank');
-                  }
-                }}
+                style={{ marginBottom: 0, display: 'inline' }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.color = getThemeColor(theme, 'primary');
                 }}
@@ -186,7 +177,24 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 {article.title}
               </Title>
             )}
-            <Tag color="blue" style={{ flexShrink: 0 }}>{article.source}</Tag>
+            <Tag 
+              color="blue" 
+              style={{ flexShrink: 0, cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (article.url) {
+                  window.open(article.url, '_blank');
+                }
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1';
+              }}
+            >
+              {article.source}
+            </Tag>
             {article.is_favorited && (
               <Tooltip title="已收藏">
                 <StarFilled style={{ color: '#faad14', fontSize: 14 }} />
@@ -385,6 +393,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                       icon={<SaveOutlined />}
                       onClick={handleSaveNotes}
                       loading={updateMutation.isPending}
+                      disabled={!isAuthenticated}
                     >
                       保存
                     </Button>
@@ -406,6 +415,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                     size="small"
                     icon={<EditOutlined />}
                     onClick={() => setIsEditingNotes(true)}
+                    disabled={!isAuthenticated}
                   >
                     编辑
                   </Button>
@@ -433,6 +443,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                   size="small"
                   icon={<EditOutlined />}
                   onClick={() => setIsEditingNotes(true)}
+                  disabled={!isAuthenticated}
                   style={{ width: '100%' }}
                 >
                   增加笔记
@@ -447,6 +458,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 icon={article.is_favorited ? <StarFilled /> : <StarOutlined />}
                 onClick={handleFavorite}
                 loading={favoriteMutation.isPending || unfavoriteMutation.isPending}
+                disabled={!isAuthenticated}
               >
                 {article.is_favorited ? '已收藏' : '收藏'}
               </Button>
@@ -455,6 +467,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 icon={<RobotOutlined />}
                 onClick={handleAnalyze}
                 loading={analyzeMutation.isPending}
+                disabled={!isAuthenticated}
               >
                 {article.is_processed ? '重新分析' : 'AI分析'}
               </Button>
@@ -463,12 +476,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                 onConfirm={handleDelete}
                 okText="确定"
                 cancelText="取消"
+                disabled={!isAuthenticated}
               >
                 <Button
                   type="primary"
                   danger
                   icon={<DeleteOutlined />}
                   loading={deleteMutation.isPending}
+                  disabled={!isAuthenticated}
                 >
                   删除
                 </Button>

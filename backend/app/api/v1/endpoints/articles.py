@@ -207,6 +207,7 @@ async def delete_article(
 async def favorite_article(
     article_id: int,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """收藏文章"""
     article = db.query(Article).filter(Article.id == article_id).first()
@@ -224,6 +225,7 @@ async def favorite_article(
 async def unfavorite_article(
     article_id: int,
     db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
 ):
     """取消收藏文章"""
     article = db.query(Article).filter(Article.id == article_id).first()

@@ -15,6 +15,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { getThemeColor } from '@/utils/theme';
 import { createMarkdownComponents } from '@/utils/markdown';
 import ReactMarkdown from 'react-markdown';
@@ -34,6 +35,7 @@ export default function ArticleDetailModal({
   onClose 
 }: ArticleDetailModalProps) {
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuth();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
 
@@ -333,6 +335,7 @@ export default function ArticleDetailModal({
                 <Button
                   icon={article.is_favorited ? <StarFilled /> : <StarOutlined />}
                   onClick={handleFavorite}
+                  disabled={!isAuthenticated}
                 >
                   {article.is_favorited ? '已收藏' : '收藏'}
                 </Button>

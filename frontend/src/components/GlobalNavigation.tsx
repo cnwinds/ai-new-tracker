@@ -27,6 +27,7 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
   const [articleDetailModalOpen, setArticleDetailModalOpen] = useState(false);
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
   const inputRef = useRef<any>(null);
+  const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 全局快捷键 Cmd/Ctrl + K
   useEffect(() => {
@@ -74,11 +75,12 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
   const handleInputBlur = () => {
     // 延迟关闭，以便点击下拉项
     // 如果文章详情模态框打开，不要关闭下拉窗口
-    setTimeout(() => {
+    blurTimeoutRef.current = setTimeout(() => {
       if (!articleDetailModalOpen) {
         setIsFocused(false);
         setIsDropdownOpen(false);
       }
+      blurTimeoutRef.current = null;
     }, 200);
   };
 
@@ -109,7 +111,13 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
       setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      // 清理 blur timeout
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
   }, []);
 
   const inputStyle: React.CSSProperties = {
@@ -182,9 +190,20 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
               handleSearch(query);
             }}
             onSelectSearchHistory={(searchQuery) => {
-              // 选择搜索历史，填充到输入框并触发搜索
+              // 清除可能存在的 blur timeout，防止关闭下拉菜单
+              if (blurTimeoutRef.current) {
+                clearTimeout(blurTimeoutRef.current);
+                blurTimeoutRef.current = null;
+              }
+              // 选择搜索历史，填充到输入框并触发文章搜索（不打开AI对话）
               setSearchQuery(searchQuery);
-              handleSearch(searchQuery);
+              // 保持下拉菜单打开，让用户看到搜索结果
+              setIsDropdownOpen(true);
+              setIsFocused(true);
+              // 确保输入框保持焦点，避免 onBlur 关闭下拉菜单
+              setTimeout(() => {
+                inputRef.current?.focus();
+              }, 0);
             }}
             onSearchExecuted={() => {
               // 搜索已执行，可以在这里做额外处理
