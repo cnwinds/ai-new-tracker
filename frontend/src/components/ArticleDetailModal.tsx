@@ -136,15 +136,15 @@ export default function ArticleDetailModal({
               )}
               <Text
                 strong
-                ellipsis={{
-                  tooltip: article.title_zh || article.title,
-                }}
                 style={{
                   fontSize: isMobile ? '16px' : '18px',
                   color: getThemeColor(theme, 'text'),
                   flex: 1,
                   minWidth: 0,
                   lineHeight: '1.4',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {article.title_zh || article.title}
