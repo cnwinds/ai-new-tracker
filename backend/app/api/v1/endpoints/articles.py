@@ -78,16 +78,24 @@ def _parse_time_range(time_range: str) -> Optional[datetime]:
 async def get_articles(
     time_range: Optional[str] = Query(None, description="时间范围"),
     sources: Optional[str] = Query(None, description="来源列表，逗号分隔"),
+    exclude_sources: Optional[str] = Query(None, description="排除的来源列表，逗号分隔"),
     importance: Optional[str] = Query(None, description="重要性列表，逗号分隔"),
     category: Optional[str] = Query(None, description="分类列表，逗号分隔"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    include_details: bool = Query(False, description="是否包含详细信息（摘要、内容、主题、标签等）"),
     db: Session = Depends(get_database),
 ):
-    """获取文章列表（支持筛选和分页）"""
+    """获取文章列表（支持筛选和分页）
+    
+    默认只返回标题行显示所需的基本字段，不返回详细信息以节省网络流量。
+    详细信息包括：author, summary, content, topics, tags, key_points, user_notes等。
+    仅在需要时设置include_details=True，或使用/articles/{id}/fields接口按需获取。
+    """
     # 解析筛选参数
     time_threshold = _parse_time_range(time_range) if time_range else None
     sources_list = sources.split(",") if sources else None
+    exclude_sources_list = exclude_sources.split(",") if exclude_sources else None
     importance_list = importance.split(",") if importance else None
     category_list = category.split(",") if category else None
     
@@ -103,6 +111,8 @@ async def get_articles(
         articles_query = articles_query.filter(Article.published_at >= time_threshold)
     if sources_list:
         articles_query = articles_query.filter(Article.source.in_(sources_list))
+    if exclude_sources_list:
+        articles_query = articles_query.filter(~Article.source.in_(exclude_sources_list))
     if importance_list or include_unimportance:
         if include_unimportance:
             if importance_list:
@@ -128,7 +138,26 @@ async def get_articles(
     )
     
     # 转换为 Pydantic 模型
-    article_schemas = [ArticleSchema.model_validate(article) for article in articles]
+    article_schemas = []
+    for article in articles:
+        # 创建文章对象
+        article_data = ArticleSchema.model_validate(article)
+        # 如果不包含详细信息，清空所有详细字段
+        if not include_details:
+            update_data = {
+                'content': None,
+                'summary': None,
+                'author': None,
+                'topics': None,
+                'tags': None,
+                'key_points': None,
+                'user_notes': None,
+                'target_audience': None,
+                'related_papers': None,
+            }
+            article_data = article_data.model_copy(update=update_data)
+        
+        article_schemas.append(article_data)
     
     total_pages = (total + page_size - 1) // page_size
     
@@ -151,6 +180,73 @@ async def get_article(
     return ArticleSchema.model_validate(article)
 
 
+@router.get("/{article_id}/fields")
+async def get_article_fields(
+    article_id: int,
+    fields: str = Query(..., description="要获取的字段，逗号分隔，如：summary,content,topics,tags,key_points,author,user_notes"),
+    db: Session = Depends(get_database),
+):
+    """获取文章的特定字段（用于按需加载）
+    
+    支持的字段：
+    - summary: AI总结
+    - content: 文章内容
+    - author: 作者
+    - topics: 主题列表
+    - tags: 标签列表
+    - key_points: 关键点列表
+    - user_notes: 用户笔记
+    - target_audience: 目标受众
+    - related_papers: 相关论文
+    
+    返回格式：{"summary": "...", "content": "...", "topics": [...], ...}
+    
+    特殊值 "all" 可以获取所有详细字段。
+    """
+    article = _get_article_or_404(db, article_id)
+    
+    # 如果请求所有字段
+    if fields.strip().lower() == "all":
+        return {
+            "summary": article.summary,
+            "content": article.content,
+            "author": article.author,
+            "topics": article.topics,
+            "tags": article.tags,
+            "key_points": article.key_points,
+            "user_notes": article.user_notes,
+            "target_audience": article.target_audience,
+            "related_papers": article.related_papers,
+        }
+    
+    requested_fields = [f.strip() for f in fields.split(",")]
+    result = {}
+    
+    # 支持的字段映射
+    field_mapping = {
+        "summary": lambda: article.summary,
+        "content": lambda: article.content,
+        "author": lambda: article.author,
+        "topics": lambda: article.topics,
+        "tags": lambda: article.tags,
+        "key_points": lambda: article.key_points,
+        "user_notes": lambda: article.user_notes,
+        "target_audience": lambda: article.target_audience,
+        "related_papers": lambda: article.related_papers,
+    }
+    
+    for field in requested_fields:
+        if field in field_mapping:
+            result[field] = field_mapping[field]()
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"不支持的字段: {field}。支持的字段：{', '.join(field_mapping.keys())}，或使用 'all' 获取所有字段"
+            )
+    
+    return result
+
+
 @router.post("/{article_id}/analyze")
 async def analyze_article(
     article_id: int,
@@ -158,7 +254,11 @@ async def analyze_article(
     db: Session = Depends(get_database),
     _current_user: str = Depends(require_auth),
 ):
-    """触发文章AI分析（支持重新分析）"""
+    """触发文章AI分析（支持重新分析）
+    
+    注意：对于邮件类型的文章，不会重新采集内容，直接使用已保存的内容进行AI分析。
+    其他类型的文章也不会重新采集，只对已保存的内容重新进行AI分析。
+    """
     article = _get_article_or_404(db, article_id)
     
     # 如果已分析且未强制重新分析，返回提示信息
@@ -170,44 +270,61 @@ async def analyze_article(
             "is_processed": True,
         }
     
-        # 创建AI分析器
-        ai_analyzer = create_ai_analyzer()
-        if not ai_analyzer:
-            raise HTTPException(status_code=400, detail="未配置AI分析器")
+    # 检查是否为邮件类型
+    is_email = article.category == "email" or article.url.startswith("mailto:")
+    
+    # 对于邮件类型，确保不重新采集，直接使用已保存的内容
+    # 对于其他类型，也使用已保存的内容（不重新采集）
+    if is_email:
+        logger.info(f"📧 邮件类型文章，使用已保存的内容进行重新分析（不重新采集）")
+    
+    # 检查内容是否存在
+    if not article.content:
+        raise HTTPException(
+            status_code=400, 
+            detail="文章内容为空，无法进行分析。邮件类型文章不会重新采集内容，请确保文章已有内容。"
+        )
+    
+    # 创建AI分析器
+    ai_analyzer = create_ai_analyzer()
+    if not ai_analyzer:
+        raise HTTPException(status_code=400, detail="未配置AI分析器")
+    
+    try:
+        # 获取自定义提示词（如果源配置了）
+        custom_prompt = None
+        if article.source:
+            from backend.app.db.models import RSSSource
+            source_obj = db.query(RSSSource).filter(
+                RSSSource.name == article.source
+            ).first()
+            if source_obj and source_obj.analysis_prompt:
+                custom_prompt = source_obj.analysis_prompt
         
-        try:
-            # 获取自定义提示词（如果源配置了）
-            custom_prompt = None
-            if article.source:
-                from backend.app.db.models import RSSSource
-                source_obj = db.query(RSSSource).filter(
-                    RSSSource.name == article.source
-                ).first()
-                if source_obj and source_obj.analysis_prompt:
-                    custom_prompt = source_obj.analysis_prompt
-            
-            # 执行AI分析
-            analysis_result = ai_analyzer.analyze_article(
-                title=article.title,
-                content=article.content or "",
-                url=article.url,
-                custom_prompt=custom_prompt,
-            )
-            
-            # 更新文章分析结果
-            _update_article_analysis(article, analysis_result)
-            
-            db.commit()
-            
-            return {
-                "message": "重新分析完成" if was_processed else "分析完成",
-                "article_id": article_id,
-                "analysis": analysis_result,
-                "is_processed": True,
-            }
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
+        # 执行AI分析（使用已保存的内容，不重新采集）
+        analysis_result = ai_analyzer.analyze_article(
+            title=article.title,
+            content=article.content or "",
+            url=article.url,
+            source=article.source,
+            category=article.category,
+            custom_prompt=custom_prompt,
+        )
+        
+        # 更新文章分析结果
+        _update_article_analysis(article, analysis_result)
+        
+        db.commit()
+        
+        return {
+            "message": "重新分析完成" if was_processed else "分析完成",
+            "article_id": article_id,
+            "analysis": analysis_result,
+            "is_processed": True,
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
 
 
 @router.delete("/{article_id}")

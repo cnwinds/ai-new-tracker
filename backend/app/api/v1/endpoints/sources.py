@@ -146,6 +146,7 @@ async def get_default_sources(
                 sources.extend(config.get("api_sources", []))
                 sources.extend(config.get("web_sources", []))
                 sources.extend(config.get("social_sources", []))
+                sources.extend(config.get("email_sources", []))
             
             # 格式化源数据
             formatted_sources = []
@@ -194,6 +195,8 @@ async def get_default_sources(
                 sources = import_rss_sources.load_web_sources()
             elif source_type == "social":
                 sources = import_rss_sources.load_social_sources()
+            elif source_type == "email":
+                sources = import_rss_sources.load_email_sources()
             else:
                 sources = []
         else:
@@ -234,6 +237,7 @@ async def import_default_sources(
             all_sources.extend(config.get("api_sources", []))
             all_sources.extend(config.get("web_sources", []))
             all_sources.extend(config.get("social_sources", []))
+            all_sources.extend(config.get("email_sources", []))
         except Exception as e:
             logger.error(f"读取 sources.json 失败: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"读取默认数据源失败: {str(e)}")
@@ -297,6 +301,7 @@ async def import_default_sources(
                     priority=source_data.get("priority", 3),
                     note=None,  # 不再使用 note 字段存储描述信息
                     extra_config=extra_config,
+                    analysis_prompt=source_data.get("analysis_prompt"),  # 自定义AI分析提示词
                 )
                 db.add(new_source)
                 imported_count += 1

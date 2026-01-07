@@ -2,24 +2,28 @@
  * 文章列表组件
  */
 import { useState, useMemo } from 'react';
-import { Card, Select, Radio, Space, Pagination, Spin, Empty, Alert, Button } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { Card, Select, Radio, Space, Pagination, Spin, Empty, Alert, Button, Switch } from 'antd';
+import { ReloadOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useArticles } from '@/hooks/useArticles';
 import ArticleCard from './ArticleCard';
 import { apiService } from '@/services/api';
 import type { ArticleFilter } from '@/types';
 import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
+import { useTheme } from '@/contexts/ThemeContext';
+import { getThemeColor } from '@/utils/theme';
 
 const { Option, OptGroup } = Select;
 
 const TIME_RANGES = ['今天', '最近3天', '最近7天', '最近30天', '全部'] as const;
 
 export default function ArticleList() {
+  const { theme } = useTheme();
   const [filter, setFilter] = useState<ArticleFilter>({
     time_range: '全部',
     page: 1,
     page_size: 20,
+    source_filter_mode: 'include', // 默认正向过滤
   });
 
   const { data, isLoading, error, refetch, isFetching } = useArticles(filter);
@@ -41,11 +45,30 @@ export default function ArticleList() {
   };
 
   const handleSourceChange = (value: string[]) => {
-    setFilter((prev) => ({ 
-      ...prev, 
-      sources: value.length > 0 ? value : undefined, 
-      page: 1 
-    }));
+    setFilter((prev) => {
+      const isExcludeMode = prev.source_filter_mode === 'exclude';
+      return {
+        ...prev,
+        [isExcludeMode ? 'exclude_sources' : 'sources']: value.length > 0 ? value : undefined,
+        // 清除另一个模式的选中值
+        [isExcludeMode ? 'sources' : 'exclude_sources']: undefined,
+        page: 1,
+      };
+    });
+  };
+
+  const handleFilterModeChange = (mode: 'include' | 'exclude') => {
+    setFilter((prev) => {
+      // 切换模式时，将当前选中的来源转移到对应的字段
+      const currentSources = mode === 'exclude' ? prev.sources : prev.exclude_sources;
+      return {
+        ...prev,
+        source_filter_mode: mode,
+        [mode === 'exclude' ? 'exclude_sources' : 'sources']: currentSources,
+        [mode === 'exclude' ? 'sources' : 'exclude_sources']: undefined,
+        page: 1,
+      };
+    });
   };
 
   const handlePageChange = (page: number, pageSize: number) => {
@@ -77,34 +100,75 @@ export default function ArticleList() {
         }
         extra={
           <Space>
-            <Select
-              mode="multiple"
-              placeholder="选择订阅来源"
-              style={{ minWidth: 250 }}
-              value={filter.sources}
-              onChange={handleSourceChange}
-              allowClear
-              maxTagCount="responsive"
-              showSearch
-              filterOption={(input, option) => {
-                if (option?.type === 'group') return true;
-                const label = String(option?.label ?? '');
-                return label.toLowerCase().includes(input.toLowerCase());
+            <Space.Compact style={{ display: 'flex', alignItems: 'stretch' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 12px',
+                height: '32px',
+                backgroundColor: getThemeColor(theme, 'inputBg', theme === 'dark' ? '#141414' : '#ffffff'),
+                border: `1px solid ${getThemeColor(theme, 'border')}`,
+                borderRight: 'none',
+                borderTopLeftRadius: '6px',
+                borderBottomLeftRadius: '6px',
+                borderTopRightRadius: 0,
+                borderBottomRightRadius: 0,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
               }}
-            >
-              {Object.entries(groupedSources).map(([type, sourcesList]) => (
-                <OptGroup 
-                  key={type} 
-                  label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
-                >
-                  {sourcesList.map((source) => (
-                    <Option key={source.id} value={source.name} label={source.name}>
-                      {source.name}
-                    </Option>
-                  ))}
-                </OptGroup>
-              ))}
-            </Select>
+              onClick={() => handleFilterModeChange(filter.source_filter_mode === 'exclude' ? 'include' : 'exclude')}
+              >
+                <span style={{
+                  fontSize: '13px',
+                  color: getThemeColor(theme, 'text'),
+                  fontWeight: 400,
+                  userSelect: 'none',
+                }}>
+                  {filter.source_filter_mode === 'exclude' ? '排除' : '包含'}
+                </span>
+              </div>
+              <Select
+                mode="multiple"
+                placeholder={
+                  filter.source_filter_mode === 'exclude' 
+                    ? '排除订阅来源' 
+                    : '选择订阅来源'
+                }
+                style={{ 
+                  minWidth: 250,
+                  borderTopLeftRadius: 0,
+                  borderBottomLeftRadius: 0,
+                }}
+                value={
+                  filter.source_filter_mode === 'exclude' 
+                    ? filter.exclude_sources 
+                    : filter.sources
+                }
+                onChange={handleSourceChange}
+                allowClear
+                maxTagCount="responsive"
+                showSearch
+                filterOption={(input, option) => {
+                  if (option?.type === 'group') return true;
+                  const label = String(option?.label ?? '');
+                  return label.toLowerCase().includes(input.toLowerCase());
+                }}
+              >
+                {Object.entries(groupedSources).map(([type, sourcesList]) => (
+                  <OptGroup 
+                    key={type} 
+                    label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
+                  >
+                    {sourcesList.map((source) => (
+                      <Option key={source.id} value={source.name} label={source.name}>
+                        {source.name}
+                      </Option>
+                    ))}
+                  </OptGroup>
+                ))}
+              </Select>
+            </Space.Compact>
             <Radio.Group
               value={filter.time_range}
               onChange={(e) => handleTimeRangeChange(e.target.value)}

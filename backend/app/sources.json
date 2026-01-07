@@ -320,6 +320,38 @@
         "search_query": "AI"
       }
     }
+  ],
+  "email_sources": [
+    {
+      "name": "TLDR (163邮箱)",
+      "url": "email://your_email@163.com",
+      "category": "newsletter",
+      "enabled": true,
+      "language": "zh",
+      "priority": 2,
+      "source_type": "email",
+      "description": "TLDR 邮件订阅源（163邮箱），过滤发件人包含'TLDR'的邮件",
+      "analysis_prompt": "最后有邮件的正文内容，请对邮件内容做如下处理：\n1. 将所有文章标题和文章摘要都翻译为中文，如果内容已经是中文，则保持原样\n2. 文章标题的超链接**一定要保留**，用户可以点击跳转\n3. 保持原有标题和摘要的排版格式（段落、列表、换行等）\n4. 广告赞助等无关内容过滤掉\n\n邮件内容：\n{content}",
+      "extra_config": {
+        "protocol": "pop3",
+        "server": "pop.163.com",
+        "port": 995,
+        "use_ssl": true,
+        "username": "your_email@163.com",
+        "password": "",
+        "title_filter": {
+          "type": "sender",
+          "filter_sender": true,
+          "keywords": ["TLDR"]
+        },
+        "content_extraction": {
+          "from_html": true,
+          "from_plain": true,
+          "from_attachments": false
+        },
+        "max_emails": 50
+      }
+    }
   ]
 }
 

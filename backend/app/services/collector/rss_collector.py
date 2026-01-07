@@ -232,20 +232,17 @@ class RSSCollector(BaseCollector):
 
     def _clean_html(self, html: str) -> str:
         """
-        清理HTML标签，保留纯文本
+        将HTML转换为Markdown格式
 
         Args:
             html: HTML字符串
 
         Returns:
-            纯文本
+            Markdown格式的字符串
         """
-        try:
-            soup = BeautifulSoup(html, "html.parser")
-            return soup.get_text(separator=" ", strip=True)
-        except Exception as e:
-            logger.warning(f"⚠️  清理HTML失败: {e}")
-            return html
+        if not html:
+            return ""
+        return self.html_to_markdown(html)
 
     def _extract_date_from_page(self, soup: BeautifulSoup, url: str) -> Optional[datetime]:
         """
@@ -325,8 +322,8 @@ class RSSCollector(BaseCollector):
             for selector in content_selectors:
                 elements = soup.select(selector)
                 if elements:
-                    # 取第一个匹配的元素
-                    content = elements[0].get_text(separator=" ", strip=True)
+                    # 取第一个匹配的元素，转换为Markdown
+                    content = self.html_to_markdown(str(elements[0]))
                     if len(content) > 500:  # 确保内容足够长
                         break
 
@@ -335,10 +332,7 @@ class RSSCollector(BaseCollector):
                 # 移除不需要的元素
                 for tag in soup.find_all(['nav', 'header', 'footer', 'aside', 'script', 'style']):
                     tag.decompose()
-                content = soup.get_text(separator=" ", strip=True)
-
-            # 清理多余空白
-            content = " ".join(content.split())
+                content = self.html_to_markdown(str(soup))
 
             # 尝试从页面提取发布日期
             published_at = self._extract_date_from_page(soup, url)

@@ -181,18 +181,31 @@ class RAGService:
             # 如果sqlite-vec可用，同步到vec0虚拟表
             if self._use_sqlite_vec:
                 try:
-                    # sqlite-vec的vec0表需要存储浮点数数组（BLOB格式）
-                    vector_blob = self._vector_to_blob(embedding)
+                    # sqlite-vec的vec0表需要JSON数组格式的字符串
+                    # 格式: "[0.1, 0.2, 0.3, ...]"
+                    vector_str = "[" + ",".join(map(str, embedding)) + "]"
+                    
+                    # 虚拟表可能不支持 INSERT OR REPLACE，先删除再插入
+                    # 先删除旧记录（如果存在）
+                    self.db.execute(
+                        text("DELETE FROM vec_embeddings WHERE article_id = :article_id"),
+                        {"article_id": article.id}
+                    )
+                    
+                    # 插入新记录（使用字符串格式，与初始化代码保持一致）
                     self.db.execute(
                         text("""
-                            INSERT OR REPLACE INTO vec_embeddings (article_id, embedding)
+                            INSERT INTO vec_embeddings (article_id, embedding)
                             VALUES (:article_id, :embedding)
                         """),
-                        {"article_id": article.id, "embedding": vector_blob}
+                        {"article_id": article.id, "embedding": vector_str}
                     )
                     self.db.commit()
                 except Exception as e:
                     logger.warning(f"⚠️  同步向量到vec0表失败: {e}")
+                    # 记录详细错误信息以便调试
+                    import traceback
+                    logger.debug(f"同步向量详细错误: {traceback.format_exc()}")
             
             logger.info(f"✅ 文章 {article.id} 索引成功")
             return True

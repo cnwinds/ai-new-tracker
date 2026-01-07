@@ -76,14 +76,15 @@ class AIAnalyzer:
             content = article.get("content", "")
             url = article.get("url", "")
             source = article.get("source", "")
+            category = article.get("category", "")
+            
+            # 判断是否为邮件类型
+            is_email = category == "email" or "email" in source.lower() or url.startswith("mailto:")
             
             logger.info(f"🤖 正在分析文章: {title[:50]}...")
             
             # 构建提示词（如果提供了自定义提示词，使用自定义提示词）
-            if custom_prompt:
-                prompt = self._build_custom_prompt(custom_prompt, title, content, url, source)
-            else:
-                prompt = self._build_analysis_prompt(title, content, url, source)
+            prompt = self._build_analysis_prompt(title, content, url, source, custom_task_description=custom_prompt, is_email=is_email)
             
             # 最多尝试3次（初始1次 + 重试2次）
             max_retries = 3
@@ -94,6 +95,9 @@ class AIAnalyzer:
                 try:
                     if attempt > 0:
                         logger.info(f"🔄 第 {attempt + 1} 次尝试解析AI响应...")
+                    
+                    # 对于邮件，增加token限制以支持更长的输出
+                    max_tokens = 8000 if is_email else 4000
                     
                     # 调用OpenAI API
                     response = self.client.chat.completions.create(
@@ -109,7 +113,7 @@ class AIAnalyzer:
                             }
                         ],
                         temperature=0.3,
-                        max_tokens=4000,  # 增加token限制以支持更详细的摘要（最长800字）
+                        max_tokens=max_tokens,  # 邮件使用8000，其他使用4000
                     )
                     
                     # 解析响应
@@ -347,58 +351,34 @@ class AIAnalyzer:
         # 如果英文字符占比超过70%，认为是英文标题
         return english_ratio > 0.7
 
-    def _build_custom_prompt(self, template: str, title: str, content: str, url: str = "", source: str = "") -> str:
+    def _build_analysis_prompt(self, title: str, content: str, url: str = "", source: str = "", custom_task_description: str = None, is_email: bool = False) -> str:
         """
-        使用自定义模板构建提示词
+        构建分析提示词（整合自定义和默认提示词）
         
         Args:
-            template: 提示词模板，支持变量：{title}, {content}, {source}, {url}
             title: 文章标题
             content: 文章内容
             url: 文章URL
             source: 来源名称
+            custom_task_description: 自定义任务描述模板（可选），支持变量：{title}, {content}, {source}, {url}
+                                    如果提供则使用自定义描述，否则使用默认描述
+            is_email: 是否为邮件类型（邮件不限制内容长度）
         
         Returns:
-            替换变量后的提示词
+            完整的提示词（包含任务描述和JSON格式要求）
         """
-        # 限制内容长度（避免超出token限制）
-        content_preview = content[:8000] if content else "无内容"
+        # 不限制内容长度，使用完整内容
+        # 现代大模型（如GPT-4）支持很大的上下文窗口（128K tokens），
+        # 如果内容过长导致token超限，API会返回错误，我们可以在错误处理中再考虑截断
+        content_preview = content if content else "无内容"
         
-        # 使用str.format进行变量替换
-        try:
-            prompt = template.format(
-                title=title,
-                content=content_preview,
-                source=source,
-                url=url
-            )
-            return prompt
-        except KeyError as e:
-            logger.warning(f"⚠️  提示词模板包含未知变量: {e}，使用默认提示词")
-            return self._build_analysis_prompt(title, content, url, source)
-        except Exception as e:
-            logger.warning(f"⚠️  构建自定义提示词失败: {e}，使用默认提示词")
-            return self._build_analysis_prompt(title, content, url, source)
-
-    def _build_analysis_prompt(self, title: str, content: str, url: str = "", source: str = "") -> str:
-        """构建分析提示词（默认）"""
-        content_preview = content[:8000] if content else "无内容"
-        
-        prompt = f"""将作者写的长篇文章，改写成一篇**结构完整、信息齐全、逻辑严密**的精简短文。想象一下，这是为那些时间极其宝贵但又必须掌握你思想精华的核心读者（比如投资人、合作伙伴、高级决策者）准备的"浓缩精华版"。它本身就是一篇独立、完整、且有说服力的作品。
-
-**重要：请使用中文输出所有内容。**
-
-文章标题: {title}
-来源: {source}
-URL: {url}
-
-文章内容:
-{content_preview}
+        # JSON格式要求部分（两个函数共用）
+        json_format_section = """
 
 请按以下JSON格式返回分析结果：
 {{
     "importance": "high/medium/low",
-    "summary": "文章摘要（将原文改写成结构完整、信息齐全、逻辑严密的精简短文，最长800字，使用Markdown格式输出，可以使用标题、列表、加粗等Markdown语法，换行使用 \n 表示）",
+    "summary": "根据上述要求处理后的内容（使用Markdown格式输出，可以使用标题、列表、加粗等Markdown语法，换行使用 \\n 表示）",
     "topics": ["主题1", "主题2", "主题3"],
     "tags": ["标签1", "标签2", "标签3"],
     "key_points": ["关键点1", "关键点2", "关键点3"],
@@ -421,8 +401,57 @@ URL: {url}
 
 请确保返回有效的JSON格式。"""
         
+        # 构建任务描述部分
+        if custom_task_description:
+            # 使用自定义任务描述
+            try:
+                task_description = custom_task_description.format(
+                    title=title,
+                    content=content_preview,
+                    source=source,
+                    url=url
+                )
+            except KeyError as e:
+                logger.warning(f"⚠️  提示词模板包含未知变量: {e}，使用默认提示词")
+                # 回退到默认描述
+                task_description = self._get_default_task_description(title, content_preview, url, source)
+            except Exception as e:
+                logger.warning(f"⚠️  构建自定义提示词失败: {e}，使用默认提示词")
+                # 回退到默认描述
+                task_description = self._get_default_task_description(title, content_preview, url, source)
+        else:
+            # 使用默认任务描述
+            task_description = self._get_default_task_description(title, content_preview, url, source)
+        
+        # 整合任务描述和JSON格式要求
+        prompt = task_description + json_format_section
         return prompt
+    
+    def _get_default_task_description(self, title: str, content_preview: str, url: str = "", source: str = "") -> str:
+        """
+        获取默认的任务描述
+        
+        Args:
+            title: 文章标题
+            content_preview: 文章内容预览
+            url: 文章URL
+            source: 来源名称
+        
+        Returns:
+            默认任务描述文本
+        """
+        return f"""将作者写的长篇文章，改写成一篇**结构完整、信息齐全、逻辑严密**的精简短文。想象一下，这是为那些时间极其宝贵但又必须掌握你思想精华的核心读者（比如投资人、合作伙伴、高级决策者）准备的"浓缩精华版"。它本身就是一篇独立、完整、且有说服力的作品。
 
+**重要：请使用中文输出所有内容。**
+
+文章标题: {title}
+来源: {source}
+URL: {url}
+
+文章内容:
+{content_preview}
+"""
+    
     def generate_embedding(self, text: str) -> List[float]:
         """
         生成文本的嵌入向量

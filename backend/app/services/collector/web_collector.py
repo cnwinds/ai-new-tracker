@@ -160,12 +160,12 @@ class WebCollector(BaseCollector):
             if content_selector:
                 content_elem = element.select_one(content_selector)
                 if content_elem:
-                    content = content_elem.get_text(strip=True)
+                    content = self.html_to_markdown(str(content_elem))
 
             if description_selector and not content:
                 desc_elem = element.select_one(description_selector)
                 if desc_elem:
-                    content = desc_elem.get_text(strip=True)
+                    content = self.html_to_markdown(str(desc_elem))
 
             if not title or not url:
                 logger.warning(f"⚠️  文章缺少标题或URL: {title[:50] if title else 'N/A'}")
@@ -294,7 +294,7 @@ class WebCollector(BaseCollector):
             if content_selector:
                 content_elem = soup.select_one(content_selector)
                 if content_elem:
-                    result["content"] = content_elem.get_text(separator=" ", strip=True)
+                    result["content"] = self.html_to_markdown(str(content_elem))
             else:
                 # 使用默认选择器
                 content_selectors = [
@@ -312,17 +312,14 @@ class WebCollector(BaseCollector):
                 for selector in content_selectors:
                     elements = soup.select(selector)
                     if elements:
-                        result["content"] = elements[0].get_text(separator=" ", strip=True)
+                        result["content"] = self.html_to_markdown(str(elements[0]))
                         if len(result["content"]) > 500:
                             break
 
                 if not result.get("content") or len(result.get("content", "")) < 500:
                     for tag in soup.find_all(['nav', 'header', 'footer', 'aside', 'script', 'style']):
                         tag.decompose()
-                    result["content"] = soup.get_text(separator=" ", strip=True)
-
-            if result.get("content"):
-                result["content"] = " ".join(result["content"].split())
+                    result["content"] = self.html_to_markdown(str(soup))
 
             # 获取作者
             author_selector = config.get("author_selector")
@@ -410,6 +407,7 @@ class WebCollector(BaseCollector):
             for selector in title_selectors:
                 title_elem = soup.select_one(selector)
                 if title_elem:
+                    # 标题通常是纯文本，不需要Markdown转换
                     title = title_elem.get_text(strip=True)
                     if title and len(title) > 5:  # 确保标题有意义
                         break
@@ -445,7 +443,7 @@ class WebCollector(BaseCollector):
             for selector in content_selectors:
                 elements = soup.select(selector)
                 if elements:
-                    content = elements[0].get_text(separator=" ", strip=True)
+                    content = self.html_to_markdown(str(elements[0]))
                     if len(content) > 500:  # 确保内容足够长
                         break
             
@@ -456,7 +454,7 @@ class WebCollector(BaseCollector):
                     # 移除导航、侧边栏等
                     for tag in main_elem.find_all(['nav', 'aside', 'script', 'style', 'header', 'footer']):
                         tag.decompose()
-                    content = main_elem.get_text(separator=" ", strip=True)
+                    content = self.html_to_markdown(str(main_elem))
             
             # 如果还是不够，尝试从body获取（移除不需要的元素）
             if not content or len(content) < 500:
@@ -464,11 +462,7 @@ class WebCollector(BaseCollector):
                     tag.decompose()
                 body = soup.find('body')
                 if body:
-                    content = body.get_text(separator=" ", strip=True)
-            
-            # 清理内容（移除多余空白）
-            if content:
-                content = " ".join(content.split())
+                    content = self.html_to_markdown(str(body))
             
             # 提取作者
             author = ""

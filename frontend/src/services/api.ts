@@ -135,11 +135,18 @@ class ApiService {
   async getArticles(filter: ArticleFilter = {}): Promise<ArticleListResponse> {
     const params = new URLSearchParams();
     if (filter.time_range) params.append('time_range', filter.time_range);
-    if (filter.sources?.length) params.append('sources', filter.sources.join(','));
+    // 根据过滤模式决定使用sources还是exclude_sources
+    if (filter.source_filter_mode === 'exclude' && filter.exclude_sources?.length) {
+      params.append('exclude_sources', filter.exclude_sources.join(','));
+    } else if (filter.source_filter_mode !== 'exclude' && filter.sources?.length) {
+      params.append('sources', filter.sources.join(','));
+    }
     if (filter.importance?.length) params.append('importance', filter.importance.join(','));
     if (filter.category?.length) params.append('category', filter.category.join(','));
     if (filter.page) params.append('page', filter.page.toString());
     if (filter.page_size) params.append('page_size', filter.page_size.toString());
+    // 默认不包含详细信息以节省流量（只返回标题行显示所需的基本字段）
+    params.append('include_details', 'false');
 
     return this.handleRequest(
       this.client.get<ArticleListResponse>(`/articles?${params.toString()}`)
@@ -149,6 +156,33 @@ class ApiService {
   async getArticle(id: number): Promise<Article> {
     return this.handleRequest(
       this.client.get<Article>(`/articles/${id}`)
+    );
+  }
+
+  /**
+   * 获取文章的特定字段（用于按需加载）
+   * @param id 文章ID
+   * @param fields 要获取的字段，如：'summary' 或 'summary,content,topics,tags'，或 'all' 获取所有详细字段
+   * @returns 包含请求字段的对象
+   */
+  async getArticleFields(
+    id: number, 
+    fields: string = 'all'
+  ): Promise<{
+    summary?: string;
+    content?: string;
+    author?: string;
+    topics?: string[];
+    tags?: string[];
+    key_points?: string[];
+    user_notes?: string;
+    target_audience?: string;
+    related_papers?: string[];
+  }> {
+    return this.handleRequest(
+      this.client.get(`/articles/${id}/fields`, {
+        params: { fields },
+      })
     );
   }
 
@@ -293,6 +327,19 @@ class ApiService {
   async deleteSource(id: number): Promise<void> {
     await this.handleRequest(
       this.client.delete(`/sources/${id}`)
+    );
+  }
+
+  // AI修复相关
+  async fixSourceParse(id: number): Promise<any> {
+    return this.handleRequest(
+      this.client.post<any>(`/sources/${id}/fix-parse`)
+    );
+  }
+
+  async getFixHistory(id: number): Promise<{ source_id: number; source_name: string; fix_history: any[] }> {
+    return this.handleRequest(
+      this.client.get<{ source_id: number; source_name: string; fix_history: any[] }>(`/sources/${id}/fix-history`)
     );
   }
 

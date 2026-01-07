@@ -27,6 +27,7 @@ export const SOURCE_TYPE_LABELS: Record<string, string> = {
   api: 'API源',
   web: 'Web源',
   social: '社交媒体源',
+  email: '邮件源',
 } as const;
 
 /**

@@ -100,6 +100,10 @@ def load_sources(source_type: str = "rss") -> List[Dict[str, Any]]:
                 "enabled": source.get("enabled", True),
             }
             
+            # 添加自定义AI分析提示词（如果存在）
+            if source.get("analysis_prompt"):
+                formatted_source["analysis_prompt"] = source.get("analysis_prompt")
+            
             # 如果有 extra_config，将其序列化为JSON字符串
             if extra_config:
                 formatted_source["extra_config"] = json.dumps(extra_config, ensure_ascii=False)
@@ -162,6 +166,16 @@ def load_social_sources() -> List[Dict[str, Any]]:
     return load_sources("social")
 
 
+def load_email_sources() -> List[Dict[str, Any]]:
+    """
+    从配置文件加载邮件源列表
+
+    Returns:
+        邮件源列表
+    """
+    return load_sources("email")
+
+
 def load_all_sources() -> List[Dict[str, Any]]:
     """
     从配置文件加载所有类型的源列表
@@ -174,6 +188,7 @@ def load_all_sources() -> List[Dict[str, Any]]:
     all_sources.extend(load_api_sources())
     all_sources.extend(load_web_sources())
     all_sources.extend(load_social_sources())
+    all_sources.extend(load_email_sources())
     return all_sources
 
 

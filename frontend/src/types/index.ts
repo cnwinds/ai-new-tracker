@@ -41,6 +41,8 @@ export interface ArticleListResponse {
 export interface ArticleFilter {
   time_range?: string;
   sources?: string[];
+  exclude_sources?: string[];
+  source_filter_mode?: 'include' | 'exclude'; // 过滤模式：包含或排除
   importance?: string[];
   category?: string[];
   page?: number;
@@ -112,12 +114,29 @@ export interface RSSSource {
   priority: number;
   note?: string;
   extra_config?: string;
+  analysis_prompt?: string;  // 自定义AI分析提示词
+  parse_fix_history?: string;  // 解析修复历史（JSON格式）
   last_collected_at?: string;
   latest_article_published_at?: string;
   articles_count: number;
   last_error?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface FixHistoryEntry {
+  timestamp: string;
+  old_config: string | null;
+  new_config: string | null;
+  error_message?: string;
+  success: boolean;
+}
+
+export interface FixParseResponse {
+  message: string;
+  source_id: number;
+  new_config?: any;
+  fix_history?: FixHistoryEntry;
 }
 
 export type RSSSourceCreate = Omit<RSSSource, 'id' | 'created_at' | 'updated_at' | 'last_collected_at' | 'latest_article_published_at' | 'articles_count' | 'last_error'>;

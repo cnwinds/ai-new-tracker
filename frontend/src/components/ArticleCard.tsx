@@ -1,13 +1,13 @@
 /**
  * 文章卡片组件
  */
-import { useState } from 'react';
-import { Card, Tag, Button, Space, Typography, Popconfirm, Tooltip, Input } from 'antd';
+import { useState, useEffect } from 'react';
+import { Card, Tag, Button, Space, Typography, Popconfirm, Tooltip, Input, Spin } from 'antd';
 import { LinkOutlined, DeleteOutlined, RobotOutlined, UpOutlined, DownOutlined, StarOutlined, StarFilled, EditOutlined, SaveOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import type { Article } from '@/types';
-import { useAnalyzeArticle, useDeleteArticle, useFavoriteArticle, useUnfavoriteArticle, useUpdateArticle } from '@/hooks/useArticles';
+import { useAnalyzeArticle, useDeleteArticle, useFavoriteArticle, useUnfavoriteArticle, useUpdateArticle, useArticleDetails } from '@/hooks/useArticles';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents } from '@/utils/markdown';
@@ -35,7 +35,34 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const { theme } = useTheme();
   const { isAuthenticated } = useAuth();
 
-  const summaryText = getSummaryText(article);
+  // 按需加载：只在展开时一次性加载所有详细字段
+  const { data: loadedDetails, isLoading: isLoadingDetails } = useArticleDetails(
+    article.id,
+    expanded // 只有在展开时才加载
+  );
+
+  // 使用加载的数据或原始数据
+  const articleWithLoadedData = {
+    ...article,
+    summary: loadedDetails?.summary ?? article.summary,
+    content: loadedDetails?.content ?? article.content,
+    author: loadedDetails?.author ?? article.author,
+    topics: loadedDetails?.topics ?? article.topics,
+    tags: loadedDetails?.tags ?? article.tags,
+    key_points: loadedDetails?.key_points ?? article.key_points,
+    user_notes: loadedDetails?.user_notes ?? article.user_notes,
+    target_audience: loadedDetails?.target_audience ?? article.target_audience,
+    related_papers: loadedDetails?.related_papers ?? article.related_papers,
+  };
+
+  // 当加载的详细信息更新时，同步更新notesValue（仅在未编辑状态下）
+  useEffect(() => {
+    if (loadedDetails?.user_notes !== undefined && !isEditingNotes) {
+      setNotesValue(loadedDetails.user_notes || '');
+    }
+  }, [loadedDetails?.user_notes, isEditingNotes]);
+
+  const summaryText = getSummaryText(articleWithLoadedData);
 
   const handleAnalyze = () => {
     // 如果已分析，使用 force=true 强制重新分析
@@ -69,7 +96,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   };
 
   const handleCancelEditNotes = () => {
-    setNotesValue(article.user_notes || '');
+    setNotesValue(articleWithLoadedData.user_notes || '');
     setIsEditingNotes(false);
   };
 
@@ -192,9 +219,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                     ? dayjs(article.published_at).format('YYYY-MM-DD HH:mm')
                     : '未知时间'}
                 </Text>
-                {article.author && (
+                {articleWithLoadedData.author && (
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    作者: {article.author}
+                    作者: {articleWithLoadedData.author}
                   </Text>
                 )}
                 {!article.is_processed && <Tag>未分析</Tag>}
@@ -202,7 +229,14 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             </div>
 
             {/* 摘要区域：摘要内容（Markdown格式） */}
-            {summaryText ? (
+            {isLoadingDetails ? (
+              <div style={{ marginBottom: 12, textAlign: 'center', padding: '20px 0' }}>
+                <Spin size="small" />
+                <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                  加载详细信息中...
+                </Text>
+              </div>
+            ) : summaryText ? (
               <div style={{ marginBottom: 12 }}>
                 {article.is_processed && (
                   <Tag icon={<RobotOutlined />} color="purple" style={{ marginBottom: 8 }}>
@@ -224,52 +258,59 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             ) : null}
 
             {/* 文章内容（默认折叠） */}
-            {article.content ? (
-              <div style={{ marginBottom: 12 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    marginBottom: 8,
+            <div style={{ marginBottom: 12 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  marginBottom: 8,
+                }}
+                onClick={() => setIsContentExpanded(!isContentExpanded)}
+              >
+                <Text strong style={{ fontSize: 14, color: getThemeColor(theme, 'text'), margin: 0 }}>
+                  文章内容
+                </Text>
+                <Button
+                  type="text"
+                  icon={isContentExpanded ? <UpOutlined /> : <DownOutlined />}
+                  size="small"
+                  style={{ color: getThemeColor(theme, 'textSecondary'), marginLeft: 8, padding: 0 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsContentExpanded(!isContentExpanded);
                   }}
-                  onClick={() => setIsContentExpanded(!isContentExpanded)}
-                >
-                  <Text strong style={{ fontSize: 14, color: getThemeColor(theme, 'text'), margin: 0 }}>
-                    文章内容
-                  </Text>
-                  <Button
-                    type="text"
-                    icon={isContentExpanded ? <UpOutlined /> : <DownOutlined />}
-                    size="small"
-                    style={{ color: getThemeColor(theme, 'textSecondary'), marginLeft: 8, padding: 0 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsContentExpanded(!isContentExpanded);
-                    }}
-                  />
-                </div>
-                {isContentExpanded && (
-                  <div
-                    style={{
-                      padding: '12px',
-                      backgroundColor: getThemeColor(theme, 'bgSecondary'),
-                      borderRadius: '6px',
-                      border: `1px solid ${getThemeColor(theme, 'border')}`,
-                      color: getThemeColor(theme, 'text'),
-                      lineHeight: '1.8',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      fontSize: 13,
-                      maxHeight: '400px',
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {article.content}
-                  </div>
-                )}
+                />
               </div>
-            ) : null}
+              {isContentExpanded && (
+                <>
+                  {articleWithLoadedData.content ? (
+                    <div
+                      style={{
+                        padding: '12px',
+                        backgroundColor: getThemeColor(theme, 'bgSecondary'),
+                        borderRadius: '6px',
+                        border: `1px solid ${getThemeColor(theme, 'border')}`,
+                        color: getThemeColor(theme, 'text'),
+                        lineHeight: '1.8',
+                        wordBreak: 'break-word',
+                        fontSize: 13,
+                        maxHeight: '400px',
+                        overflowY: 'auto',
+                      }}
+                    >
+                      <ReactMarkdown components={createMarkdownComponents(theme)}>
+                        {articleWithLoadedData.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      暂无内容
+                    </Text>
+                  )}
+                </>
+              )}
+            </div>
 
             {/* 查看原文按钮 */}
             <div style={{ marginBottom: 12 }}>
@@ -285,13 +326,13 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             </div>
 
             {/* 主题区域 */}
-            {article.topics && article.topics.length > 0 && (
+            {articleWithLoadedData.topics && articleWithLoadedData.topics.length > 0 && (
               <div style={{ marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                 <Text strong style={{ fontSize: 13, color: getThemeColor(theme, 'text'), flexShrink: 0, lineHeight: '28px' }}>
                   主题
                 </Text>
                 <Space size={[8, 8]} wrap style={{ flex: 1, minWidth: 0 }}>
-                  {article.topics.map((topic, idx) => (
+                  {articleWithLoadedData.topics.map((topic, idx) => (
                     <Tag key={idx} color="blue">
                       {topic}
                     </Tag>
@@ -301,13 +342,13 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             )}
 
             {/* 标签区域 */}
-            {article.tags && article.tags.length > 0 && (
+            {articleWithLoadedData.tags && articleWithLoadedData.tags.length > 0 && (
               <div style={{ marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                 <Text strong style={{ fontSize: 13, color: getThemeColor(theme, 'text'), flexShrink: 0, lineHeight: '28px' }}>
                   标签
                 </Text>
                 <Space size={[8, 8]} wrap style={{ flex: 1, minWidth: 0 }}>
-                  {article.tags.map((tag, idx) => (
+                  {articleWithLoadedData.tags.map((tag, idx) => (
                     <Tag key={idx}>
                       {tag}
                     </Tag>
@@ -317,7 +358,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             )}
 
             {/* 关键点区域 */}
-            {article.key_points && article.key_points.length > 0 && (
+            {articleWithLoadedData.key_points && articleWithLoadedData.key_points.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 <Text strong style={{ fontSize: 13, color: getThemeColor(theme, 'text'), marginBottom: 8, display: 'block' }}>
                   关键点
@@ -329,7 +370,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                   lineHeight: '1.8',
                   fontSize: 13,
                 }}>
-                  {article.key_points.map((point, idx) => (
+                  {articleWithLoadedData.key_points.map((point, idx) => (
                     <li key={idx} style={{ marginBottom: 8 }}>
                       {point}
                     </li>
@@ -372,7 +413,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                   </Space>
                 </div>
               </div>
-            ) : article.user_notes ? (
+            ) : articleWithLoadedData.user_notes ? (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Text strong style={{ fontSize: 14 }}>我的笔记</Text>
@@ -399,7 +440,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                     wordBreak: 'break-word',
                   }}
                 >
-                  {article.user_notes}
+                  {articleWithLoadedData.user_notes}
                 </div>
               </div>
             ) : (

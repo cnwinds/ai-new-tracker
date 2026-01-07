@@ -1,6 +1,7 @@
 """
 采集相关 API 端点
 """
+import asyncio
 import logging
 import threading
 from datetime import datetime, timedelta
@@ -24,17 +25,6 @@ from backend.app.schemas.collection import (
     CollectionTaskStatus,
 )
 from backend.app.services.collector import CollectionService
-from backend.app.db.models import CollectionTask, CollectionLog, Article
-from backend.app.core.dependencies import get_database, get_collection_service
-from backend.app.schemas.collection import (
-    CollectionTask as CollectionTaskSchema,
-    CollectionTaskCreate,
-    CollectionTaskStatus,
-    CollectionStats,
-)
-from backend.app.services.collector import CollectionService
-from backend.app.db import get_db
-from backend.app.api.v1.endpoints.settings import require_auth
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -93,6 +83,7 @@ def _run_collection_background(
             return
         
         # 更新任务状态
+        task = None
         with db.get_session() as session:
             task = session.query(CollectionTask).filter(CollectionTask.id == task_id).first()
             if task:
@@ -105,6 +96,38 @@ def _run_collection_background(
                 task.completed_at = datetime.now()
                 task.ai_analyzed_count = stats.get('ai_analyzed_count', 0)
                 session.commit()
+        
+        # 发送 WebSocket 消息通知采集完成
+        if task:
+            try:
+                from backend.app.api.v1.endpoints.websocket import manager
+                message = (
+                    f"✅ 采集完成！新增 {task.new_articles_count} 篇文章，"
+                    f"耗时 {task.duration or 0:.1f}秒"
+                )
+                # 在后台线程中运行异步函数
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(manager.broadcast({
+                        "type": "collection_status",
+                        "task_id": task.id,
+                        "status": "completed",
+                        "message": message,
+                        "stats": {
+                            "new_articles": task.new_articles_count,
+                            "total_sources": task.total_sources,
+                            "success_sources": task.success_sources,
+                            "failed_sources": task.failed_sources,
+                            "duration": task.duration,
+                            "ai_analyzed_count": task.ai_analyzed_count,
+                        },
+                        "timestamp": datetime.now().isoformat(),
+                    }))
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.warning(f"发送 WebSocket 消息失败: {e}")
         
         # 从运行任务中移除
         with _task_lock:
@@ -119,6 +142,7 @@ def _run_collection_background(
     except Exception as e:
         # 更新任务状态为错误
         db = get_db()
+        task = None
         with db.get_session() as session:
             task = session.query(CollectionTask).filter(CollectionTask.id == task_id).first()
             if task:
@@ -126,6 +150,35 @@ def _run_collection_background(
                 task.error_message = str(e)
                 task.completed_at = datetime.now()
                 session.commit()
+        
+        # 发送 WebSocket 消息通知采集失败
+        if task:
+            try:
+                from backend.app.api.v1.endpoints.websocket import manager
+                message = f"❌ 采集失败: {task.error_message}"
+                # 在后台线程中运行异步函数
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(manager.broadcast({
+                        "type": "collection_status",
+                        "task_id": task.id,
+                        "status": "error",
+                        "message": message,
+                        "stats": {
+                            "new_articles": task.new_articles_count or 0,
+                            "total_sources": task.total_sources or 0,
+                            "success_sources": task.success_sources or 0,
+                            "failed_sources": task.failed_sources or 0,
+                            "duration": task.duration or 0,
+                            "ai_analyzed_count": task.ai_analyzed_count or 0,
+                        },
+                        "timestamp": datetime.now().isoformat(),
+                    }))
+                finally:
+                    loop.close()
+            except Exception as ws_error:
+                logger.warning(f"发送 WebSocket 消息失败: {ws_error}")
         
         # 从运行任务中移除
         with _task_lock:

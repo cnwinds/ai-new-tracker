@@ -23,7 +23,7 @@ import {
   Row,
   Col,
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ImportOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ImportOutlined, ToolOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,8 +35,10 @@ export default function SourceManagement() {
   const { isAuthenticated } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
+  const [fixHistoryModalVisible, setFixHistoryModalVisible] = useState(false);
   const [editingSource, setEditingSource] = useState<RSSSource | null>(null);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [fixingSourceId, setFixingSourceId] = useState<number | null>(null);
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
 
@@ -113,6 +115,25 @@ export default function SourceManagement() {
     },
   });
 
+  const fixParseMutation = useMutation({
+    mutationFn: (id: number) => apiService.fixSourceParse(id),
+    onSuccess: (data) => {
+      message.success('AI修复成功！新配置已自动更新');
+      setFixingSourceId(null);
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+    },
+    onError: (error: any) => {
+      message.error(`修复失败: ${error?.response?.data?.detail || error.message || '未知错误'}`);
+      setFixingSourceId(null);
+    },
+  });
+
+  const { data: fixHistory, refetch: refetchFixHistory } = useQuery({
+    queryKey: ['fix-history', fixingSourceId],
+    queryFn: () => apiService.getFixHistory(fixingSourceId!),
+    enabled: fixHistoryModalVisible && fixingSourceId !== null,
+  });
+
   const handleAdd = () => {
     setEditingSource(null);
     form.resetFields();
@@ -121,15 +142,86 @@ export default function SourceManagement() {
 
   const handleEdit = (source: RSSSource) => {
     setEditingSource(source);
-    form.setFieldsValue(source);
+    const formValues: any = { ...source };
+    
+    // 如果是邮件源，解析extra_config并设置到表单字段
+    if (source.source_type === 'email' && source.extra_config) {
+      try {
+        const extraConfig = typeof source.extra_config === 'string' 
+          ? JSON.parse(source.extra_config) 
+          : source.extra_config;
+        formValues.extra_config = extraConfig;
+        // 设置URL为邮箱地址（从email://xxx格式中提取）
+        if (source.url.startsWith('email://')) {
+          formValues.url = source.url.replace('email://', '');
+        }
+        // 将数组转换为逗号分隔的字符串（用于表单显示）
+        if (extraConfig.title_filter) {
+          if (Array.isArray(extraConfig.title_filter.keywords)) {
+            extraConfig.title_filter.keywords = extraConfig.title_filter.keywords.join(', ');
+          }
+        }
+      } catch (e) {
+        console.error('解析extra_config失败:', e);
+      }
+    }
+    
+    form.setFieldsValue(formValues);
     setModalVisible(true);
   };
 
   const handleSubmit = (values: any) => {
+    const submitData: any = { ...values };
+    
+    // 如果是邮件源，需要将表单字段转换为extra_config JSON
+    if (values.source_type === 'email') {
+      const emailConfig: any = {};
+      
+      // 邮件服务器配置
+      if (values.extra_config) {
+        emailConfig.protocol = values.extra_config.protocol || 'imap';
+        emailConfig.server = values.extra_config.server;
+        emailConfig.port = values.extra_config.port || 993;
+        emailConfig.use_ssl = values.extra_config.use_ssl !== false;
+        emailConfig.username = values.extra_config.username || values.url;
+        emailConfig.password = values.extra_config.password;
+        emailConfig.folder = values.extra_config.folder || 'INBOX';
+        emailConfig.max_emails = values.extra_config.max_emails || 50;
+        
+        // 邮件过滤配置
+        if (values.extra_config.title_filter) {
+          emailConfig.title_filter = {
+            type: values.extra_config.title_filter.type || 'keywords',
+            filter_sender: values.extra_config.title_filter.filter_sender || false,
+          };
+          
+          // 关键词（用于标题或发件人）
+          if (values.extra_config.title_filter.keywords) {
+            const keywords = typeof values.extra_config.title_filter.keywords === 'string'
+              ? values.extra_config.title_filter.keywords.split(',').map((k: string) => k.trim()).filter((k: string) => k)
+              : values.extra_config.title_filter.keywords;
+            emailConfig.title_filter.keywords = keywords;
+          }
+          
+          // 标题正则表达式
+          if (values.extra_config.title_filter.regex) {
+            emailConfig.title_filter.regex = values.extra_config.title_filter.regex;
+          }
+        }
+      }
+      
+      // 设置URL为email://格式
+      submitData.url = `email://${values.url}`;
+      submitData.extra_config = JSON.stringify(emailConfig);
+    } else if (typeof values.extra_config === 'object') {
+      // 其他源类型，如果extra_config是对象，转换为JSON字符串
+      submitData.extra_config = JSON.stringify(values.extra_config);
+    }
+    
     if (editingSource) {
-      updateMutation.mutate({ id: editingSource.id, data: values });
+      updateMutation.mutate({ id: editingSource.id, data: submitData });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(submitData);
     }
   };
 
@@ -139,6 +231,16 @@ export default function SourceManagement() {
       return;
     }
     importMutation.mutate(selectedSources);
+  };
+
+  const handleFixParse = (sourceId: number) => {
+    setFixingSourceId(sourceId);
+    fixParseMutation.mutate(sourceId);
+  };
+
+  const handleViewFixHistory = (sourceId: number) => {
+    setFixingSourceId(sourceId);
+    setFixHistoryModalVisible(true);
   };
 
   // 订阅源排序函数
@@ -439,6 +541,25 @@ export default function SourceManagement() {
                   </div>
                 ),
               },
+              {
+                key: 'email',
+                label: `${SOURCE_TYPE_LABELS.email} (${groupedSources.email?.length || 0})`,
+                children: (
+                  <div className="hidden-scrollbar" style={hiddenScrollbarStyle}>
+                    {groupedSources.email?.length > 0 ? (
+                      <Row gutter={[16, 16]}>
+                        {groupedSources.email.map((source: RSSSource) => (
+                          <Col key={source.id} xs={24} sm={12} md={8} lg={8}>
+                            {renderSourceItem(source)}
+                          </Col>
+                        ))}
+                      </Row>
+                    ) : (
+                      <Alert message="暂无邮件源" type="info" />
+                    )}
+                  </div>
+                ),
+              },
             ]}
           />
         )}
@@ -454,40 +575,188 @@ export default function SourceManagement() {
         }}
         onOk={() => form.submit()}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
+        width={1000}
+        style={{ top: 20 }}
       >
         <Form form={form} onFinish={handleSubmit} layout="vertical">
-          <Form.Item name="name" label="名称" rules={[{ required: true }]}>
-            <Input />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="name" label="名称" rules={[{ required: true }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="source_type" label="源类型" rules={[{ required: true }]} initialValue="rss">
+                <Select>
+                  <Select.Option value="rss">RSS源</Select.Option>
+                  <Select.Option value="api">API源</Select.Option>
+                  <Select.Option value="web">Web源</Select.Option>
+                  <Select.Option value="social">社交媒体源</Select.Option>
+                  <Select.Option value="email">邮件源</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.source_type !== currentValues.source_type}>
+            {({ getFieldValue }) => {
+              const sourceType = getFieldValue('source_type');
+              
+              // 邮件源专用配置
+              if (sourceType === 'email') {
+                return (
+                  <>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item name="url" label="邮箱地址" rules={[{ required: true, type: 'email' }]}>
+                          <Input placeholder="your_email@163.com" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item name={['extra_config', 'folder']} label="文件夹（IMAP）" initialValue="INBOX">
+                          <Input placeholder="INBOX" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Form.Item label="邮件服务器配置">
+                      <Row gutter={8}>
+                        <Col span={6}>
+                          <Form.Item name={['extra_config', 'protocol']} label="协议" initialValue="imap">
+                            <Select>
+                              <Select.Option value="imap">IMAP</Select.Option>
+                              <Select.Option value="pop3">POP3</Select.Option>
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                        <Col span={10}>
+                          <Form.Item name={['extra_config', 'server']} label="服务器" rules={[{ required: true }]}>
+                            <Input placeholder="imap.163.com" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={4}>
+                          <Form.Item name={['extra_config', 'port']} label="端口" initialValue={993}>
+                            <InputNumber min={1} max={65535} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Col>
+                        <Col span={4}>
+                          <Form.Item name={['extra_config', 'use_ssl']} label="SSL" valuePropName="checked" initialValue={true}>
+                            <Switch />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </Form.Item>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item name={['extra_config', 'username']} label="用户名" rules={[{ required: true }]}>
+                          <Input placeholder="邮箱地址或用户名" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item name={['extra_config', 'password']} label="密码/授权码" rules={[{ required: true }]}>
+                          <Input.Password placeholder="邮箱密码或授权码" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Form.Item label="邮件过滤">
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Form.Item name={['extra_config', 'title_filter', 'type']} initialValue="keywords" style={{ marginBottom: 0 }}>
+                            <Select>
+                              <Select.Option value="keywords">关键词</Select.Option>
+                              <Select.Option value="regex">正则表达式</Select.Option>
+                              <Select.Option value="both">两者</Select.Option>
+                              <Select.Option value="sender">发件人</Select.Option>
+                            </Select>
+                          </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                          <Form.Item name={['extra_config', 'title_filter', 'filter_sender']} valuePropName="checked" style={{ marginBottom: 0 }}>
+                            <Checkbox>过滤发件人（而非标题）</Checkbox>
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Form.Item name={['extra_config', 'title_filter', 'keywords']} label="关键词列表（逗号分隔）">
+                            <Input placeholder="TLDR AI, AI News" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                          <Form.Item name={['extra_config', 'title_filter', 'regex']} label="标题正则表达式">
+                            <Input placeholder=".*AI.*News.*" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </Form.Item>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item name={['extra_config', 'max_emails']} label="最大邮件数" initialValue={50}>
+                          <InputNumber min={1} max={200} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </>
+                );
+              }
+              
+              // 其他源类型使用URL字段
+              return (
+                <Form.Item name="url" label="URL" rules={[{ required: true }]}>
+                  <Input />
+                </Form.Item>
+              );
+            }}
           </Form.Item>
-          <Form.Item name="url" label="URL" rules={[{ required: true }]}>
-            <Input />
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="description" label="描述">
+                <Input.TextArea placeholder="订阅源的说明信息" rows={3} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="category" label="分类">
+                <Input placeholder="例如: news, official_blog, academic" />
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.source_type !== currentValues.source_type}>
+            {({ getFieldValue }) => {
+              const sourceType = getFieldValue('source_type');
+              if (sourceType === 'email') {
+                return null; // 邮件源使用动态表单，不需要extra_config JSON字段
+              }
+              return (
+                <Form.Item name="extra_config" label="扩展配置（JSON）">
+                  <Input.TextArea 
+                    placeholder="Web源和社交媒体源的扩展配置（JSON格式），例如: {&quot;article_selector&quot;: &quot;article.entry-card&quot;, &quot;title_selector&quot;: &quot;h2.entry-title a&quot;}" 
+                    rows={4}
+                  />
+                </Form.Item>
+              );
+            }}
           </Form.Item>
-          <Form.Item name="source_type" label="源类型" rules={[{ required: true }]} initialValue="rss">
-            <Select>
-              <Select.Option value="rss">RSS源</Select.Option>
-              <Select.Option value="api">API源</Select.Option>
-              <Select.Option value="web">Web源</Select.Option>
-              <Select.Option value="social">社交媒体源</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="description" label="描述">
-            <Input.TextArea placeholder="订阅源的说明信息" rows={3} />
-          </Form.Item>
-          <Form.Item name="category" label="分类">
-            <Input placeholder="例如: news, official_blog, academic" />
-          </Form.Item>
-          <Form.Item name="extra_config" label="扩展配置（JSON）">
+          
+          <Form.Item name="analysis_prompt" label="自定义AI分析提示词">
             <Input.TextArea 
-              placeholder="Web源和社交媒体源的扩展配置（JSON格式），例如: {&quot;article_selector&quot;: &quot;article.entry-card&quot;, &quot;title_selector&quot;: &quot;h2.entry-title a&quot;}" 
+              placeholder="为空则使用默认提示词。支持变量：{title}、{content}、{source}、{url}"
               rows={4}
             />
           </Form.Item>
-          <Form.Item name="enabled" label="启用" valuePropName="checked" initialValue={true}>
-            <Switch />
-          </Form.Item>
-          <Form.Item name="priority" label="优先级" initialValue={1}>
-            <InputNumber min={1} max={5} />
-          </Form.Item>
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="enabled" label="启用" valuePropName="checked" initialValue={true}>
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="priority" label="优先级" initialValue={1}>
+                <InputNumber min={1} max={5} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -685,9 +954,124 @@ export default function SourceManagement() {
                     </div>
                   ),
                 },
+                {
+                  key: 'email',
+                  label: `${SOURCE_TYPE_LABELS.email} (${groupedDefaultSources.email?.length || 0})`,
+                  children: (
+                    <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                      {groupedDefaultSources.email?.map((source: any) => {
+                        const exists = isSourceExists(source.name, source.url);
+                        return (
+                          <div key={source.name} style={{ marginBottom: 8 }}>
+                            <Checkbox
+                              checked={selectedSources.includes(source.name)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSources([...selectedSources, source.name]);
+                                } else {
+                                  setSelectedSources(selectedSources.filter((n) => n !== source.name));
+                                }
+                              }}
+                              disabled={exists}
+                            >
+                              <Space>
+                                <strong>{source.name}</strong>
+                                {exists && <Tag color="orange">已存在</Tag>}
+                                {source.category && <Tag>{source.category}</Tag>}
+                                {source.tier && <Tag>{source.tier}</Tag>}
+                                {!source.enabled && <Tag color="red">禁用</Tag>}
+                              </Space>
+                            </Checkbox>
+                            <div style={{ marginLeft: 24, fontSize: 12, color: '#666' }}>
+                              {source.url}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ),
+                },
               ]}
             />
           </div>
+        )}
+      </Modal>
+      
+      {/* 修复历史查看对话框 */}
+      <Modal
+        title="解析修复历史"
+        open={fixHistoryModalVisible}
+        onCancel={() => {
+          setFixHistoryModalVisible(false);
+          setFixingSourceId(null);
+        }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setFixHistoryModalVisible(false);
+            setFixingSourceId(null);
+          }}>
+            关闭
+          </Button>,
+        ]}
+        width={800}
+      >
+        {fixHistory ? (
+          <div>
+            <Alert
+              message={`源名称: ${fixHistory.source_name}`}
+              type="info"
+              style={{ marginBottom: 16 }}
+            />
+            {fixHistory.fix_history && fixHistory.fix_history.length > 0 ? (
+              <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+                {fixHistory.fix_history.map((entry: any, index: number) => (
+                  <Card
+                    key={index}
+                    size="small"
+                    style={{ marginBottom: 12 }}
+                    title={
+                      <Space>
+                        <span>{new Date(entry.timestamp).toLocaleString('zh-CN')}</span>
+                        <Tag color={entry.success ? 'green' : 'red'}>
+                          {entry.success ? '成功' : '失败'}
+                        </Tag>
+                      </Space>
+                    }
+                  >
+                    {entry.error_message && (
+                      <Alert
+                        message="错误信息"
+                        description={entry.error_message}
+                        type="error"
+                        style={{ marginBottom: 12 }}
+                      />
+                    )}
+                    {entry.new_config && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: 8 }}>新配置:</div>
+                        <pre style={{ 
+                          background: '#f5f5f5', 
+                          padding: 12, 
+                          borderRadius: 4,
+                          fontSize: 12,
+                          overflow: 'auto',
+                          maxHeight: 200
+                        }}>
+                          {typeof entry.new_config === 'string' 
+                            ? entry.new_config 
+                            : JSON.stringify(entry.new_config, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Alert message="暂无修复历史" type="info" />
+            )}
+          </div>
+        ) : (
+          <Spin />
         )}
       </Modal>
     </div>

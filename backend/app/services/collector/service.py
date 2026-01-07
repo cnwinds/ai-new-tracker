@@ -172,6 +172,28 @@ class CollectionService:
         # 实时更新任务状态
         if task_id:
             self._update_task_progress(db, task_id, stats)
+            if is_stop_requested(task_id):
+                logger.info("🛑 收到停止信号，终止采集")
+                return stats
+
+        # 5. 采集邮件源
+        logger.info("\n📧 采集邮件源")
+        if task_id and is_stop_requested(task_id):
+            logger.info("🛑 收到停止信号，终止采集")
+            return stats
+        email_stats = self._collect_email_sources(db, task_id=task_id, enable_ai_analysis=enable_ai_analysis)
+        stats["total_articles"] += email_stats.get("total_articles", 0)
+        stats["new_articles"] += email_stats.get("new_articles", 0)
+        stats["sources_success"] += email_stats.get("sources_success", 0)
+        stats["sources_error"] += email_stats.get("sources_error", 0)
+        stats["ai_analyzed_count"] += email_stats.get("ai_analyzed_count", 0)
+
+        # 实时更新任务状态
+        if task_id:
+            self._update_task_progress(db, task_id, stats)
+            if is_stop_requested(task_id):
+                logger.info("🛑 收到停止信号，终止采集")
+                return stats
 
         # 6. 可选：自动索引新文章到RAG库
         if enable_ai_analysis and self.ai_analyzer:
@@ -1247,6 +1269,7 @@ class CollectionService:
 
             for source in db_sources:
                 config = {
+                    "id": source.id,
                     "name": source.name,
                     "url": source.url,
                     "enabled": source.enabled,
@@ -1262,10 +1285,6 @@ class CollectionService:
                         pass
 
                 email_configs.append(config)
-                _ = source.id
-                _ = source.name
-                _ = source.url
-                _ = source.enabled
             session.expunge_all()
 
         # 只从数据库读取源，如果数据库中没有源则不采集
@@ -1306,11 +1325,16 @@ class CollectionService:
                 process_result = self._process_articles_from_source(db, articles, source_name, "email", enable_ai_analysis, task_id=task_id)
 
                 # 更新邮件源的统计信息
+                source_id = config.get("id")
                 with db.get_session() as session:
-                    source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    if source_id:
+                        source_obj = session.query(RSSSource).filter(RSSSource.id == source_id).first()
+                    else:
+                        source_obj = session.query(RSSSource).filter(RSSSource.name == source_name).first()
+                    
                     if source_obj:
                         source_obj.last_collected_at = datetime.now()
-                        source_obj.articles_count += len(articles)
+                        source_obj.articles_count = process_result.get("new_articles", 0) + process_result.get("skipped_articles", 0)
                         source_obj.last_error = None
 
                         # 更新最新文章发布时间

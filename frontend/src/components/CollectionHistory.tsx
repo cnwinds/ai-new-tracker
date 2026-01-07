@@ -219,6 +219,7 @@ export default function CollectionHistory() {
       title: '开始时间',
       dataIndex: 'started_at',
       key: 'started_at',
+      width: 160,
       render: (time: string) => (
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.5' }}>
           <div>{dayjs(time).format('YYYY-MM-DD')}</div>
@@ -295,15 +296,6 @@ export default function CollectionHistory() {
           </Space>
         }
       >
-        {status && status.status === 'running' && (
-          <Alert
-            message={status.message}
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
         <Table
           columns={columns}
           dataSource={tasks}

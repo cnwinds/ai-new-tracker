@@ -251,11 +251,12 @@ export default function ArticleDetailModal({
                       border: `1px solid ${getThemeColor(theme, 'border')}`,
                       color: getThemeColor(theme, 'text'),
                       lineHeight: '1.8',
-                      whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                     }}
                   >
-                    {article.content}
+                    <ReactMarkdown components={createMarkdownComponents(theme)}>
+                      {article.content}
+                    </ReactMarkdown>
                   </div>
                 )}
               </div>
