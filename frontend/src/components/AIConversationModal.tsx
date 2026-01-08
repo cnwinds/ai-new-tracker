@@ -61,6 +61,7 @@ export default function AIConversationModal() {
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
+  const [isHistoryDrawerClosing, setIsHistoryDrawerClosing] = useState(false);
   const [topK] = useState(5);
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -118,10 +119,19 @@ export default function AIConversationModal() {
     setCurrentMessages([...existingMessages, initialAssistantMessage]);
     setIsStreaming(true);
 
-    // 发送流式请求
+    // 构建对话历史（只包含用户和助手消息，排除当前问题）
+    const conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = existingMessages
+      .filter(msg => msg.type === 'user' || msg.type === 'assistant')
+      .map(msg => ({
+        role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.content
+      }));
+
+    // 发送流式请求，包含对话历史
     const request: RAGQueryRequest = {
       question: question.trim(),
       top_k: topK,
+      conversation_history: conversationHistory.length > 0 ? conversationHistory : undefined,
     };
 
     let accumulatedContent = '';
@@ -378,7 +388,10 @@ export default function AIConversationModal() {
           <Button
             type="text"
             icon={<HistoryOutlined />}
-            onClick={() => setIsHistoryDrawerOpen(true)}
+            onClick={() => {
+              setIsHistoryDrawerClosing(false);
+              setIsHistoryDrawerOpen(true);
+            }}
             title="历史记录"
           >
             历史
@@ -395,8 +408,25 @@ export default function AIConversationModal() {
         />
       </div>
 
-      {/* 中间滚动区域 */}
-      <div style={contentStyle}>
+      {/* 中间滚动区域 - 添加容器用于裁剪历史抽屉 */}
+      <div 
+        style={{
+          position: 'relative',
+          flex: 1,
+          overflow: 'hidden', // 关键：裁剪历史抽屉，让它看起来像是从容器内部拉出
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* 实际的内容滚动区域 */}
+        <div 
+          style={{
+            ...contentStyle,
+            flex: 1,
+            overflowY: 'auto',
+            position: 'relative',
+          }}
+        >
         {currentMessages.length === 0 ? (
           <Empty
             description="开始与 AI 对话，询问关于文章内容的问题"
@@ -670,76 +700,53 @@ export default function AIConversationModal() {
           </div>
         )}
 
-        <div ref={messagesEndRef} />
-      </div>
+          <div ref={messagesEndRef} />
+        </div>
 
-      {/* 底部追问栏 */}
-      <div
-        style={{
-          padding: '16px 24px',
-          borderTop: `1px solid ${getThemeColor(theme, 'border')}`,
-          background: getThemeColor(theme, 'bgElevated'),
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 10,
-        }}
-      >
-        <Space.Compact style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
-          <TextArea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onPressEnter={handleKeyPress}
-            placeholder="继续提问..."
-            autoSize={{ minRows: 1, maxRows: 4 }}
-            disabled={isStreaming}
-            style={{ flex: 1 }}
-          />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSend}
-            loading={isStreaming}
-            disabled={!inputValue.trim() || isStreaming}
-            style={{ height: 'auto' }}
-          >
-            发送
-          </Button>
-        </Space.Compact>
-      </div>
-
-      {/* 历史记录侧边栏 - 自定义实现，相对于Modal定位 */}
-      {isHistoryDrawerOpen && (
-        <>
-          {/* 遮罩层 */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
-              zIndex: 1000,
-            }}
-            onClick={() => setIsHistoryDrawerOpen(false)}
-          />
-          {/* 抽屉内容 */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: '300px',
-              backgroundColor: getThemeColor(theme, 'bgElevated'),
-              borderRight: `1px solid ${getThemeColor(theme, 'border')}`,
-              zIndex: 1001,
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '2px 0 8px rgba(0, 0, 0, 0.15)',
-              transition: 'transform 0.3s ease',
-            }}
-          >
+        {/* 历史记录侧边栏 - 从聊天容器内部右侧拉出，被外层容器的 overflow: hidden 裁剪 */}
+        {(isHistoryDrawerOpen || isHistoryDrawerClosing) && (
+          <>
+            {/* 遮罩层 - 只覆盖聊天内容区域，带淡入/淡出动画 */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                zIndex: 1000,
+                animation: isHistoryDrawerClosing 
+                  ? 'fadeOut 0.3s ease-out forwards'
+                  : 'fadeIn 0.3s ease-out',
+              }}
+              onClick={() => {
+                setIsHistoryDrawerClosing(true);
+                setTimeout(() => {
+                  setIsHistoryDrawerOpen(false);
+                  setIsHistoryDrawerClosing(false);
+                }, 300);
+              }}
+            />
+            {/* 抽屉内容 - 从容器左侧边缘拉出，被容器裁剪，看起来像是从内部展开 */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                bottom: 0,
+                width: '300px',
+                backgroundColor: getThemeColor(theme, 'bgElevated'),
+                borderRight: `1px solid ${getThemeColor(theme, 'border')}`,
+                zIndex: 1001,
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '2px 0 8px rgba(0, 0, 0, 0.15)',
+                animation: isHistoryDrawerClosing
+                  ? 'slideOutLeft 0.3s ease-out forwards'
+                  : 'slideInLeft 0.3s ease-out',
+              }}
+            >
             {/* 抽屉头部 */}
             <div
               style={{
@@ -756,7 +763,13 @@ export default function AIConversationModal() {
               <Button
                 type="text"
                 icon={<CloseOutlined />}
-                onClick={() => setIsHistoryDrawerOpen(false)}
+                onClick={() => {
+                  setIsHistoryDrawerClosing(true);
+                  setTimeout(() => {
+                    setIsHistoryDrawerOpen(false);
+                    setIsHistoryDrawerClosing(false);
+                  }, 300);
+                }}
                 size="small"
               />
             </div>
@@ -768,7 +781,11 @@ export default function AIConversationModal() {
                   block
                   onClick={() => {
                     createNewChat();
-                    setIsHistoryDrawerOpen(false);
+                    setIsHistoryDrawerClosing(true);
+                    setTimeout(() => {
+                      setIsHistoryDrawerOpen(false);
+                      setIsHistoryDrawerClosing(false);
+                    }, 300);
                   }}
                 >
                   新建对话
@@ -788,7 +805,11 @@ export default function AIConversationModal() {
                     }}
                     onClick={() => {
                       loadChatHistory(history.id);
-                      setIsHistoryDrawerOpen(false);
+                      setIsHistoryDrawerClosing(true);
+                      setTimeout(() => {
+                        setIsHistoryDrawerOpen(false);
+                        setIsHistoryDrawerClosing(false);
+                      }, 300);
                     }}
                   >
                     <div style={{ width: '100%' }}>
@@ -819,12 +840,94 @@ export default function AIConversationModal() {
                 )}
               />
             </div>
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
+
+        {/* 底部追问栏 */}
+        <div
+          style={{
+            padding: '16px 24px',
+            borderTop: `1px solid ${getThemeColor(theme, 'border')}`,
+            background: getThemeColor(theme, 'bgElevated'),
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 10,
+            flexShrink: 0,
+          }}
+        >
+          <Space.Compact style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+            <TextArea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onPressEnter={handleKeyPress}
+              placeholder="继续提问..."
+              autoSize={{ minRows: 1, maxRows: 4 }}
+              disabled={isStreaming}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSend}
+              loading={isStreaming}
+              disabled={!inputValue.trim() || isStreaming}
+              style={{ height: 'auto' }}
+            >
+              发送
+            </Button>
+          </Space.Compact>
+        </div>
+      </div>
     </Modal>
   );
 
   // 使用 Portal 挂载到 body
-  return createPortal(modalContent, document.body);
+  return (
+    <>
+      {/* 添加 CSS 动画样式 */}
+      <style>{`
+        @keyframes slideInLeft {
+          from {
+            transform: translateX(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes slideOutLeft {
+          from {
+            transform: translateX(0);
+            opacity: 1;
+          }
+          to {
+            transform: translateX(-100%);
+            opacity: 0;
+          }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fadeOut {
+          from {
+            opacity: 1;
+          }
+          to {
+            opacity: 0;
+          }
+        }
+      `}</style>
+      {createPortal(modalContent, document.body)}
+    </>
+  );
 }

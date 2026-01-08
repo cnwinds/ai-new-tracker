@@ -127,7 +127,7 @@ async def query_articles(
     智能问答：基于文章内容回答问题
 
     Args:
-        request: 问答请求
+        request: 问答请求（包含对话历史）
         rag_service: RAG服务实例
 
     Returns:
@@ -135,9 +135,20 @@ async def query_articles(
     """
     try:
         logger.info(f"收到问答请求: question={request.question[:100]}, top_k={request.top_k}")
+        
+        # 转换对话历史格式
+        conversation_history = None
+        if request.conversation_history:
+            conversation_history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in request.conversation_history
+            ]
+            logger.debug(f"包含对话历史: {len(conversation_history)} 条消息")
+        
         result = rag_service.query_articles(
             question=request.question,
-            top_k=request.top_k
+            top_k=request.top_k,
+            conversation_history=conversation_history
         )
         
         logger.info(f"问答服务返回结果: answer长度={len(result.get('answer', ''))}, articles数量={len(result.get('articles', []))}")
@@ -192,7 +203,7 @@ async def query_articles_stream(
     智能问答（流式）：基于文章内容回答问题，支持流式输出
 
     Args:
-        request: 问答请求
+        request: 问答请求（包含对话历史）
         rag_service: RAG服务实例
 
     Returns:
@@ -201,6 +212,15 @@ async def query_articles_stream(
     async def generate_stream():
         try:
             logger.info(f"收到流式问答请求: question={request.question[:100]}, top_k={request.top_k}")
+            
+            # 转换对话历史格式
+            conversation_history = None
+            if request.conversation_history:
+                conversation_history = [
+                    {"role": msg.role, "content": msg.content}
+                    for msg in request.conversation_history
+                ]
+                logger.debug(f"包含对话历史: {len(conversation_history)} 条消息")
             
             # 处理文章格式转换
             def process_article(article):
@@ -217,10 +237,20 @@ async def query_articles_stream(
                 
                 return processed
             
+            # 转换对话历史格式
+            conversation_history = None
+            if request.conversation_history:
+                conversation_history = [
+                    {"role": msg.role, "content": msg.content}
+                    for msg in request.conversation_history
+                ]
+                logger.debug(f"包含对话历史: {len(conversation_history)} 条消息")
+            
             # 调用流式查询
             for chunk in rag_service.query_articles_stream(
                 question=request.question,
-                top_k=request.top_k
+                top_k=request.top_k,
+                conversation_history=conversation_history
             ):
                 chunk_type = chunk.get("type")
                 chunk_data = chunk.get("data", {})

@@ -653,7 +653,12 @@ class RAGService:
         logger.info(f"✅ 搜索完成（使用Python计算），找到 {len(search_results)} 个结果，去重后 {len(final_results)} 个")
         return final_results
 
-    def query_articles(self, question: str, top_k: int = 5) -> Dict[str, Any]:
+    def query_articles(
+        self, 
+        question: str, 
+        top_k: int = 5,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
         """
         RAG问答：基于检索到的文章回答问题
 
@@ -667,9 +672,25 @@ class RAGService:
         try:
             logger.info(f"🔍 开始问答流程: question={question[:100]}, top_k={top_k}")
             
+            # 构建增强的查询：如果有对话历史，将历史上下文也考虑进去
+            enhanced_query = question
+            if conversation_history and len(conversation_history) > 0:
+                # 提取最近几轮对话的关键信息，增强查询
+                # 只取最近的 2-3 轮对话，避免查询过长
+                recent_history = conversation_history[-4:] if len(conversation_history) > 4 else conversation_history
+                history_context = " ".join([
+                    msg.get("content", "")[:200]  # 限制每条消息长度
+                    for msg in recent_history
+                    if msg.get("role") == "user" or msg.get("role") == "assistant"
+                ])
+                if history_context:
+                    # 将历史上下文和当前问题结合，提高检索准确性
+                    enhanced_query = f"{history_context} {question}"
+                    logger.debug(f"使用增强查询（包含对话历史）: {enhanced_query[:200]}...")
+            
             # 检索相关文章
             try:
-                relevant_articles = self.search_articles(question, top_k=top_k)
+                relevant_articles = self.search_articles(enhanced_query, top_k=top_k)
                 logger.info(f"✅ 检索到 {len(relevant_articles)} 篇相关文章")
             except Exception as e:
                 logger.error(f"❌ 检索文章失败: {e}", exc_info=True)
@@ -739,18 +760,36 @@ class RAGService:
                 logger.debug(f"使用模型: {self.ai_analyzer.model}")
                 logger.debug(f"提示词前100字符: {prompt[:100]}")
                 
+                # 构建消息列表，包含对话历史
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "你是一个专业的AI新闻助手，擅长基于提供的文章内容回答问题。请使用中文回答，并准确引用文章来源。如果用户的问题是基于之前对话的追问，请结合对话历史来理解问题的上下文。"
+                    }
+                ]
+                
+                # 如果有对话历史，添加到消息列表中
+                if conversation_history and len(conversation_history) > 0:
+                    # 只取最近的对话历史（避免token过多）
+                    recent_history = conversation_history[-8:] if len(conversation_history) > 8 else conversation_history
+                    for msg in recent_history:
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        if role in ["user", "assistant"]:
+                            messages.append({
+                                "role": role,
+                                "content": content[:1000]  # 限制每条消息长度
+                            })
+                
+                # 添加当前问题的提示词
+                messages.append({
+                    "role": "user",
+                    "content": prompt
+                })
+                
                 response = self.ai_analyzer.client.chat.completions.create(
                     model=self.ai_analyzer.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "你是一个专业的AI新闻助手，擅长基于提供的文章内容回答问题。请使用中文回答，并准确引用文章来源。"
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
+                    messages=messages,
                     temperature=0.3,
                     max_tokens=2000,
                 )
@@ -799,13 +838,19 @@ class RAGService:
                 "articles": []
             }
 
-    def query_articles_stream(self, question: str, top_k: int = 5):
+    def query_articles_stream(
+        self, 
+        question: str, 
+        top_k: int = 5,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ):
         """
         RAG问答（流式）：基于检索到的文章回答问题，支持流式输出
 
         Args:
             question: 问题文本
             top_k: 检索的文章数量
+            conversation_history: 对话历史，用于保持上下文连续性
 
         Yields:
             流式数据块，包含类型和内容
@@ -813,9 +858,23 @@ class RAGService:
         try:
             logger.info(f"🔍 开始流式问答流程: question={question[:100]}, top_k={top_k}")
             
+            # 构建增强的查询：如果有对话历史，将历史上下文也考虑进去
+            enhanced_query = question
+            if conversation_history and len(conversation_history) > 0:
+                # 提取最近几轮对话的关键信息，增强查询
+                recent_history = conversation_history[-4:] if len(conversation_history) > 4 else conversation_history
+                history_context = " ".join([
+                    msg.get("content", "")[:200]
+                    for msg in recent_history
+                    if msg.get("role") == "user" or msg.get("role") == "assistant"
+                ])
+                if history_context:
+                    enhanced_query = f"{history_context} {question}"
+                    logger.debug(f"使用增强查询（包含对话历史）: {enhanced_query[:200]}...")
+            
             # 检索相关文章
             try:
-                relevant_articles = self.search_articles(question, top_k=top_k)
+                relevant_articles = self.search_articles(enhanced_query, top_k=top_k)
                 logger.info(f"✅ 检索到 {len(relevant_articles)} 篇相关文章")
                 
                 # 先发送文章信息
@@ -876,7 +935,24 @@ class RAGService:
             
             # 构建提示词
             try:
-                prompt = f"""基于以下文章内容，回答用户的问题。请使用中文回答，并引用具体的文章。
+                # 如果有对话历史，在提示词中包含历史上下文
+                history_context_str = ""
+                if conversation_history and len(conversation_history) > 0:
+                    recent_history = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
+                    history_parts = []
+                    for msg in recent_history:
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        if role == "user":
+                            history_parts.append(f"用户: {content}")
+                        elif role == "assistant":
+                            history_parts.append(f"助手: {content}")
+                    
+                    if history_parts:
+                        history_context_str = f"\n\n对话历史：\n" + "\n".join(history_parts) + "\n"
+                        logger.debug(f"包含对话历史: {len(history_parts)} 条消息")
+                
+                prompt = f"""基于以下文章内容，回答用户的问题。请使用中文回答，并引用具体的文章。{history_context_str}
 
 相关文章：
 {context}
@@ -886,7 +962,8 @@ class RAGService:
 请提供详细、准确的答案，并在回答中引用相关的文章。引用格式要求：
 1. 使用 [文章编号] 的格式引用，例如：[1] 提到："..." 或 [2] 指出：...
 2. 不要在引用中包含文章标题和来源名称，只使用编号引用
-3. 如果文章中没有足够的信息来回答问题，请说明。"""
+3. 如果文章中没有足够的信息来回答问题，请说明。
+4. 如果用户的问题是基于之前对话的追问，请结合对话历史来理解问题的上下文。"""
                 logger.info(f"✅ 提示词构建完成，长度: {len(prompt)} 字符")
             except Exception as e:
                 logger.error(f"❌ 构建提示词失败: {e}", exc_info=True)
@@ -901,18 +978,36 @@ class RAGService:
                 logger.info(f"🤖 正在调用LLM生成答案（流式）...")
                 logger.debug(f"使用模型: {self.ai_analyzer.model}")
                 
+                # 构建消息列表，包含对话历史
+                messages = [
+                    {
+                        "role": "system",
+                        "content": "你是一个专业的AI新闻助手，擅长基于提供的文章内容回答问题。请使用中文回答，并准确引用文章来源。如果用户的问题是基于之前对话的追问，请结合对话历史来理解问题的上下文。"
+                    }
+                ]
+                
+                # 如果有对话历史，添加到消息列表中
+                if conversation_history and len(conversation_history) > 0:
+                    # 只取最近的对话历史（避免token过多）
+                    recent_history = conversation_history[-8:] if len(conversation_history) > 8 else conversation_history
+                    for msg in recent_history:
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        if role in ["user", "assistant"]:
+                            messages.append({
+                                "role": role,
+                                "content": content[:1000]  # 限制每条消息长度
+                            })
+                
+                # 添加当前问题的提示词
+                messages.append({
+                    "role": "user",
+                    "content": prompt
+                })
+                
                 stream = self.ai_analyzer.client.chat.completions.create(
                     model=self.ai_analyzer.model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "你是一个专业的AI新闻助手，擅长基于提供的文章内容回答问题。请使用中文回答，并准确引用文章来源。"
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
+                    messages=messages,
                     temperature=0.3,
                     max_tokens=2000,
                     stream=True,  # 启用流式输出

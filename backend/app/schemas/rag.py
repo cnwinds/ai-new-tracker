@@ -37,10 +37,20 @@ class RAGSearchResponse(BaseModel):
     total: int
 
 
+class ConversationMessage(BaseModel):
+    """对话消息"""
+    role: str = Field(..., description="角色：user 或 assistant")
+    content: str = Field(..., description="消息内容")
+
+
 class RAGQueryRequest(BaseModel):
     """RAG问答请求"""
     question: str = Field(..., description="问题文本")
     top_k: int = Field(5, ge=1, le=10, description="检索的文章数量")
+    conversation_history: Optional[List[ConversationMessage]] = Field(
+        None, 
+        description="对话历史，用于保持上下文连续性"
+    )
 
 
 class RAGQueryResponse(BaseModel):

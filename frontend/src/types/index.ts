@@ -254,9 +254,15 @@ export interface RAGSearchResponse {
   total: number;
 }
 
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface RAGQueryRequest {
   question: string;
   top_k?: number;
+  conversation_history?: ConversationMessage[];
 }
 
 export interface RAGQueryResponse {
