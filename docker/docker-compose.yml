@@ -16,6 +16,9 @@ services:
       - PYTHONPATH=/app
       - DATABASE_URL=sqlite:////app/backend/app/data/ai_news.db
       - TZ=Asia/Shanghai
+      - http_proxy=http://172.17.0.1:7890
+      - https_proxy=http://172.17.0.1:7890
+      - all_proxy=socks5://172.17.0.1:7890
     restart: unless-stopped
     networks:
       - ai-news-network
@@ -36,6 +39,9 @@ services:
       - "5173:80"
     environment:
       - TZ=Asia/Shanghai
+      - http_proxy=http://172.17.0.1:7890
+      - https_proxy=http://172.17.0.1:7890
+      - all_proxy=socks5://172.17.0.1:7890
     depends_on:
       - backend
     restart: unless-stopped

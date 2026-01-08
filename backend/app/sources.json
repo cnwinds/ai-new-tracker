@@ -29,15 +29,6 @@
       "description": "使用 Meta Engineering Blog 的 AI 分类作为替代源"
     },
     {
-      "name": "Google AI Blog",
-      "url": "https://blog.google/technology/ai/rss/",
-      "category": "official_blog",
-      "enabled": true,
-      "language": "en",
-      "priority": 2,
-      "source_type": "rss"
-    },
-    {
       "name": "Microsoft Research Blog",
       "url": "https://www.microsoft.com/en-us/research/blog/feed/",
       "category": "official_blog",
