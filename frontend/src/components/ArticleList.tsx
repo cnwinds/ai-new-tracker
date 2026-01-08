@@ -12,6 +12,7 @@ import type { ArticleFilter } from '@/types';
 import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getThemeColor } from '@/utils/theme';
+import SourceFilterToggle from './SourceFilterToggle';
 
 const { Option, OptGroup } = Select;
 
@@ -101,33 +102,10 @@ export default function ArticleList() {
         extra={
           <Space>
             <Space.Compact style={{ display: 'flex', alignItems: 'stretch' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '0 12px',
-                height: '32px',
-                backgroundColor: getThemeColor(theme, 'bgElevated'),
-                border: `1px solid ${getThemeColor(theme, 'border')}`,
-                borderRight: 'none',
-                borderTopLeftRadius: '6px',
-                borderBottomLeftRadius: '6px',
-                borderTopRightRadius: 0,
-                borderBottomRightRadius: 0,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onClick={() => handleFilterModeChange(filter.source_filter_mode === 'exclude' ? 'include' : 'exclude')}
-              >
-                <span style={{
-                  fontSize: '13px',
-                  color: getThemeColor(theme, 'text'),
-                  fontWeight: 400,
-                  userSelect: 'none',
-                }}>
-                  {filter.source_filter_mode === 'exclude' ? '排除' : '包含'}
-                </span>
-              </div>
+              <SourceFilterToggle
+                mode={filter.source_filter_mode}
+                onModeChange={handleFilterModeChange}
+              />
               <Select
                 mode="multiple"
                 placeholder={

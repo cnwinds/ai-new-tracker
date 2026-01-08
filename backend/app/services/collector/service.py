@@ -200,21 +200,23 @@ class CollectionService:
             try:
                 logger.info("\n🔍 开始自动索引新文章到RAG库...")
                 from backend.app.services.rag.rag_service import RAGService
+                from backend.app.db.models import ArticleEmbedding
                 with db.get_session() as session:
                     rag_service = RAGService(ai_analyzer=self.ai_analyzer, db=session)
-                    # 获取本次采集的新文章（最近5分钟内创建的）
-                    time_threshold = datetime.now() - timedelta(minutes=5)
-                    new_articles = session.query(Article).filter(
-                        Article.collected_at >= time_threshold
+                    # 获取所有未索引的文章（不限制时间，避免遗漏）
+                    # 使用子查询排除已索引的文章
+                    indexed_ids = session.query(ArticleEmbedding.article_id).subquery()
+                    unindexed_articles = session.query(Article).filter(
+                        ~Article.id.in_(indexed_ids)
                     ).all()
                     
-                    if new_articles:
-                        logger.info(f"📝 找到 {len(new_articles)} 篇新文章，开始索引...")
-                        index_result = rag_service.index_articles_batch(new_articles, batch_size=10)
+                    if unindexed_articles:
+                        logger.info(f"📝 找到 {len(unindexed_articles)} 篇未索引文章，开始索引...")
+                        index_result = rag_service.index_articles_batch(unindexed_articles, batch_size=10)
                         stats["rag_indexed"] = index_result.get("success", 0)
-                        logger.info(f"✅ RAG索引完成: 成功 {index_result.get('success', 0)} 篇")
+                        logger.info(f"✅ RAG索引完成: 成功 {index_result.get('success', 0)} 篇，失败 {index_result.get('failed', 0)} 篇")
                     else:
-                        logger.info("ℹ️  没有新文章需要索引")
+                        logger.info("ℹ️  所有文章已索引")
                         stats["rag_indexed"] = 0
             except Exception as e:
                 logger.warning(f"⚠️  自动索引失败（不影响采集流程）: {e}")

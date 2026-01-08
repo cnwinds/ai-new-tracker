@@ -3,7 +3,7 @@
  * 支持零态（历史记录）和输入态（意图分流）
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { List, Typography, Empty, Spin, Divider, Tag } from 'antd';
+import { List, Typography, Empty, Spin, Divider, Tag, message } from 'antd';
 import { 
   MessageOutlined, 
   FileTextOutlined,
@@ -11,10 +11,11 @@ import {
   HistoryOutlined,
   SearchOutlined,
   LinkOutlined,
-  LoadingOutlined
+  LoadingOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons';
 import { useAIConversation } from '@/contexts/AIConversationContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import type { ArticleSearchResult } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -31,6 +32,7 @@ interface SmartDropdownProps {
   onSelectSearchHistory?: (searchQuery: string) => void;
   onSearchExecuted?: (searchQuery: string) => void;
   onCollectUrl?: (url: string) => Promise<void>;
+  onKeepDropdownOpen?: () => void; // 保持下拉窗口打开的回调
 }
 
 const SEARCH_HISTORY_KEY = 'ai_news_search_history';
@@ -75,12 +77,51 @@ export default function SmartDropdown({
   onSelectSearchHistory,
   onSearchExecuted,
   onCollectUrl,
+  onKeepDropdownOpen,
 }: SmartDropdownProps) {
   const { theme } = useTheme();
   const { chatHistories } = useAIConversation();
+  const queryClient = useQueryClient();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isCollecting, setIsCollecting] = useState(false);
+  const [isIndexing, setIsIndexing] = useState(false);
+
+  // 获取索引统计信息
+  const { data: indexStats, refetch: refetchStats } = useQuery({
+    queryKey: ['rag-stats'],
+    queryFn: () => apiService.getRAGStats(),
+    staleTime: 30000, // 30秒内不重新获取
+  });
+
+  // 创建索引的 mutation
+  const indexMutation = useMutation({
+    mutationFn: () => apiService.indexAllUnindexedArticles(10),
+    onSuccess: async (data) => {
+      message.success(`索引创建成功：${data.success} 篇文章已索引`);
+      setIsIndexing(false);
+      // 立即刷新索引统计（使用 refetch 确保立即更新）
+      await refetchStats();
+      // 同时使用 invalidateQueries 确保其他组件也能获取最新数据
+      queryClient.invalidateQueries({ queryKey: ['rag-stats'] });
+      // 重置高亮索引
+      setHighlightedIndex(0);
+      // 确保下拉窗口保持打开
+      if (onKeepDropdownOpen) {
+        onKeepDropdownOpen();
+      }
+    },
+    onError: (error: any) => {
+      message.error(`索引创建失败：${error.message || '未知错误'}`);
+      setIsIndexing(false);
+      // 即使失败也刷新一次统计（可能部分索引成功）
+      refetchStats();
+      // 即使失败也保持下拉窗口打开
+      if (onKeepDropdownOpen) {
+        onKeepDropdownOpen();
+      }
+    },
+  });
 
   // 检测输入是否为URL
   const isUrl = (text: string): boolean => {
@@ -134,6 +175,17 @@ export default function SmartDropdown({
     }
   }, [onCollectUrl, query]);
 
+  // 处理创建索引
+  const handleCreateIndex = useCallback(async () => {
+    if (isIndexing) return;
+    setIsIndexing(true);
+    // 通知父组件保持下拉窗口打开
+    if (onKeepDropdownOpen) {
+      onKeepDropdownOpen();
+    }
+    indexMutation.mutate();
+  }, [isIndexing, indexMutation, onKeepDropdownOpen]);
+
   // 计算选项列表
   const options = useMemo(() => {
     if (isZeroState) {
@@ -147,9 +199,9 @@ export default function SmartDropdown({
         index: 0,
       }];
     } else {
-      // 输入态：AI 问答选项 + 相关文章
+      // 输入态：AI 问答选项 + 相关文章 + 索引提示（如果有未索引文章）
       const items: Array<{
-        type: 'ai' | 'article';
+        type: 'ai' | 'article' | 'index';
         data: any;
         index: number;
       }> = [];
@@ -172,9 +224,18 @@ export default function SmartDropdown({
         });
       }
 
+      // 如果有未索引的文章，添加索引提示选项
+      if (indexStats && indexStats.unindexed_articles > 0) {
+        items.push({
+          type: 'index',
+          data: { unindexed_count: indexStats.unindexed_articles },
+          index: items.length,
+        });
+      }
+
       return items;
     }
-  }, [isZeroState, query, searchResults, isUrlInput]);
+  }, [isZeroState, query, searchResults, isUrlInput, indexStats]);
 
   // 键盘导航
   useEffect(() => {
@@ -195,6 +256,8 @@ export default function SmartDropdown({
               handleCollectUrl();
             } else if (option.type === 'ai') {
               onSelectAIQuery(query);
+            } else if (option.type === 'index') {
+              handleCreateIndex();
             } else {
               // 保存搜索历史（用户用键盘选择了文章）
               if (query.trim().length >= 2) {
@@ -217,7 +280,7 @@ export default function SmartDropdown({
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isZeroState, options.length, highlightedIndex, query, isUrlInput, isCollecting, handleCollectUrl, onSelectAIQuery, onSelectArticle]);
+  }, [isZeroState, options.length, highlightedIndex, query, isUrlInput, isCollecting, handleCollectUrl, handleCreateIndex, onSelectAIQuery, onSelectArticle]);
 
   // 响应式：检测移动端
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -638,6 +701,64 @@ export default function SmartDropdown({
             </Text>
           </div>
         ) : null}
+
+        {/* 索引提示（如果有未索引的文章） */}
+        {indexStats && indexStats.unindexed_articles > 0 && (
+          <>
+            <Divider style={{ margin: '8px 0' }} />
+            <div
+              style={itemStyle(options.length - 1)}
+              onMouseEnter={() => setHighlightedIndex(options.length - 1)}
+              onClick={handleCreateIndex}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {isIndexing ? (
+                  <LoadingOutlined 
+                    style={{ 
+                      fontSize: '16px',
+                      color: getThemeColor(theme, 'primary')
+                    }} 
+                  />
+                ) : (
+                  <DatabaseOutlined 
+                    style={{ 
+                      fontSize: '16px',
+                      color: getThemeColor(theme, 'warning')
+                    }} 
+                  />
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    marginBottom: '4px'
+                  }}>
+                    <Text strong style={{ color: getThemeColor(theme, 'text'), fontSize: '13px' }}>
+                      {isIndexing ? '正在创建索引...' : `还有 ${indexStats.unindexed_articles} 篇文章未建索引`}
+                    </Text>
+                    {!isIndexing && (
+                      <Tag color="orange" style={{ margin: 0, fontSize: '11px' }}>
+                        按 Enter 立即创建索引
+                      </Tag>
+                    )}
+                    {isIndexing && (
+                      <Tag color="processing" style={{ margin: 0, fontSize: '11px' }}>
+                        索引进行中...
+                      </Tag>
+                    )}
+                  </div>
+                  <Text 
+                    type="secondary" 
+                    style={{ fontSize: '11px', display: 'block' }}
+                  >
+                    索引覆盖率: {Math.round(indexStats.index_coverage * 100)}% ({indexStats.indexed_articles}/{indexStats.total_articles})
+                  </Text>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

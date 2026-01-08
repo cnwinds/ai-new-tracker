@@ -236,6 +236,20 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
               // 搜索历史已在 SmartDropdown 中保存
             }}
             onCollectUrl={handleCollectUrl}
+            onKeepDropdownOpen={() => {
+              // 清除可能存在的 blur timeout，防止关闭下拉菜单
+              if (blurTimeoutRef.current) {
+                clearTimeout(blurTimeoutRef.current);
+                blurTimeoutRef.current = null;
+              }
+              // 保持下拉菜单打开
+              setIsDropdownOpen(true);
+              setIsFocused(true);
+              // 确保输入框保持焦点，避免 onBlur 关闭下拉菜单
+              setTimeout(() => {
+                inputRef.current?.focus();
+              }, 0);
+            }}
           />
         )}
       </div>
