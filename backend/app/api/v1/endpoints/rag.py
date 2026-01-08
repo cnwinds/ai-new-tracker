@@ -307,6 +307,112 @@ async def index_articles_batch(
         raise HTTPException(status_code=500, detail=f"批量索引失败: {str(e)}")
 
 
+@router.post("/index/clear", response_model=dict)
+async def clear_all_indexes(
+    db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
+):
+    """
+    清空所有索引（article_embeddings 和 vec_embeddings）
+
+    Args:
+        db: 数据库会话
+
+    Returns:
+        清空结果
+    """
+    try:
+        from sqlalchemy import text
+        
+        # 清空 article_embeddings 表
+        deleted_count = db.query(ArticleEmbedding).delete()
+        
+        # 清空 vec_embeddings 表（如果存在）
+        try:
+            db.execute(text("DELETE FROM vec_embeddings"))
+        except Exception:
+            # vec_embeddings 表可能不存在，忽略错误
+            pass
+        
+        db.commit()
+        
+        logger.info(f"已清空所有索引，删除了 {deleted_count} 条记录")
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"已清空所有索引，删除了 {deleted_count} 条记录"
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"清空索引失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"清空索引失败: {str(e)}")
+
+
+@router.post("/index/rebuild", response_model=RAGBatchIndexResponse)
+async def rebuild_all_indexes(
+    batch_size: int = Query(10, ge=1, le=100, description="批处理大小"),
+    rag_service: RAGService = Depends(get_rag_service),
+    db: Session = Depends(get_database),
+    current_user: str = Depends(require_auth),
+):
+    """
+    强制重建所有索引：先清空所有索引，然后重新索引所有文章
+
+    Args:
+        batch_size: 批处理大小
+        rag_service: RAG服务实例
+        db: 数据库会话
+
+    Returns:
+        批量索引结果
+    """
+    try:
+        from sqlalchemy import text
+        
+        logger.info(f"收到强制重建索引请求: batch_size={batch_size}")
+        
+        # 第一步：清空所有索引
+        deleted_count = db.query(ArticleEmbedding).delete()
+        try:
+            db.execute(text("DELETE FROM vec_embeddings"))
+        except Exception:
+            pass
+        db.commit()
+        
+        logger.info(f"已清空所有索引，删除了 {deleted_count} 条记录")
+        
+        # 第二步：获取所有文章并重新索引
+        articles = db.query(Article).all()
+        
+        if not articles:
+            return RAGBatchIndexResponse(
+                total=0,
+                success=0,
+                failed=0,
+                message="没有需要索引的文章"
+            )
+        
+        # 执行批量索引
+        result = rag_service.index_articles_batch(
+            articles=articles,
+            batch_size=batch_size
+        )
+        
+        return RAGBatchIndexResponse(
+            total=result["total"],
+            success=result["success"],
+            failed=result["failed"],
+            message=f"强制重建索引完成: 清空 {deleted_count} 条记录，重新索引总计 {result['total']}, 成功 {result['success']}, 失败 {result['failed']}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"强制重建索引失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"强制重建索引失败: {str(e)}")
+
+
 @router.post("/index/all", response_model=RAGBatchIndexResponse)
 async def index_all_articles(
     batch_size: int = Query(10, ge=1, le=100, description="批处理大小"),

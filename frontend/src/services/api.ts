@@ -601,6 +601,18 @@ class ApiService {
     );
   }
 
+  async clearAllIndexes(): Promise<{ success: boolean; deleted_count: number; message: string }> {
+    return this.handleRequest(
+      this.client.post<{ success: boolean; deleted_count: number; message: string }>('/rag/index/clear')
+    );
+  }
+
+  async rebuildAllIndexes(batchSize: number = 10): Promise<RAGBatchIndexResponse> {
+    return this.handleRequest(
+      this.client.post<RAGBatchIndexResponse>(`/rag/index/rebuild?batch_size=${batchSize}`)
+    );
+  }
+
   // 认证相关
   async login(username: string, password: string): Promise<{ access_token: string; token_type: string }> {
     return this.handleRequest(

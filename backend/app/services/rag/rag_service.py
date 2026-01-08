@@ -66,7 +66,7 @@ class RAGService:
         """
         parts = []
         
-        # 标题
+        # 标题（最重要，优先索引）
         if article.title:
             parts.append(f"标题: {article.title}")
         
@@ -78,12 +78,14 @@ class RAGService:
         if article.summary:
             parts.append(f"摘要: {article.summary}")
         
-        # 内容（截取前2000字符，约2000 tokens，符合最佳实践256-512 tokens的4倍范围）
-        # 如果已有摘要，内容作为补充信息，不需要太长
+        # 内容（增加索引长度以包含更多信息）
+        # 使用更长的内容索引，确保能覆盖文章中的关键词
         if article.content:
-            # 优先使用摘要，如果摘要存在，内容只取前2000字符作为补充
-            # 如果摘要不存在，则取前3000字符
-            max_content_length = 2000 if article.summary else 3000
+            # 增加内容索引长度：
+            # - 如果有摘要：取前5000字符（之前是2000）
+            # - 如果没有摘要：取前8000字符（之前是3000）
+            # 这样可以确保文章中的专有名词（如 Nemotron）能被索引到
+            max_content_length = 5000 if article.summary else 8000
             content_preview = article.content[:max_content_length]
             parts.append(f"内容: {content_preview}")
         
@@ -359,6 +361,7 @@ class RAGService:
             k_value = max(top_k * 3, 20)  # 至少返回 20 个结果，确保去重后有足够的结果
             
             # 构建基础查询（包含 is_favorited 字段用于权重计算）
+            # 注意：sqlite-vec 的 MATCH 操作符返回的距离是余弦距离（如果使用 DISTANCE_METRIC=cosine）
             sql = f"""
                 SELECT 
                     v.article_id,
@@ -369,6 +372,8 @@ class RAGService:
                 JOIN articles a ON v.article_id = a.id
                 WHERE v.embedding MATCH :query_vector AND k = {k_value}
             """
+            
+            logger.debug(f"执行向量搜索: k={k_value}, query_vector长度={len(query_embedding)}")
             
             params = {
                 "query_vector": query_vector_str
@@ -408,27 +413,43 @@ class RAGService:
             result = self.db.execute(text(sql), params)
             rows = result.fetchall()
             
+            logger.info(f"查询返回 {len(rows)} 条结果")
+            
             # 转换为字典格式
             search_results = []
-            for row in rows:
+            for idx, row in enumerate(rows):
                 distance = float(row[1]) if row[1] is not None else float('inf')
+                article_id = row[0]
                 
                 if distance < float('inf'):
-                    # 判断距离度量类型：
-                    # - 如果距离 <= 2.0，很可能是余弦距离（余弦距离范围 [0, 2]）
-                    # - 如果距离 > 2.0，很可能是 L2 距离
+                    # 使用余弦距离（因为表已配置 DISTANCE_METRIC=cosine）
+                    # 余弦距离范围是 [0, 2]：
+                    # - 0 表示完全相同（余弦相似度 = 1.0）
+                    # - 1 表示正交（余弦相似度 = 0.0）
+                    # - 2 表示完全相反（余弦相似度 = -1.0）
+                    # 余弦距离 = 1 - 余弦相似度
+                    # 所以：余弦相似度 = 1 - 余弦距离
+                    # 但余弦相似度范围是 [-1, 1]，需要归一化到 [0, 1]
+                    # 归一化公式：normalized_similarity = (cosine_similarity + 1) / 2
+                    # 合并：normalized_similarity = (1 - distance + 1) / 2 = (2 - distance) / 2 = 1 - distance/2
+                    
                     if distance <= 2.0:
-                        # 余弦距离：similarity = 1 - distance
-                        # 余弦距离 = 1 - 余弦相似度，所以相似度 = 1 - distance
-                        similarity = max(0.0, min(1.0, 1.0 - distance))
+                        # 方法1：直接归一化
+                        # normalized_similarity = 1 - distance/2
+                        # 这样：distance=0 -> similarity=1.0, distance=1 -> similarity=0.5, distance=2 -> similarity=0.0
+                        similarity = 1.0 - (distance / 2.0)
+                        similarity = max(0.0, min(1.0, similarity))  # 确保在 [0, 1] 范围内
+                        
+                        # 调试日志（前5个结果）
+                        if idx < 5:
+                            logger.info(f"文章 {article_id}: distance={distance:.4f}, similarity={similarity:.4f} ({similarity*100:.1f}%)")
                     else:
-                        # L2 距离：使用改进的转换公式
-                        # 对于归一化的向量，L2 距离范围是 [0, 2]，但实际可能更大
-                        # 使用平滑的转换函数：similarity = 1 / (1 + distance)
-                        # 这确保距离为 0 时相似度为 1，距离增大时相似度递减
+                        # 如果距离 > 2.0，可能是异常值，使用 L2 转换公式
+                        logger.warning(f"文章 {article_id}: 检测到异常距离值 {distance}，使用 L2 转换公式")
                         similarity = 1.0 / (1.0 + distance)
                 else:
                     similarity = 0.0
+                    logger.warning(f"文章 {article_id}: 距离值为无穷大，设置相似度为 0.0")
                 
                 # 如果文章被收藏，增加权重（提升相似度分数）
                 is_favorited = row[12] if len(row) > 12 else False
