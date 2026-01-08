@@ -22,16 +22,10 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# 获取脚本所在目录（项目根目录）
+# 获取脚本所在目录（docker 目录）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR" || exit 1
-
-# 进入 docker 目录
-DOCKER_DIR="$SCRIPT_DIR/docker"
-if [ ! -d "$DOCKER_DIR" ]; then
-    echo "❌ 错误: 未找到 docker 目录"
-    exit 1
-fi
+# 项目根目录（docker 目录的上一级）
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # 使用 docker compose (Docker Compose V2)
 DOCKER_COMPOSE_CMD="docker compose"
@@ -39,6 +33,7 @@ DOCKER_COMPOSE_CMD="docker compose"
 # 步骤 1: 更新代码
 echo ""
 echo "📥 步骤 1/3: 更新代码 (git pull)..."
+cd "$PROJECT_ROOT" || exit 1
 if ! git pull; then
     echo "❌ 错误: git pull 失败"
     exit 1
@@ -48,7 +43,7 @@ echo "✅ 代码更新成功"
 # 步骤 2: 编译 Docker 镜像
 echo ""
 echo "🔨 步骤 2/3: 编译 Docker 镜像..."
-cd "$DOCKER_DIR" || exit 1
+cd "$SCRIPT_DIR" || exit 1
 if ! $DOCKER_COMPOSE_CMD -f docker-compose.yml build; then
     echo "❌ 错误: Docker 镜像编译失败"
     exit 1
@@ -85,5 +80,5 @@ echo "   - 后端API: http://localhost:8000"
 echo "   - API文档: http://localhost:8000/docs"
 echo ""
 echo "📝 查看日志:"
-echo "   cd docker && $DOCKER_COMPOSE_CMD -f docker-compose.yml logs -f"
+echo "   $DOCKER_COMPOSE_CMD -f docker-compose.yml logs -f"
 echo ""
