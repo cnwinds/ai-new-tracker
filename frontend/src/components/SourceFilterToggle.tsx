@@ -87,17 +87,20 @@ export default function SourceFilterToggle({ mode, onModeChange }: SourceFilterT
           justifyContent: 'center',
           gap: '6px',
           padding: '0 16px',
-          height: '100%',
-          width: '100%',
+          height: 'calc(100% + 2px)',
+          width: 'calc(100% + 1px)',
+          margin: '-1px',
+          marginRight: 0,
           border: 'none',
+          borderRadius: '6px 0 0 6px',
           background: isPressed ? pressedBg : unpressedBg,
           cursor: 'pointer',
           transition: 'all 0.2s ease',
           boxShadow: isPressed
             ? 'inset 0 2px 4px rgba(0, 0, 0, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05)'
             : '0 2px 4px rgba(0, 0, 0, 0.1)',
-          transform: isPressed ? 'translateY(1px)' : 'translateY(0)',
           outline: 'none',
+          lineHeight: '1',
         }}
         title={isPressed ? '当前：包含模式（按下）' : '当前：排除模式（弹起）'}
       >
@@ -109,6 +112,7 @@ export default function SourceFilterToggle({ mode, onModeChange }: SourceFilterT
           fill="none"
           style={{
             filter: isPressed ? 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2))' : 'none',
+            flexShrink: 0,
           }}
         >
           {isPressed ? (
@@ -135,6 +139,8 @@ export default function SourceFilterToggle({ mode, onModeChange }: SourceFilterT
             fontWeight: 600,
             color: isPressed ? '#ffffff' : textColor,
             textShadow: isPressed ? '0 1px 2px rgba(0, 0, 0, 0.2)' : 'none',
+            lineHeight: '1',
+            display: 'inline-block',
           }}
         >
           {isPressed ? '包含' : '排除'}
@@ -148,7 +154,7 @@ export default function SourceFilterToggle({ mode, onModeChange }: SourceFilterT
             left: 0,
             right: 0,
             height: '50%',
-            borderRadius: '6px 6px 0 0',
+            borderRadius: '6px 0 0 0',
             background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 100%)',
             pointerEvents: 'none',
           }}
