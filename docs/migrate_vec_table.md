@@ -9,42 +9,82 @@
 - 删除 `vec_embeddings` 表**不会丢失数据**，因为数据在 `article_embeddings` 中
 - 删除表后，需要重新同步数据到新的 `vec_embeddings` 表
 
-## 方法一：使用迁移脚本（推荐）
+## 完整迁移流程（推荐）
 
-### 1. 找到数据库文件路径
+### 步骤 1：迁移 vec_embeddings 表
 
 根据 `docker-compose.yml` 配置，数据库文件路径为：
 - **容器内路径**：`/app/backend/app/data/ai_news.db`
 - **宿主机路径**：`./docker/data/ai_news.db`（相对于项目根目录）
 
-### 2. 运行迁移脚本
-
+**使用脚本（推荐）**：
 ```bash
-# 方式1：在容器内运行（推荐）
+# Windows
+scripts\migrate_vec_table.bat
+
+# Linux/Mac
+bash scripts/migrate_vec_table.sh
+```
+
+**或手动执行**：
+```bash
+# 在容器内运行
 docker exec -it ai-news-tracker-backend python -m backend.app.db.migrate_vec_table \
   --db-path /app/backend/app/data/ai_news.db \
   --embedding-model text-embedding-3-small
-
-# 方式2：如果数据库文件在宿主机
-cd /path/to/ai-news-tracker
-python -m backend.app.db.migrate_vec_table \
-  --db-path ./docker/data/ai_news.db \
-  --embedding-model text-embedding-3-small
 ```
 
-### 3. 重启应用
+### 步骤 2：清空 article_embeddings 表（重要！）
+
+**为什么需要清空？**
+- 旧的向量是用 L2 距离索引的，与新的余弦距离不匹配
+- 清空后重新索引，确保所有向量都使用新的距离度量
+
+**使用脚本（推荐）**：
+```bash
+# Windows
+scripts\clear_embeddings.bat
+
+# Linux/Mac
+bash scripts/clear_embeddings.sh
+```
+
+**或手动执行**：
+```bash
+# 在容器内运行
+docker exec -it ai-news-tracker-backend python -m backend.app.db.clear_embeddings \
+  --db-path /app/backend/app/data/ai_news.db \
+  --yes
+```
+
+**或使用 SQL**：
+```sql
+-- 连接到数据库
+docker exec -it ai-news-tracker-backend sqlite3 /app/backend/app/data/ai_news.db
+
+-- 清空表
+DELETE FROM article_embeddings;
+
+-- 验证
+SELECT COUNT(*) FROM article_embeddings;
+
+-- 退出
+.quit
+```
+
+### 步骤 3：重启应用
 
 ```bash
 # Docker 方式
 docker-compose restart backend
 
 # 或直接重启容器
-docker restart <container_name>
+docker restart ai-news-tracker-backend
 ```
 
-### 4. 重新同步数据
+### 步骤 4：重新索引所有文章
 
-重启后，系统会自动开始同步数据。或者手动触发：
+重启后，通过 API 重新索引所有文章：
 
 ```bash
 # 通过 API 重新索引所有文章
@@ -52,7 +92,9 @@ curl -X POST http://localhost:8000/api/v1/rag/index/all?batch_size=10 \
   -H "Authorization: Bearer <your_token>"
 ```
 
-## 方法二：手动 SQL 操作
+或者通过前端界面的 RAG 搜索页面，点击"创建索引"按钮。
+
+## 方法二：手动 SQL 操作（完整流程）
 
 ### 1. 连接到数据库
 
@@ -111,7 +153,17 @@ WHERE type='table' AND name='vec_embeddings';
 .quit
 ```
 
-### 6. 重启应用并重新同步数据
+### 6. 清空 article_embeddings 表
+
+```sql
+-- 清空旧的向量数据（使用 L2 距离索引的）
+DELETE FROM article_embeddings;
+
+-- 验证
+SELECT COUNT(*) FROM article_embeddings;
+```
+
+### 7. 重启应用并重新索引
 
 同方法一的步骤 3 和 4。
 
@@ -121,11 +173,17 @@ WHERE type='table' AND name='vec_embeddings';
 
 1. **重启应用**：应用启动时会检测表结构
 2. **如果检测到维度不匹配**：应用会自动删除并重建表
-3. **重新索引**：通过 API 重新索引所有文章
+3. **清空 article_embeddings 表**：使用脚本或 SQL
+4. **重新索引**：通过 API 重新索引所有文章
 
 ```bash
 # 重启应用
 docker-compose restart backend
+
+# 清空 article_embeddings 表
+scripts\clear_embeddings.bat  # Windows
+# 或
+bash scripts/clear_embeddings.sh  # Linux/Mac
 
 # 等待应用启动后，重新索引
 curl -X POST http://localhost:8000/api/v1/rag/index/all?batch_size=10 \
