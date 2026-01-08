@@ -32,9 +32,7 @@ class ArticleUpdate(BaseModel):
     content: Optional[str] = None
     summary: Optional[str] = None
     importance: Optional[str] = None
-    topics: Optional[List[str]] = None
     tags: Optional[List[str]] = None
-    key_points: Optional[List[str]] = None
     is_processed: Optional[bool] = None
     user_notes: Optional[str] = None
 
@@ -43,11 +41,8 @@ class Article(ArticleBase):
     """文章响应模型"""
     id: int
     importance: Optional[str] = None
-    topics: Optional[List[str]] = None
     tags: Optional[List[str]] = None
     target_audience: Optional[str] = None
-    key_points: Optional[List[str]] = None
-    related_papers: Optional[List[str]] = None
     extra_data: Optional[dict] = None
     is_processed: bool = False
     is_sent: bool = False

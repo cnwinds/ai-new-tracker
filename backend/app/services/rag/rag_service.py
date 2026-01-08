@@ -87,18 +87,6 @@ class RAGService:
             content_preview = article.content[:max_content_length]
             parts.append(f"内容: {content_preview}")
         
-        # 关键点
-        if article.key_points:
-            if isinstance(article.key_points, list):
-                key_points_str = "、".join(article.key_points)
-                parts.append(f"关键点: {key_points_str}")
-        
-        # 主题
-        if article.topics:
-            if isinstance(article.topics, list):
-                topics_str = "、".join(article.topics)
-                parts.append(f"主题: {topics_str}")
-        
         # 标签
         if article.tags:
             if isinstance(article.tags, list):
@@ -367,7 +355,7 @@ class RAGService:
                     v.article_id,
                     distance,
                     a.id, a.title, a.title_zh, a.url, a.summary, a.source,
-                    a.published_at, a.importance, a.topics, a.tags, a.is_favorited
+                    a.published_at, a.importance, a.tags, a.is_favorited
                 FROM vec_embeddings v
                 JOIN articles a ON v.article_id = a.id
                 WHERE v.embedding MATCH :query_vector AND k = {k_value}
@@ -436,22 +424,8 @@ class RAGService:
                 else:
                     published_at_str = None
                 
-                # 处理 topics：可能是列表或 JSON 字符串
-                topics = row[10]
-                if topics:
-                    if isinstance(topics, str):
-                        try:
-                            topics = json.loads(topics)
-                        except (json.JSONDecodeError, TypeError):
-                            logger.warning(f"无法解析 topics JSON: {topics}")
-                            topics = []
-                    elif not isinstance(topics, list):
-                        topics = []
-                else:
-                    topics = []
-                
                 # 处理 tags：可能是列表或 JSON 字符串
-                tags = row[11]
+                tags = row[10]
                 if tags:
                     if isinstance(tags, str):
                         try:
@@ -473,7 +447,6 @@ class RAGService:
                     "source": row[7],
                     "published_at": published_at_str,
                     "importance": row[9],
-                    "topics": topics,
                     "tags": tags,
                     "similarity": similarity,
                     "is_favorited": is_favorited
@@ -584,17 +557,6 @@ class RAGService:
         for result in top_results:
             article = result["article"]
             
-            # 处理 topics：确保是列表
-            topics = article.topics
-            if topics and isinstance(topics, str):
-                try:
-                    topics = json.loads(topics)
-                except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"无法解析 topics JSON: {topics}")
-                    topics = []
-            elif not isinstance(topics, list):
-                topics = topics if topics else []
-            
             # 处理 tags：确保是列表
             tags = article.tags
             if tags and isinstance(tags, str):
@@ -615,7 +577,6 @@ class RAGService:
                 "source": article.source,
                 "published_at": article.published_at.isoformat() if article.published_at else None,
                 "importance": article.importance,
-                "topics": topics,
                 "tags": tags,
                 "similarity": result["similarity"],
                 "is_favorited": article.is_favorited
@@ -692,12 +653,6 @@ class RAGService:
                             article_text += f"中文标题: {article_info['title_zh']}\n"
                         if article_info.get('summary'):
                             article_text += f"摘要: {article_info['summary']}\n"
-                        if article_info.get('topics'):
-                            topics = article_info['topics']
-                            if isinstance(topics, list):
-                                article_text += f"主题: {', '.join(topics)}\n"
-                            else:
-                                article_text += f"主题: {topics}\n"
                         article_text += f"来源: {article_info.get('source', 'N/A')}\n"
                         article_text += f"相似度: {article_info.get('similarity', 0):.3f}\n"
                         
@@ -855,12 +810,6 @@ class RAGService:
                             article_text += f"中文标题: {article_info['title_zh']}\n"
                         if article_info.get('summary'):
                             article_text += f"摘要: {article_info['summary']}\n"
-                        if article_info.get('topics'):
-                            topics = article_info['topics']
-                            if isinstance(topics, list):
-                                article_text += f"主题: {', '.join(topics)}\n"
-                            else:
-                                article_text += f"主题: {topics}\n"
                         article_text += f"来源: {article_info.get('source', 'N/A')}\n"
                         article_text += f"相似度: {article_info.get('similarity', 0):.3f}\n"
                         

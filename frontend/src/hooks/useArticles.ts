@@ -112,7 +112,7 @@ export function useUpdateArticle() {
 
 /**
  * 获取文章的详细信息（按需加载）
- * 一次性获取所有详细字段：summary, content, author, topics, tags, key_points, user_notes等
+ * 一次性获取所有详细字段：summary, content, author, tags, user_notes等
  */
 export function useArticleDetails(id: number, enabled: boolean = true) {
   return useQuery({

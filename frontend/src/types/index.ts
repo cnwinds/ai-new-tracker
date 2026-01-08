@@ -16,11 +16,8 @@ export interface Article {
   published_at?: string;
   collected_at: string;
   importance?: 'high' | 'medium' | 'low';
-  topics?: string[];
   tags?: string[];
   target_audience?: string;
-  key_points?: string[];
-  related_papers?: string[];
   extra_data?: Record<string, any>;
   is_processed: boolean;
   is_sent: boolean;
@@ -238,7 +235,6 @@ export interface ArticleSearchResult {
   source: string;
   published_at?: string;
   importance?: 'high' | 'medium' | 'low';
-  topics?: string[];
   tags?: string[];
   similarity: number; // 相似度分数 (0-1)
 }

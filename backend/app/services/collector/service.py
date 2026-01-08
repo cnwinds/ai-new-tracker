@@ -1580,12 +1580,9 @@ class CollectionService:
                             summary_value = str(summary_value) if summary_value else ""
 
                         article_obj.summary = summary_value
-                        article_obj.topics = result.get("topics")
                         article_obj.tags = result.get("tags")
                         article_obj.importance = result.get("importance")
                         article_obj.target_audience = result.get("target_audience")
-                        article_obj.key_points = result.get("key_points")
-                        article_obj.related_papers = result.get("related_papers")
                         # 保存中文标题（如果AI分析返回了title_zh）
                         if result.get("title_zh"):
                             article_obj.title_zh = result.get("title_zh")
@@ -1700,12 +1697,9 @@ class CollectionService:
                         summary_value = str(summary_value) if summary_value else ""
 
                     article_obj.summary = summary_value
-                    article_obj.topics = result.get("topics")
                     article_obj.tags = result.get("tags")
                     article_obj.importance = result.get("importance")
                     article_obj.target_audience = result.get("target_audience")
-                    article_obj.key_points = result.get("key_points")
-                    article_obj.related_papers = result.get("related_papers")
                     # 保存中文标题（如果AI分析返回了title_zh）
                     if result.get("title_zh"):
                         article_obj.title_zh = result.get("title_zh")

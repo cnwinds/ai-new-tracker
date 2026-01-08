@@ -47,12 +47,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     summary: loadedDetails?.summary ?? article.summary,
     content: loadedDetails?.content ?? article.content,
     author: loadedDetails?.author ?? article.author,
-    topics: loadedDetails?.topics ?? article.topics,
     tags: loadedDetails?.tags ?? article.tags,
-    key_points: loadedDetails?.key_points ?? article.key_points,
     user_notes: loadedDetails?.user_notes ?? article.user_notes,
     target_audience: loadedDetails?.target_audience ?? article.target_audience,
-    related_papers: loadedDetails?.related_papers ?? article.related_papers,
   };
 
   // 当加载的详细信息更新时，同步更新notesValue（仅在未编辑状态下）
@@ -325,22 +322,6 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               </Button>
             </div>
 
-            {/* 主题区域 */}
-            {articleWithLoadedData.topics && articleWithLoadedData.topics.length > 0 && (
-              <div style={{ marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-                <Text strong style={{ fontSize: 13, color: getThemeColor(theme, 'text'), flexShrink: 0, lineHeight: '28px' }}>
-                  主题
-                </Text>
-                <Space size={[8, 8]} wrap style={{ flex: 1, minWidth: 0 }}>
-                  {articleWithLoadedData.topics.map((topic, idx) => (
-                    <Tag key={idx} color="blue">
-                      {topic}
-                    </Tag>
-                  ))}
-                </Space>
-              </div>
-            )}
-
             {/* 标签区域 */}
             {articleWithLoadedData.tags && articleWithLoadedData.tags.length > 0 && (
               <div style={{ marginBottom: 12, display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
@@ -354,28 +335,6 @@ export default function ArticleCard({ article }: ArticleCardProps) {
                     </Tag>
                   ))}
                 </Space>
-              </div>
-            )}
-
-            {/* 关键点区域 */}
-            {articleWithLoadedData.key_points && articleWithLoadedData.key_points.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <Text strong style={{ fontSize: 13, color: getThemeColor(theme, 'text'), marginBottom: 8, display: 'block' }}>
-                  关键点
-                </Text>
-                <ul style={{ 
-                  paddingLeft: 20,
-                  margin: 0,
-                  color: getThemeColor(theme, 'text'),
-                  lineHeight: '1.8',
-                  fontSize: 13,
-                }}>
-                  {articleWithLoadedData.key_points.map((point, idx) => (
-                    <li key={idx} style={{ marginBottom: 8 }}>
-                      {point}
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
 

@@ -248,13 +248,6 @@ export default function RAGSearch() {
 
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
                             <Space>
-                              {item.topics && item.topics.length > 0 && (
-                                <Space size="small">
-                                  {item.topics.slice(0, 3).map((topic, idx) => (
-                                    <Tag key={idx}>{topic}</Tag>
-                                  ))}
-                                </Space>
-                              )}
                               {item.published_at && (
                                 <Text type="secondary" style={{ fontSize: 12 }}>
                                   {dayjs(item.published_at).format('YYYY-MM-DD HH:mm')}

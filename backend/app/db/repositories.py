@@ -96,9 +96,7 @@ class ArticleRepository:
             _ = article.author
             _ = article.published_at
             _ = article.importance
-            _ = article.topics
             _ = article.tags
-            _ = article.key_points
             _ = article.created_at
 
         session.expunge_all()

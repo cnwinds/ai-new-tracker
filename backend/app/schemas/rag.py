@@ -26,7 +26,6 @@ class ArticleSearchResult(BaseModel):
     source: str
     published_at: Optional[str] = None
     importance: Optional[str] = None
-    topics: Optional[List[str]] = None
     tags: Optional[List[str]] = None
     similarity: float = Field(..., description="相似度分数 (0-1)")
 

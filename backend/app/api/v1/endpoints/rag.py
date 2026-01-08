@@ -91,17 +91,7 @@ async def search_articles(
         import json
         processed_results = []
         for result in results:
-            # 确保 topics 和 tags 是列表格式
-            if "topics" in result:
-                if isinstance(result["topics"], str):
-                    try:
-                        result["topics"] = json.loads(result["topics"])
-                    except (json.JSONDecodeError, TypeError):
-                        logger.warning(f"无法解析 topics JSON: {result['topics']}")
-                        result["topics"] = []
-                elif not isinstance(result["topics"], list):
-                    result["topics"] = result["topics"] if result["topics"] else []
-            
+            # 确保 tags 是列表格式
             if "tags" in result:
                 if isinstance(result["tags"], str):
                     try:
@@ -157,17 +147,7 @@ async def query_articles(
             import json
             processed_articles = []
             for article in result["articles"]:
-                # 确保 topics 和 tags 是列表格式
-                if "topics" in article:
-                    if isinstance(article["topics"], str):
-                        try:
-                            article["topics"] = json.loads(article["topics"])
-                        except (json.JSONDecodeError, TypeError):
-                            logger.warning(f"无法解析 topics JSON: {article['topics']}")
-                            article["topics"] = []
-                    elif not isinstance(article["topics"], list):
-                        article["topics"] = article["topics"] if article["topics"] else []
-                
+                # 确保 tags 是列表格式
                 if "tags" in article:
                     if isinstance(article["tags"], str):
                         try:
@@ -225,16 +205,6 @@ async def query_articles_stream(
             # 处理文章格式转换
             def process_article(article):
                 processed = article.copy()
-                if "topics" in processed:
-                    if isinstance(processed["topics"], str):
-                        try:
-                            processed["topics"] = json.loads(processed["topics"])
-                        except (json.JSONDecodeError, TypeError):
-                            logger.warning(f"无法解析 topics JSON: {processed['topics']}")
-                            processed["topics"] = []
-                    elif not isinstance(processed["topics"], list):
-                        processed["topics"] = processed["topics"] if processed["topics"] else []
-                
                 if "tags" in processed:
                     if isinstance(processed["tags"], str):
                         try:

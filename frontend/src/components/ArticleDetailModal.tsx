@@ -266,55 +266,17 @@ export default function ArticleDetailModal({
               </div>
             )}
 
-            {/* 标签和主题 */}
-            {(article.tags && article.tags.length > 0) || (article.topics && article.topics.length > 0) ? (
+            {/* 标签 */}
+            {article.tags && article.tags.length > 0 && (
               <div style={{ marginBottom: 24 }}>
-                {article.topics && article.topics.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <Text strong style={{ color: getThemeColor(theme, 'text') }}>
-                      主题：
-                    </Text>
-                    <Space size={[8, 8]} wrap style={{ marginLeft: 8 }}>
-                      {article.topics.map((topic, idx) => (
-                        <Tag key={idx} color="blue">
-                          {topic}
-                        </Tag>
-                      ))}
-                    </Space>
-                  </div>
-                )}
-                {article.tags && article.tags.length > 0 && (
-                  <div>
-                    <Text strong style={{ color: getThemeColor(theme, 'text') }}>
-                      标签：
-                    </Text>
-                    <Space size={[8, 8]} wrap style={{ marginLeft: 8 }}>
-                      {article.tags.map((tag, idx) => (
-                        <Tag key={idx}>{tag}</Tag>
-                      ))}
-                    </Space>
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {/* 关键点 */}
-            {article.key_points && article.key_points.length > 0 && (
-              <div style={{ marginBottom: 24 }}>
-                <Title level={4} style={{ color: getThemeColor(theme, 'text'), marginBottom: 12 }}>
-                  关键点
-                </Title>
-                <ul style={{ 
-                  paddingLeft: 20,
-                  color: getThemeColor(theme, 'text'),
-                  lineHeight: '1.8'
-                }}>
-                  {article.key_points.map((point, idx) => (
-                    <li key={idx} style={{ marginBottom: 8 }}>
-                      {point}
-                    </li>
+                <Text strong style={{ color: getThemeColor(theme, 'text') }}>
+                  标签：
+                </Text>
+                <Space size={[8, 8]} wrap style={{ marginLeft: 8 }}>
+                  {article.tags.map((tag, idx) => (
+                    <Tag key={idx}>{tag}</Tag>
                   ))}
-                </ul>
+                </Space>
               </div>
             )}
 

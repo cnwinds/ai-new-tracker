@@ -10,8 +10,6 @@ import ArticleCard from './ArticleCard';
 import { apiService } from '@/services/api';
 import type { ArticleFilter } from '@/types';
 import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
-import { useTheme } from '@/contexts/ThemeContext';
-import { getThemeColor } from '@/utils/theme';
 import SourceFilterToggle from './SourceFilterToggle';
 
 const { Option, OptGroup } = Select;
@@ -19,7 +17,6 @@ const { Option, OptGroup } = Select;
 const TIME_RANGES = ['今天', '最近3天', '最近7天', '最近30天', '全部'] as const;
 
 export default function ArticleList() {
-  const { theme } = useTheme();
   const [filter, setFilter] = useState<ArticleFilter>({
     time_range: '全部',
     page: 1,
@@ -103,7 +100,7 @@ export default function ArticleList() {
           <Space>
             <Space.Compact style={{ display: 'flex', alignItems: 'stretch' }}>
               <SourceFilterToggle
-                mode={filter.source_filter_mode}
+                mode={filter.source_filter_mode || 'include'}
                 onModeChange={handleFilterModeChange}
               />
               <Select

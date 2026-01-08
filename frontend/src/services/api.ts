@@ -162,7 +162,7 @@ class ApiService {
   /**
    * 获取文章的特定字段（用于按需加载）
    * @param id 文章ID
-   * @param fields 要获取的字段，如：'summary' 或 'summary,content,topics,tags'，或 'all' 获取所有详细字段
+   * @param fields 要获取的字段，如：'summary' 或 'summary,content,tags'，或 'all' 获取所有详细字段
    * @returns 包含请求字段的对象
    */
   async getArticleFields(
@@ -172,12 +172,9 @@ class ApiService {
     summary?: string;
     content?: string;
     author?: string;
-    topics?: string[];
     tags?: string[];
-    key_points?: string[];
     user_notes?: string;
     target_audience?: string;
-    related_papers?: string[];
   }> {
     return this.handleRequest(
       this.client.get(`/articles/${id}/fields`, {

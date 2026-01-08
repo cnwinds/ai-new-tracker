@@ -475,7 +475,7 @@ export default function AIConversationModal() {
                                   </div>
                                 ),
                                 children: (
-                                  <div style={{ paddingTop: 2 }}>
+                                  <div style={{ paddingTop: 2, width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
                                     {message.articles.map((article, idx) => {
                                       const articleNumber = idx + 1;
                                       return (
@@ -493,6 +493,9 @@ export default function AIConversationModal() {
                                             borderBottom: idx < message.articles!.length - 1
                                               ? `1px solid ${getThemeColor(theme, 'border')}`
                                               : 'none',
+                                            width: '100%',
+                                            maxWidth: '100%',
+                                            overflow: 'hidden',
                                           }}
                                           onClick={() => {
                                             window.open(article.url, '_blank');
@@ -516,7 +519,7 @@ export default function AIConversationModal() {
                                           >
                                             [{articleNumber}]
                                           </Text>
-                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                                             <Text
                                               ellipsis
                                               style={{
@@ -525,6 +528,9 @@ export default function AIConversationModal() {
                                                 fontSize: '12px',
                                                 marginBottom: 0,
                                                 lineHeight: '1.2',
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'break-word',
+                                                maxWidth: '100%',
                                               }}
                                             >
                                               {article.title_zh || article.title}

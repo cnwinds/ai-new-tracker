@@ -37,9 +37,7 @@ def _normalize_summary(summary_value) -> str:
 def _update_article_analysis(article: Article, analysis_result: dict) -> None:
     """更新文章的分析结果"""
     article.importance = analysis_result.get("importance")
-    article.topics = analysis_result.get("topics", [])
     article.tags = analysis_result.get("tags", [])
-    article.key_points = analysis_result.get("key_points", [])
     article.target_audience = analysis_result.get("target_audience")
     
     # 保存中文标题（如果AI分析返回了title_zh）
@@ -89,7 +87,7 @@ async def get_articles(
     """获取文章列表（支持筛选和分页）
     
     默认只返回标题行显示所需的基本字段，不返回详细信息以节省网络流量。
-    详细信息包括：author, summary, content, topics, tags, key_points, user_notes等。
+    详细信息包括：author, summary, content, tags, user_notes等。
     仅在需要时设置include_details=True，或使用/articles/{id}/fields接口按需获取。
     """
     # 解析筛选参数
@@ -148,12 +146,9 @@ async def get_articles(
                 'content': None,
                 'summary': None,
                 'author': None,
-                'topics': None,
                 'tags': None,
-                'key_points': None,
                 'user_notes': None,
                 'target_audience': None,
-                'related_papers': None,
             }
             article_data = article_data.model_copy(update=update_data)
         
@@ -183,7 +178,7 @@ async def get_article(
 @router.get("/{article_id}/fields")
 async def get_article_fields(
     article_id: int,
-    fields: str = Query(..., description="要获取的字段，逗号分隔，如：summary,content,topics,tags,key_points,author,user_notes"),
+    fields: str = Query(..., description="要获取的字段，逗号分隔，如：summary,content,tags,author,user_notes"),
     db: Session = Depends(get_database),
 ):
     """获取文章的特定字段（用于按需加载）
@@ -192,14 +187,11 @@ async def get_article_fields(
     - summary: AI总结
     - content: 文章内容
     - author: 作者
-    - topics: 主题列表
     - tags: 标签列表
-    - key_points: 关键点列表
     - user_notes: 用户笔记
     - target_audience: 目标受众
-    - related_papers: 相关论文
     
-    返回格式：{"summary": "...", "content": "...", "topics": [...], ...}
+    返回格式：{"summary": "...", "content": "...", "tags": [...], ...}
     
     特殊值 "all" 可以获取所有详细字段。
     """
@@ -211,12 +203,9 @@ async def get_article_fields(
             "summary": article.summary,
             "content": article.content,
             "author": article.author,
-            "topics": article.topics,
             "tags": article.tags,
-            "key_points": article.key_points,
             "user_notes": article.user_notes,
             "target_audience": article.target_audience,
-            "related_papers": article.related_papers,
         }
     
     requested_fields = [f.strip() for f in fields.split(",")]
@@ -227,12 +216,9 @@ async def get_article_fields(
         "summary": lambda: article.summary,
         "content": lambda: article.content,
         "author": lambda: article.author,
-        "topics": lambda: article.topics,
         "tags": lambda: article.tags,
-        "key_points": lambda: article.key_points,
         "user_notes": lambda: article.user_notes,
         "target_audience": lambda: article.target_audience,
-        "related_papers": lambda: article.related_papers,
     }
     
     for field in requested_fields:

@@ -138,8 +138,6 @@ class SummaryGenerator:
                     "importance": article.importance,
                     "published_at": article.published_at,
                     "summary": article.summary,
-                    "key_points": article.key_points,
-                    "topics": article.topics,
                 })
 
         # 统计信息
@@ -320,16 +318,10 @@ class SummaryGenerator:
             importance_emoji = "🔴" if article.get("importance") == "high" else "🟡" if article.get("importance") == "medium" else "⚪"
             # 周报需要更详细的信息
             if summary_type == "weekly":
-                key_points = ""
-                if article.get("key_points"):
-                    key_points = f"\n   关键点: {', '.join(article.get('key_points', [])[:3])}"
-                topics = ""
-                if article.get("topics"):
-                    topics = f"\n   主题: {', '.join(article.get('topics', [])[:3])}"
                 articles_str += f"""
 {i}. {importance_emoji} [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
    发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
-   摘要: {article.get('summary', '')[:300]}{key_points}{topics}
+   摘要: {article.get('summary', '')[:300]}
 """
             else:
                 articles_str += f"""
@@ -430,23 +422,16 @@ class SummaryGenerator:
 
     def _extract_topics(self, articles_data: List[Dict[str, Any]]) -> List[str]:
         """
-        从文章中提取关键主题
+        从文章中提取关键主题（从摘要中提取）
 
         Args:
             articles_data: 文章数据列表
 
         Returns:
-            主题列表
+            主题列表（空列表，因为不再从topics字段提取）
         """
-        topics_set = set()
-
-        for article in articles_data:
-            if article.get("topics"):
-                for topic in article.get("topics", []):
-                    if topic:
-                        topics_set.add(topic)
-
-        return list(topics_set)[:10]  # 最多返回10个主题
+        # 不再从topics字段提取，返回空列表
+        return []
 
     def _select_recommended_articles(self, articles_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -473,8 +458,6 @@ class SummaryGenerator:
                 reason = "高重要性文章，值得重点关注"
             elif article.get("importance") == "medium":
                 reason = "中等重要性，建议阅读"
-            if article.get("key_points"):
-                reason += f"。关键点：{article.get('key_points')[0][:50]}..."
 
             recommended.append({
                 "id": article.get("id"),

@@ -309,6 +309,7 @@ export default function SmartDropdown({
       : '0 4px 12px rgba(0, 0, 0, 0.15)',
     maxHeight: isMobile ? '70vh' : '500px',
     overflowY: 'auto',
+    overflowX: 'hidden',
     zIndex: 1001,
   };
 
@@ -542,7 +543,7 @@ export default function SmartDropdown({
   // 输入态：显示 AI 问答选项和相关文章
   return (
     <div style={dropdownStyle}>
-      <div style={{ padding: '8px' }}>
+      <div style={{ padding: '8px', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
         {/* AI 智能问答选项 */}
         <div
           style={itemStyle(0)}
@@ -621,7 +622,7 @@ export default function SmartDropdown({
             return (
               <div
                 key={article.id}
-                style={itemStyle(index)}
+                style={{ ...itemStyle(index), width: '100%', maxWidth: '100%', overflow: 'hidden' }}
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => {
                   // 保存搜索历史（用户查看了搜索到的文章）
@@ -632,21 +633,25 @@ export default function SmartDropdown({
                   onSelectArticle(article);
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
                   <FileTextOutlined 
                     style={{ 
                       fontSize: '16px',
                       color: getThemeColor(theme, 'textSecondary'),
-                      marginTop: '2px'
+                      marginTop: '2px',
+                      flexShrink: 0
                     }} 
                   />
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                     <Text 
                       ellipsis 
                       style={{ 
                         display: 'block',
                         color: getThemeColor(theme, 'text'),
-                        marginBottom: '4px'
+                        marginBottom: '4px',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'break-word',
+                        maxWidth: '100%'
                       }}
                     >
                       {article.title_zh || article.title}
@@ -723,7 +728,7 @@ export default function SmartDropdown({
                   <DatabaseOutlined 
                     style={{ 
                       fontSize: '16px',
-                      color: getThemeColor(theme, 'warning')
+                      color: '#faad14' // 警告色（橙色）
                     }} 
                   />
                 )}

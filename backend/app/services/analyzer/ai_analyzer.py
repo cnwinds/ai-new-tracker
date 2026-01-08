@@ -189,9 +189,7 @@ class AIAnalyzer:
             
             # 确保所有必需字段存在
             result.setdefault("importance", "low")
-            result.setdefault("topics", [])
             result.setdefault("tags", [])
-            result.setdefault("key_points", [])
             result.setdefault("target_audience", "general")
             
             # 处理 summary 字段：确保是字符串类型
@@ -379,11 +377,8 @@ class AIAnalyzer:
 {{
     "importance": "high/medium/low",
     "summary": "根据上述要求处理后的内容（使用Markdown格式输出，可以使用标题、列表、加粗等Markdown语法，换行使用 \\n 表示）",
-    "topics": ["主题1", "主题2", "主题3"],
     "tags": ["标签1", "标签2", "标签3"],
-    "key_points": ["关键点1", "关键点2", "关键点3"],
     "target_audience": "researcher/engineer/general",
-    "related_papers": ["相关论文1", "相关论文2"],
     "title_zh": "如果文章标题是英文，请将其翻译成准确、自然的中文标题；如果标题已经是中文，则不输出该行"
 }}
 
@@ -440,7 +435,7 @@ class AIAnalyzer:
         Returns:
             默认任务描述文本
         """
-        return f"""将作者写的长篇文章，改写成一篇**结构完整、信息齐全、逻辑严密**的精简短文。想象一下，这是为那些时间极其宝贵但又必须掌握你思想精华的核心读者（比如投资人、合作伙伴、高级决策者）准备的"浓缩精华版"。它本身就是一篇独立、完整、且有说服力的作品。
+        return f"""将作者写的长篇文章，改写成一篇**结构完整、信息齐全、逻辑严密**的精简短文。想象一下，这是为那些时间极其宝贵但又必须掌握你思想精华的核心读者（比如投资人、合作伙伴、高级决策者）准备的"浓缩精华版"。它本身就是一篇独立、完整、且有说服力的作品。**记住仅只用文章内容进行总结，不要增加任何推断，严格遵循文章原始内容。**
 
 **重要：请使用中文输出所有内容。**
 
@@ -486,9 +481,7 @@ URL: {url}
         result = {
             "importance": "medium",
             "summary": text,  # 保存完整响应内容，方便后续研究问题
-            "topics": [],
             "tags": [],
-            "key_points": [],
             "target_audience": "general",
         }
         
