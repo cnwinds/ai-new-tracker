@@ -251,7 +251,7 @@ class RAGService:
             vec2: 向量2
 
         Returns:
-            相似度分数 (0-1)
+            相似度分数 (0-1)，已归一化
         """
         try:
             v1 = np.array(vec1)
@@ -264,7 +264,16 @@ class RAGService:
             if norm1 == 0 or norm2 == 0:
                 return 0.0
             
-            similarity = dot_product / (norm1 * norm2)
+            # 计算余弦相似度（范围 [-1, 1]）
+            cosine_sim = dot_product / (norm1 * norm2)
+            
+            # 归一化到 [0, 1] 范围：similarity = (cosine_sim + 1) / 2
+            # 这样 -1 -> 0, 0 -> 0.5, 1 -> 1.0
+            similarity = (cosine_sim + 1.0) / 2.0
+            
+            # 确保结果在 [0, 1] 范围内（处理浮点误差）
+            similarity = max(0.0, min(1.0, similarity))
+            
             return float(similarity)
         except Exception as e:
             logger.error(f"❌ 计算余弦相似度失败: {e}")
@@ -345,9 +354,9 @@ class RAGService:
             
             # 构建基础查询 - 使用MATCH操作符
             # vec0 的 MATCH 需要明确指定 k 参数：MATCH ? AND k = 10
-            # 注意：k 参数必须大于等于 top_k，我们使用 top_k * 2 以确保有足够的结果用于过滤
+            # 注意：k 参数必须大于等于 top_k，我们使用 top_k * 3 以确保有足够的结果用于过滤和去重
             # k 参数必须直接写在 SQL 中，不能作为参数绑定
-            k_value = max(top_k * 2, 10)  # 至少返回 10 个结果
+            k_value = max(top_k * 3, 20)  # 至少返回 20 个结果，确保去重后有足够的结果
             
             # 构建基础查询（包含 is_favorited 字段用于权重计算）
             sql = f"""
@@ -391,8 +400,9 @@ class RAGService:
                 if conditions:
                     sql += " AND " + " AND ".join(conditions)
             
-            # 最后限制返回的结果数量（k 已经限制了 KNN 结果，这里再限制最终返回数量）
-            sql += f" ORDER BY distance LIMIT {top_k}"
+            # 按距离排序（距离越小越相似），不在这里限制数量，让去重后再限制
+            # 这样可以确保去重后有足够的结果
+            sql += " ORDER BY distance"
             
             # 执行查询
             result = self.db.execute(text(sql), params)
@@ -401,10 +411,24 @@ class RAGService:
             # 转换为字典格式
             search_results = []
             for row in rows:
-                # sqlite-vec返回的distance是欧氏距离，需要转换为相似度
-                # 相似度 = 1 / (1 + distance)
                 distance = float(row[1]) if row[1] is not None else float('inf')
-                similarity = 1.0 / (1.0 + distance) if distance < float('inf') else 0.0
+                
+                if distance < float('inf'):
+                    # 判断距离度量类型：
+                    # - 如果距离 <= 2.0，很可能是余弦距离（余弦距离范围 [0, 2]）
+                    # - 如果距离 > 2.0，很可能是 L2 距离
+                    if distance <= 2.0:
+                        # 余弦距离：similarity = 1 - distance
+                        # 余弦距离 = 1 - 余弦相似度，所以相似度 = 1 - distance
+                        similarity = max(0.0, min(1.0, 1.0 - distance))
+                    else:
+                        # L2 距离：使用改进的转换公式
+                        # 对于归一化的向量，L2 距离范围是 [0, 2]，但实际可能更大
+                        # 使用平滑的转换函数：similarity = 1 / (1 + distance)
+                        # 这确保距离为 0 时相似度为 1，距离增大时相似度递减
+                        similarity = 1.0 / (1.0 + distance)
+                else:
+                    similarity = 0.0
                 
                 # 如果文章被收藏，增加权重（提升相似度分数）
                 is_favorited = row[12] if len(row) > 12 else False

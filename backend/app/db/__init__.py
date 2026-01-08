@@ -251,15 +251,15 @@ class DatabaseManager:
                     table_exists = cursor.fetchone() is not None
                     
                     if not table_exists:
-                        # 创建vec0虚拟表
+                        # 创建vec0虚拟表，使用余弦距离（适合大多数嵌入模型）
                         try:
                             conn.execute(f"""
                                 CREATE VIRTUAL TABLE vec_embeddings USING vec0(
                                     article_id INTEGER PRIMARY KEY,
-                                    embedding float[{dimension}]
+                                    embedding float[{dimension}] DISTANCE_METRIC=cosine
                                 )
                             """)
-                            logger.info(f"✅ vec0虚拟表创建成功（维度: {dimension}）")
+                            logger.info(f"✅ vec0虚拟表创建成功（维度: {dimension}，使用余弦距离）")
                         except sqlite3.OperationalError as e:
                             if "no such module: vec0" in str(e):
                                 logger.warning(f"⚠️  sqlite-vec扩展不可用，将使用Python向量计算: {e}")
@@ -288,14 +288,14 @@ class DatabaseManager:
                                 try:
                                     # 删除旧表（vec0 是虚拟表，数据在 article_embeddings 中，不会丢失）
                                     conn.execute("DROP TABLE IF EXISTS vec_embeddings")
-                                    # 重建表
+                                    # 重建表，使用余弦距离
                                     conn.execute(f"""
                                         CREATE VIRTUAL TABLE vec_embeddings USING vec0(
                                             article_id INTEGER PRIMARY KEY,
-                                            embedding float[{dimension}]
+                                            embedding float[{dimension}] DISTANCE_METRIC=cosine
                                         )
                                     """)
-                                    logger.info(f"✅ vec0表已重建（新维度: {dimension}）")
+                                    logger.info(f"✅ vec0表已重建（新维度: {dimension}，使用余弦距离）")
                                     logger.info("   注意：需要重新索引文章向量以同步到 vec0 表")
                                 except Exception as rebuild_error:
                                     logger.error(f"❌ 重建 vec0 表失败: {rebuild_error}")
