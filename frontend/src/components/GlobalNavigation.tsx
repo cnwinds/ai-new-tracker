@@ -156,13 +156,27 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
 
   return (
     <Header style={headerStyle}>
-      <div style={{ 
-        color: '#fff', 
-        fontSize: isMobile ? '16px' : '20px', 
-        fontWeight: 'bold', 
-        minWidth: isMobile ? '120px' : '200px' 
-      }}>
-        {isMobile ? '🤖 AI News' : '🤖 AI News Tracker'}
+      <div
+        style={{
+          color: '#fff',
+          fontSize: isMobile ? '16px' : '20px',
+          fontWeight: 'bold',
+          minWidth: isMobile ? '120px' : '200px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <img
+          src="/favicon.svg"
+          alt="AI News Tracker"
+          style={{
+            width: isMobile ? 26 : 32,
+            height: isMobile ? 26 : 32,
+            display: 'block',
+          }}
+        />
+        <span>{isMobile ? 'AI News' : 'AI News Tracker'}</span>
       </div>
       
       <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center' }}>
