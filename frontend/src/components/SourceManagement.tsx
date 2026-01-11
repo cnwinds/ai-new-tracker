@@ -1,5 +1,5 @@
 /**
- * 订阅源管理组件
+ * 订阅管理组件
  */
 import { useState, useMemo } from 'react';
 import {
@@ -438,7 +438,7 @@ export default function SourceManagement() {
   return (
     <div>
       <Card
-        title="⚙️ 订阅源管理"
+        title="⚙️ 订阅管理"
         extra={
           <Space>
             <Button 

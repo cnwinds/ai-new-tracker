@@ -18,6 +18,7 @@ import {
   Modal,
   Popconfirm,
   TimePicker,
+  Typography,
 } from 'antd';
 import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, LockOutlined, MinusCircleOutlined, DatabaseOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -27,13 +28,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import SourceManagement from '@/components/SourceManagement';
 import DataCleanup from '@/components/DataCleanup';
 import CollectionHistory from '@/components/CollectionHistory';
-import type { LLMSettings, NotificationSettings, LLMProvider, LLMProviderCreate, LLMProviderUpdate } from '@/types';
+import type { LLMSettings, NotificationSettings, SummarySettings, LLMProvider, LLMProviderCreate, LLMProviderUpdate } from '@/types';
 
 export default function SystemSettings() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
   const [llmForm] = Form.useForm();
   const [notificationForm] = Form.useForm();
+  const [summaryForm] = Form.useForm();
   const [providerForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [providerModalVisible, setProviderModalVisible] = useState(false);
@@ -185,6 +187,12 @@ export default function SystemSettings() {
     queryFn: () => apiService.getNotificationSettings(),
   });
 
+  // 获取总结配置
+  const { data: summarySettings, isLoading: summaryLoading } = useQuery({
+    queryKey: ['summarySettings'],
+    queryFn: () => apiService.getSummarySettings(),
+  });
+
   // 更新通知配置
   const updateNotificationMutation = useMutation({
     mutationFn: (data: NotificationSettings) => apiService.updateNotificationSettings(data),
@@ -197,6 +205,22 @@ export default function SystemSettings() {
         message.error('需要登录才能保存通知配置');
       } else {
         message.error('保存通知配置失败');
+      }
+    },
+  });
+
+  // 更新总结配置
+  const updateSummaryMutation = useMutation({
+    mutationFn: (data: SummarySettings) => apiService.updateSummarySettings(data),
+    onSuccess: () => {
+      message.success('自动总结配置已保存');
+      queryClient.invalidateQueries({ queryKey: ['summarySettings'] });
+    },
+    onError: (error: any) => {
+      if (error.status === 401) {
+        message.error('需要登录才能保存自动总结配置');
+      } else {
+        message.error('保存自动总结配置失败');
       }
     },
   });
@@ -255,6 +279,17 @@ export default function SystemSettings() {
     }
   }, [notificationSettings, notificationForm]);
 
+  useEffect(() => {
+    if (summarySettings) {
+      summaryForm.setFieldsValue({
+        daily_summary_enabled: summarySettings.daily_summary_enabled,
+        daily_summary_time: summarySettings.daily_summary_time ? dayjs(summarySettings.daily_summary_time, 'HH:mm') : dayjs('09:00', 'HH:mm'),
+        weekly_summary_enabled: summarySettings.weekly_summary_enabled,
+        weekly_summary_time: summarySettings.weekly_summary_time ? dayjs(summarySettings.weekly_summary_time, 'HH:mm') : dayjs('09:00', 'HH:mm'),
+      });
+    }
+  }, [summarySettings, summaryForm]);
+
   const handleLLMSave = (values: any) => {
     // 解析 selected_llm_provider_id，格式为 "provider_id:model_name"
     const providerAndModel = values.selected_llm_provider_id;
@@ -300,6 +335,16 @@ export default function SystemSettings() {
       })).filter((qh: any) => qh.start_time && qh.end_time) || [],
     };
     updateNotificationMutation.mutate(notificationData);
+  };
+
+  const handleSummarySave = (values: any) => {
+    const summaryData: SummarySettings = {
+      daily_summary_enabled: values.daily_summary_enabled,
+      daily_summary_time: values.daily_summary_time ? values.daily_summary_time.format('HH:mm') : '09:00',
+      weekly_summary_enabled: values.weekly_summary_enabled,
+      weekly_summary_time: values.weekly_summary_time ? values.weekly_summary_time.format('HH:mm') : '09:00',
+    };
+    updateSummaryMutation.mutate(summaryData);
   };
 
   const handleProviderCreate = () => {
@@ -788,13 +833,149 @@ export default function SystemSettings() {
       ),
     },
     {
+      key: 'summary',
+      label: '自动总结',
+      children: (
+        <Spin spinning={summaryLoading}>
+          <Card>
+            <Form
+              form={summaryForm}
+              layout="vertical"
+              onFinish={handleSummarySave}
+              initialValues={{
+                daily_summary_enabled: true,
+                daily_summary_time: dayjs('09:00', 'HH:mm'),
+                weekly_summary_enabled: true,
+                weekly_summary_time: dayjs('09:00', 'HH:mm'),
+              }}
+            >
+              <Alert
+                message="自动总结说明"
+                description="配置每日和每周自动总结的启用状态和执行时间。每日总结统计昨天的内容，每周总结在周六执行，统计上周的内容。"
+                type="info"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
+
+              <Form.Item label="每日总结">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Form.Item
+                    name="daily_summary_enabled"
+                    valuePropName="checked"
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Switch checkedChildren="启用" unCheckedChildren="禁用" disabled={!isAuthenticated} />
+                  </Form.Item>
+                  <Form.Item
+                    noStyle
+                    shouldUpdate={(prevValues, currentValues) =>
+                      prevValues.daily_summary_enabled !== currentValues.daily_summary_enabled
+                    }
+                  >
+                    {({ getFieldValue }) => {
+                      const enabled = getFieldValue('daily_summary_enabled');
+                      return (
+                        <Form.Item
+                          name="daily_summary_time"
+                          label="执行时间"
+                          style={{ marginBottom: 0 }}
+                        >
+                          <TimePicker
+                            format="HH:mm"
+                            style={{ width: '100%' }}
+                            disabled={!enabled || !isAuthenticated}
+                            placeholder="选择时间（默认09:00）"
+                          />
+                        </Form.Item>
+                      );
+                    }}
+                  </Form.Item>
+                  <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                    每日总结将在每天指定时间自动生成（统计昨天的内容）
+                  </Typography.Text>
+                </Space>
+              </Form.Item>
+
+              <Form.Item label="每周总结" style={{ marginTop: 24 }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Form.Item
+                    name="weekly_summary_enabled"
+                    valuePropName="checked"
+                    style={{ marginBottom: 0 }}
+                  >
+                    <Switch checkedChildren="启用" unCheckedChildren="禁用" disabled={!isAuthenticated} />
+                  </Form.Item>
+                  <Form.Item
+                    noStyle
+                    shouldUpdate={(prevValues, currentValues) =>
+                      prevValues.weekly_summary_enabled !== currentValues.weekly_summary_enabled
+                    }
+                  >
+                    {({ getFieldValue }) => {
+                      const enabled = getFieldValue('weekly_summary_enabled');
+                      return (
+                        <Form.Item
+                          name="weekly_summary_time"
+                          label="执行时间（周六执行）"
+                          style={{ marginBottom: 0 }}
+                        >
+                          <TimePicker
+                            format="HH:mm"
+                            style={{ width: '100%' }}
+                            disabled={!enabled || !isAuthenticated}
+                            placeholder="选择时间（默认09:00）"
+                          />
+                        </Form.Item>
+                      );
+                    }}
+                  </Form.Item>
+                  <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                    每周总结将在每周六指定时间自动生成（统计上周的内容，周跨度：上周六、上周日、上周一到上周五）
+                  </Typography.Text>
+                </Space>
+              </Form.Item>
+
+              <Form.Item>
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    htmlType="submit"
+                    loading={updateSummaryMutation.isPending}
+                    disabled={!isAuthenticated}
+                  >
+                    保存配置
+                  </Button>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={() => {
+                      if (summarySettings) {
+                        summaryForm.setFieldsValue({
+                          daily_summary_enabled: summarySettings.daily_summary_enabled,
+                          daily_summary_time: summarySettings.daily_summary_time ? dayjs(summarySettings.daily_summary_time, 'HH:mm') : dayjs('09:00', 'HH:mm'),
+                          weekly_summary_enabled: summarySettings.weekly_summary_enabled,
+                          weekly_summary_time: summarySettings.weekly_summary_time ? dayjs(summarySettings.weekly_summary_time, 'HH:mm') : dayjs('09:00', 'HH:mm'),
+                        });
+                      }
+                    }}
+                  >
+                    重置
+                  </Button>
+                </Space>
+              </Form.Item>
+            </Form>
+          </Card>
+        </Spin>
+      ),
+    },
+    {
       key: 'collection',
       label: '自动采集',
       children: <CollectionHistory />,
     },
     {
       key: 'sources',
-      label: '订阅源管理',
+      label: '订阅管理',
       children: <SourceManagement />,
     },
     {

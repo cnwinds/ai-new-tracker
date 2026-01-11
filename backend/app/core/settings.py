@@ -416,8 +416,9 @@ class Settings:
             hour, minute = self.WEEKLY_SUMMARY_TIME.split(":")
             hour = int(hour)
             minute = int(minute)
-            # cron格式: 分 时 日 月 周（周六执行，6表示周六）
-            return f"{minute} {hour} * * 6"
+            # cron格式: 分 时 日 月 周（APScheduler中：0=周一，5=周六，6=周日）
+            # 使用5表示周六执行
+            return f"{minute} {hour} * * 5"
         except (ValueError, AttributeError):
             return None
     

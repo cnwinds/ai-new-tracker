@@ -16,10 +16,8 @@ import {
   message,
   Spin,
   Alert,
-  Switch,
-  TimePicker,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined, SettingOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import type { SummaryGenerateRequest, Article } from '@/types';
@@ -74,9 +72,7 @@ const isInWeekRange = (date: dayjs.Dayjs, weekDate: dayjs.Dayjs | null) => {
 
 export default function DailySummary() {
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
-  const [configModalVisible, setConfigModalVisible] = useState(false);
   const [form] = Form.useForm();
-  const [configForm] = Form.useForm();
   const queryClient = useQueryClient();
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [selectedWeekDate, setSelectedWeekDate] = useState<dayjs.Dayjs | null>(null);
@@ -88,11 +84,6 @@ export default function DailySummary() {
   const { data: summaries, isLoading } = useQuery({
     queryKey: ['summaries'],
     queryFn: () => apiService.getSummaries(50),
-  });
-
-  const { data: summarySettings, isLoading: settingsLoading } = useQuery({
-    queryKey: ['summarySettings'],
-    queryFn: () => apiService.getSummarySettings(),
   });
 
   const generateMutation = useMutation({
@@ -131,18 +122,6 @@ export default function DailySummary() {
     },
     onError: (error) => {
       showError(error, '删除摘要失败');
-    },
-  });
-
-  const updateSettingsMutation = useMutation({
-    mutationFn: (data: any) => apiService.updateSummarySettings(data),
-    onSuccess: () => {
-      message.success('配置保存成功');
-      setConfigModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['summarySettings'] });
-    },
-    onError: (error) => {
-      showError(error, '保存配置失败');
     },
   });
 
@@ -253,47 +232,18 @@ export default function DailySummary() {
     });
   };
 
-  const handleConfigOpen = () => {
-    if (summarySettings) {
-      configForm.setFieldsValue({
-        daily_summary_enabled: summarySettings.daily_summary_enabled,
-        daily_summary_time: summarySettings.daily_summary_time ? dayjs(summarySettings.daily_summary_time, 'HH:mm') : dayjs('09:00', 'HH:mm'),
-        weekly_summary_enabled: summarySettings.weekly_summary_enabled,
-        weekly_summary_time: summarySettings.weekly_summary_time ? dayjs(summarySettings.weekly_summary_time, 'HH:mm') : dayjs('09:00', 'HH:mm'),
-      });
-    }
-    setConfigModalVisible(true);
-  };
-
-  const handleConfigSave = (values: any) => {
-    updateSettingsMutation.mutate({
-      daily_summary_enabled: values.daily_summary_enabled,
-      daily_summary_time: values.daily_summary_time ? values.daily_summary_time.format('HH:mm') : '09:00',
-      weekly_summary_enabled: values.weekly_summary_enabled,
-      weekly_summary_time: values.weekly_summary_time ? values.weekly_summary_time.format('HH:mm') : '09:00',
-    });
-  };
-
   return (
     <div>
       <Card
         title="📊 内容总结"
         extra={
-          <Space>
-            <Button
-              icon={<SettingOutlined />}
-              onClick={handleConfigOpen}
-            >
-              自动总结配置
-            </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setGenerateModalVisible(true)}
-            >
-              生成新摘要
-            </Button>
-          </Space>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setGenerateModalVisible(true)}
+          >
+            生成新摘要
+          </Button>
         }
       >
         {isLoading ? (
@@ -598,116 +548,6 @@ export default function DailySummary() {
                   </>
                 );
               }}
-            </Form.Item>
-          </Form>
-        </Spin>
-      </Modal>
-
-      <Modal
-        title="自动总结配置"
-        open={configModalVisible}
-        onCancel={() => {
-          if (!updateSettingsMutation.isPending) {
-            setConfigModalVisible(false);
-            configForm.resetFields();
-          }
-        }}
-        onOk={() => configForm.submit()}
-        confirmLoading={updateSettingsMutation.isPending}
-        okText={updateSettingsMutation.isPending ? '保存中...' : '保存'}
-        cancelButtonProps={{ disabled: updateSettingsMutation.isPending }}
-        width={600}
-        closable={!updateSettingsMutation.isPending}
-        maskClosable={!updateSettingsMutation.isPending}
-      >
-        <Spin spinning={settingsLoading}>
-          <Form
-            form={configForm}
-            onFinish={handleConfigSave}
-            layout="vertical"
-            initialValues={{
-              daily_summary_enabled: true,
-              daily_summary_time: dayjs('09:00', 'HH:mm'),
-              weekly_summary_enabled: true,
-              weekly_summary_time: dayjs('09:00', 'HH:mm'),
-            }}
-          >
-            <Form.Item label="每日总结">
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Form.Item
-                  name="daily_summary_enabled"
-                  valuePropName="checked"
-                  style={{ marginBottom: 0 }}
-                >
-                  <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-                </Form.Item>
-                <Form.Item
-                  noStyle
-                  shouldUpdate={(prevValues, currentValues) =>
-                    prevValues.daily_summary_enabled !== currentValues.daily_summary_enabled
-                  }
-                >
-                  {({ getFieldValue }) => {
-                    const enabled = getFieldValue('daily_summary_enabled');
-                    return (
-                      <Form.Item
-                        name="daily_summary_time"
-                        label="执行时间"
-                        style={{ marginBottom: 0 }}
-                      >
-                        <TimePicker
-                          format="HH:mm"
-                          style={{ width: '100%' }}
-                          disabled={!enabled}
-                          placeholder="选择时间（默认09:00）"
-                        />
-                      </Form.Item>
-                    );
-                  }}
-                </Form.Item>
-                <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                  每日总结将在每天指定时间自动生成（统计昨天的内容）
-                </Typography.Text>
-              </Space>
-            </Form.Item>
-
-            <Form.Item label="每周总结" style={{ marginTop: 24 }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Form.Item
-                  name="weekly_summary_enabled"
-                  valuePropName="checked"
-                  style={{ marginBottom: 0 }}
-                >
-                  <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-                </Form.Item>
-                <Form.Item
-                  noStyle
-                  shouldUpdate={(prevValues, currentValues) =>
-                    prevValues.weekly_summary_enabled !== currentValues.weekly_summary_enabled
-                  }
-                >
-                  {({ getFieldValue }) => {
-                    const enabled = getFieldValue('weekly_summary_enabled');
-                    return (
-                      <Form.Item
-                        name="weekly_summary_time"
-                        label="执行时间（周六执行）"
-                        style={{ marginBottom: 0 }}
-                      >
-                        <TimePicker
-                          format="HH:mm"
-                          style={{ width: '100%' }}
-                          disabled={!enabled}
-                          placeholder="选择时间（默认09:00）"
-                        />
-                      </Form.Item>
-                    );
-                  }}
-                </Form.Item>
-                <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
-                  每周总结将在每周六指定时间自动生成（统计上周的内容，周跨度：上周六、上周日、上周一到上周五）
-                </Typography.Text>
-              </Space>
             </Form.Item>
           </Form>
         </Spin>
