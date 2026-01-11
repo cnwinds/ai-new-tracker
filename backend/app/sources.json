@@ -65,6 +65,16 @@
       "priority": 1,
       "source_type": "rss",
       "description": "追踪人工智能新趋势，报道科技行业新突破"
+    },
+    {
+      "name": "宝玉的分享",
+      "url": "https://baoyu.io/feed.xml",
+      "category": "individual",
+      "enabled": true,
+      "language": "zh",
+      "priority": 2,
+      "source_type": "rss",
+      "description": "宝玉的工程技术分享，专注AI、编程和产品思考"
     }
   ],
   "api_sources": [
