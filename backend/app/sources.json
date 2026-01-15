@@ -249,6 +249,24 @@
         "nitter_instance": "https://nitter.net",
         "max_tweets": 20
       }
+    },
+    {
+      "name": "AI 热门推文 (TwitterAPI.io)",
+      "url": "https://api.twitterapi.io/twitter/tweet/advanced_search",
+      "category": "social",
+      "enabled": false,
+      "language": "en",
+      "priority": 2,
+      "source_type": "api",
+      "sub_type": "twitter",
+      "description": "使用 TwitterAPI.io 采集 X 上关于 AI 的热门帖子（url 字段不会被使用，仅作为占位符）",
+      "extra_config": {
+        "method": "twitterapi_io",
+        "query": "AI",
+        "queryType": "Latest",
+        "api_key": "YOUR_API_KEY_HERE",
+        "max_tweets": 20
+      }
     }
   ],
   "web_sources": [
