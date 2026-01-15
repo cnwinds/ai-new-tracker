@@ -1217,6 +1217,10 @@ class CollectionService:
                     extra_config = self._parse_json_safely(source.extra_config)
                     if extra_config:
                         config.update(extra_config)
+                
+                # 读取analysis_prompt配置
+                if source.analysis_prompt:
+                    config["analysis_prompt"] = source.analysis_prompt
 
                 email_configs.append(config)
             session.expunge_all()
@@ -1255,6 +1259,13 @@ class CollectionService:
                     stats["sources_error"] += 1
                     self._log_collection(db, source_name, "email", "error", 0, "未获取到文章", task_id=task_id)
                     continue
+
+                # 检查是否需要多文章解析
+                analysis_prompt = config.get("analysis_prompt", "")
+                if analysis_prompt and self._is_multi_article_prompt(analysis_prompt) and self.ai_analyzer:
+                    logger.info(f"  🔍 检测到多文章解析提示词，开始解析邮件内容...")
+                    articles = self._extract_multiple_articles_from_emails(articles, analysis_prompt, source_name)
+                    logger.info(f"  ✅ 多文章解析完成，提取到 {len(articles)} 篇文章")
 
                 process_result = self._process_articles_from_source(db, articles, source_name, "email", enable_ai_analysis, task_id=task_id)
 
@@ -1779,6 +1790,179 @@ class CollectionService:
             return None
 
         return self.summary_generator.generate_daily_summary(db, date)
+
+    def _is_multi_article_prompt(self, prompt: str) -> bool:
+        """
+        检查提示词是否包含多文章解析的指示
+        
+        Args:
+            prompt: 提示词文本
+            
+        Returns:
+            如果提示词要求输出多篇文章（JSON格式，每篇文章一个item），返回True
+        """
+        if not prompt:
+            return False
+        
+        # 检查提示词中是否包含多文章解析的关键词
+        multi_article_keywords = [
+            "每篇文章一个item",
+            "每篇文章一个 item",
+            "每篇文章一个item",
+            "多个文章",
+            "多篇文章",
+            "文章列表",
+            "items",
+            "item数组",
+            "JSON格式",
+            "输出json",
+        ]
+        
+        prompt_lower = prompt.lower()
+        for keyword in multi_article_keywords:
+            if keyword.lower() in prompt_lower:
+                return True
+        
+        return False
+    
+    def _extract_multiple_articles_from_emails(
+        self, 
+        articles: List[ArticleDict], 
+        analysis_prompt: str,
+        source_name: str
+    ) -> List[ArticleDict]:
+        """
+        从邮件中提取多篇文章
+        
+        Args:
+            articles: 原始文章列表（每封邮件对应一篇文章）
+            analysis_prompt: 分析提示词
+            source_name: 源名称
+            
+        Returns:
+            提取后的文章列表（每篇文章对应一个item）
+        """
+        if not self.ai_analyzer:
+            logger.warning("⚠️  AI分析器未初始化，无法进行多文章解析")
+            return articles
+        
+        extracted_articles = []
+        
+        for article in articles:
+            try:
+                # 构建多文章解析的提示词
+                # 提示词应该要求输出JSON格式，包含一个items数组，每个item是一篇文章
+                multi_article_prompt = f"""{analysis_prompt}
+
+请将邮件内容解析为多篇文章，每篇文章一个item，输出JSON格式：
+{{
+    "items": [
+        {{
+            "title": "文章标题",
+            "content": "文章内容（保留Markdown格式和链接）",
+            "url": "文章链接（如果有）"
+        }},
+        ...
+    ]
+}}
+
+如果邮件中只有一篇文章，也请按照上述格式输出，items数组中只有一个item。
+如果邮件中没有文章内容，请返回空的items数组：{{"items": []}}
+
+邮件标题: {article.get("title", "")}
+邮件内容:
+{article.get("content", "")}
+"""
+                
+                logger.info(f"  🤖 正在解析邮件: {article.get('title', '')[:50]}...")
+                
+                # 调用AI分析器解析
+                result = self.ai_analyzer.client.chat.completions.create(
+                    model=self.ai_analyzer.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "你是一个专业的内容解析专家，擅长从邮件中提取多篇文章。请严格按照JSON格式输出，确保每个item都是完整的文章信息。"
+                        },
+                        {
+                            "role": "user",
+                            "content": multi_article_prompt
+                        }
+                    ],
+                    temperature=0.3,
+                    max_tokens=16000,  # 支持更长的输出
+                )
+                
+                result_text = result.choices[0].message.content.strip()
+                
+                # 解析JSON响应
+                json_text = result_text
+                if result_text.startswith('```'):
+                    # 提取JSON部分（去除 ```json 和 ``` 标记）
+                    lines = result_text.split('\n')
+                    json_lines = []
+                    started = False
+                    for line in lines:
+                        if line.strip().startswith('```'):
+                            if not started:
+                                started = True
+                                continue
+                            else:
+                                break
+                        if started:
+                            json_lines.append(line)
+                    json_text = '\n'.join(json_lines)
+                
+                # 解析JSON
+                parsed_result = json.loads(json_text)
+                
+                # 提取items数组
+                items = parsed_result.get("items", [])
+                
+                if not items:
+                    logger.warning(f"  ⚠️  邮件中未提取到文章: {article.get('title', '')[:50]}...")
+                    # 如果没有提取到文章，保留原始文章
+                    extracted_articles.append(article)
+                    continue
+                
+                logger.info(f"  ✅ 从邮件中提取到 {len(items)} 篇文章")
+                
+                # 将每个item转换为文章对象
+                for idx, item in enumerate(items):
+                    # 使用原始文章的元数据
+                    extracted_article = {
+                        "title": item.get("title", article.get("title", f"文章 {idx + 1}")),
+                        "url": item.get("url", article.get("url", "")),
+                        "content": item.get("content", ""),
+                        "source": source_name,
+                        "author": article.get("author", ""),
+                        "published_at": article.get("published_at", datetime.now()),
+                        "category": "email",
+                        "metadata": {
+                            **article.get("metadata", {}),
+                            "extracted_from_email": True,
+                            "email_title": article.get("title", ""),
+                            "article_index": idx + 1,
+                            "total_articles": len(items),
+                        },
+                    }
+                    
+                    extracted_articles.append(extracted_article)
+                    
+            except json.JSONDecodeError as e:
+                logger.error(f"  ❌ JSON解析失败: {e}")
+                if 'result_text' in locals():
+                    logger.error(f"  原始响应: {result_text[:500]}...")
+                # 解析失败，保留原始文章
+                extracted_articles.append(article)
+            except Exception as e:
+                logger.error(f"  ❌ 多文章解析失败: {e}")
+                import traceback
+                logger.error(f"  详细错误: {traceback.format_exc()}")
+                # 解析失败，保留原始文章
+                extracted_articles.append(article)
+        
+        return extracted_articles
 
     def generate_weekly_summary(self, db, date: datetime = None):
         """

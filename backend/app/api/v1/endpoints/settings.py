@@ -726,10 +726,13 @@ async def backup_database(
 
 @router.post("/database/restore")
 async def restore_database(
-    file: UploadFile = File(...),
+    file: UploadFile = File(..., max_length=100 * 1024 * 1024),  # 限制最大100MB
     current_user: str = Depends(require_auth),
 ):
-    """还原数据库（上传数据库文件）"""
+    """还原数据库（上传数据库文件）
+    
+    文件大小限制：最大 100MB
+    """
     try:
         from backend.app.core.paths import APP_ROOT
         
@@ -756,8 +759,18 @@ async def restore_database(
         # 保存上传的文件
         temp_restore_path = backup_dir / f"temp_restore_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
         
+        # 读取文件内容并验证大小
+        MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+        content = await file.read()
+        
+        # 验证文件大小（在读取后检查，更可靠）
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE / (1024 * 1024):.0f}MB，实际 {len(content) / (1024 * 1024):.2f}MB）"
+            )
+        
         with open(temp_restore_path, "wb") as f:
-            content = await file.read()
             f.write(content)
         
         # 验证文件是否为有效的SQLite数据库
