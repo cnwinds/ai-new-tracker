@@ -86,10 +86,14 @@ async def get_articles(
     db: Session = Depends(get_database),
 ):
     """获取文章列表（支持筛选和分页）
-    
+
     默认只返回标题行显示所需的基本字段，不返回详细信息以节省网络流量。
     详细信息包括：author, summary, content, tags, user_notes等。
     仅在需要时设置include_details=True，或使用/articles/{id}/fields接口按需获取。
+
+    sources 参数支持两种模式：
+    1. 精确匹配订阅源名称
+    2. 模糊搜索：如果输入的不是真实的订阅源名称，将在标题和内容中搜索关键词
     """
     # 解析筛选参数
     time_threshold = _parse_time_range(time_range) if time_range else None
@@ -97,19 +101,53 @@ async def get_articles(
     exclude_sources_list = exclude_sources.split(",") if exclude_sources else None
     importance_list = importance.split(",") if importance else None
     category_list = category.split(",") if category else None
-    
+
     # 处理"未分析"重要性
     include_unimportance = False
     if importance_list and "未分析" in importance_list:
         include_unimportance = True
         importance_list = [i for i in importance_list if i != "未分析"]
-    
+
+    # 获取所有真实的订阅源名称
+    from backend.app.db.models import RSSSource
+    all_source_names = set()
+    if sources_list:
+        real_sources = db.query(RSSSource.name).filter(RSSSource.name.in_(sources_list)).all()
+        all_source_names = set([s[0] for s in real_sources])
+
     # 获取文章总数（用于分页）
     articles_query = db.query(Article)
     if time_threshold:
         articles_query = articles_query.filter(Article.published_at >= time_threshold)
+
+    # 处理 sources 参数：支持精确匹配订阅源 + 模糊搜索关键词
     if sources_list:
-        articles_query = articles_query.filter(Article.source.in_(sources_list))
+        # 分离真实的订阅源和搜索关键词
+        real_sources = [s for s in sources_list if s in all_source_names]
+        search_keywords = [s for s in sources_list if s not in all_source_names]
+
+        # 构建查询条件
+        source_conditions = []
+        if real_sources:
+            # 精确匹配真实订阅源
+            source_conditions.append(Article.source.in_(real_sources))
+
+        if search_keywords:
+            # 对每个关键词进行模糊搜索（标题或内容）
+            for keyword in search_keywords:
+                keyword_pattern = f"%{keyword}%"
+                # 标题、内容或摘要中包含关键词
+                source_conditions.append(
+                    (Article.title.ilike(keyword_pattern)) |
+                    (Article.content.ilike(keyword_pattern)) |
+                    (Article.summary.ilike(keyword_pattern))
+                )
+
+        # 组合所有条件（OR关系）
+        if source_conditions:
+            from sqlalchemy import or_
+            articles_query = articles_query.filter(or_(*source_conditions))
+
     if exclude_sources_list:
         articles_query = articles_query.filter(~Article.source.in_(exclude_sources_list))
     if importance_list or include_unimportance:

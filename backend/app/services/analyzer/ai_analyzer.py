@@ -187,6 +187,22 @@ class AIAnalyzer:
                         result = self._parse_text_response(result_text) if result_text else self._parse_text_response("")
                 except Exception as e:
                     # 其他异常（如API调用失败）
+                    error_msg = str(e)
+
+                    # 检查是否是请求体过大错误
+                    if "Exceeded limit on max bytes to request body" in error_msg or "6291456" in error_msg:
+                        logger.error(f"❌ 第 {attempt + 1} 次尝试失败: 请求体过大（超过 6MB 限制）")
+                        logger.error(f"   标题: {title[:100]}")
+                        logger.error(f"   URL: {url[:100]}")
+                        logger.error(f"   内容长度: {len(content)} 字符")
+                        logger.error(f"   提示词长度: {len(prompt)} 字符")
+                        # 计算估算的请求体大小（UTF-8编码）
+                        estimated_size = len(prompt.encode('utf-8')) + len(json_format_section.encode('utf-8')) + 1000
+                        logger.error(f"   估算请求体大小: {estimated_size} 字节")
+
+                    if "Exceeded limit on max bytes to request body" in error_msg:
+                        logger.error(f"❌ API错误详情: {error_msg}")
+
                     logger.error(f"❌ 第 {attempt + 1} 次尝试失败: {e}")
                     if attempt < max_retries - 1:
                         logger.warning(f"⚠️  将进行第 {attempt + 2} 次重试...")
@@ -502,7 +518,7 @@ class AIAnalyzer:
     def _build_analysis_prompt(self, title: str, content: str, url: str = "", source: str = "", custom_task_description: str = None, is_email: bool = False) -> str:
         """
         构建分析提示词（整合自定义和默认提示词）
-        
+
         Args:
             title: 文章标题
             content: 文章内容
@@ -510,15 +526,28 @@ class AIAnalyzer:
             source: 来源名称
             custom_task_description: 自定义任务描述模板（可选），支持变量：{title}, {content}, {source}, {url}
                                     如果提供则使用自定义描述，否则使用默认描述
-            is_email: 是否为邮件类型（邮件不限制内容长度）
-        
+            is_email: 是否为邮件类型（邮件支持更长的内容）
+
         Returns:
             完整的提示词（包含任务描述和JSON格式要求）
         """
-        # 不限制内容长度，使用完整内容
-        # 现代大模型（如GPT-4）支持很大的上下文窗口（128K tokens），
-        # 如果内容过长导致token超限，API会返回错误，我们可以在错误处理中再考虑截断
-        content_preview = content if content else "无内容"
+        # 智能截断内容，避免超过 API 请求体大小限制
+        # DashScope API 限制: 6MB (约 300万中文字符或 150万英文单词)
+        # 实际使用中设置为 50万字符作为安全阈值（约 1MB）
+        MAX_CONTENT_LENGTH = 500000  # 邮件类型
+        MAX_CONTENT_LENGTH_SHORT = 100000  # 普通类型
+
+        if not content:
+            content_preview = "无内容"
+        else:
+            # 根据类型选择最大长度
+            max_length = MAX_CONTENT_LENGTH if is_email else MAX_CONTENT_LENGTH_SHORT
+
+            if len(content) > max_length:
+                logger.warning(f"⚠️  内容过长 ({len(content)} 字符)，截断至 {max_length} 字符")
+                content_preview = content[:max_length] + "\n\n[注: 内容过长，已截断]"
+            else:
+                content_preview = content
         
         # JSON格式要求部分（两个函数共用）
         json_format_section = """

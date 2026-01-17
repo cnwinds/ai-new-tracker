@@ -268,25 +268,19 @@ class WebCollector(BaseCollector):
 
         return None
 
-    def _fetch_article_details(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _fetch_article_details_from_soup(self, soup: BeautifulSoup, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """
-        从详情页获取文章的完整内容、作者和日期
+        从已解析的BeautifulSoup对象中提取文章的完整内容、作者和日期
 
         Args:
-            url: 文章URL
+            soup: 已解析的BeautifulSoup对象
+            url: 文章URL（用于日志）
             config: 配置字典
 
         Returns:
             包含 content, author, published_at 的字典
         """
         try:
-            logger.debug(f"📄 正在获取详情页内容: {url}")
-            headers = {"User-Agent": self.user_agent}
-            response = requests.get(url, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, "html.parser")
-
             result = {}
 
             # 获取内容
@@ -348,6 +342,32 @@ class WebCollector(BaseCollector):
                                 pass
 
             return result
+
+        except Exception as e:
+            logger.warning(f"⚠️  解析详情页内容失败 {url}: {e}")
+            return {}
+
+    def _fetch_article_details(self, url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        从详情页获取文章的完整内容、作者和日期
+
+        Args:
+            url: 文章URL
+            config: 配置字典
+
+        Returns:
+            包含 content, author, published_at 的字典
+        """
+        try:
+            logger.debug(f"📄 正在获取详情页内容: {url}")
+            headers = {"User-Agent": self.user_agent}
+            response = requests.get(url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.content, "html.parser")
+
+            # 调用新的辅助方法
+            return self._fetch_article_details_from_soup(soup, url, config)
 
         except requests.RequestException as e:
             logger.warning(f"⚠️  获取详情页内容失败 {url}: {e}")
@@ -414,20 +434,40 @@ class WebCollector(BaseCollector):
             完整内容文本
         """
         try:
-            result = self._fetch_article_details(url, {})
+            # 检查是否是 PDF 文件
+            from backend.app.services.collector.pdf_processor import get_pdf_processor
+            pdf_processor = get_pdf_processor()
 
-            # 检查是否是错误页面
-            content = result.get("content", "")
-            if content:
-                # 使用BeautifulSoup检查是否是错误页面
-                soup = BeautifulSoup(content, "html.parser") if "<html" in content.lower() or "<body" in content.lower() else None
-                if soup:
-                    page_text = soup.get_text()
-                    if self._is_error_page(page_text, soup):
-                        logger.warning(f"⚠️  URL返回错误页面，跳过: {url}")
-                        return ""
+            if pdf_processor.is_pdf_url(url):
+                logger.info(f"📕 检测到 PDF 文件，开始提取文本: {url}")
+                markdown_content, error = pdf_processor.pdf_to_markdown(url, timeout=self.timeout)
 
-            return content
+                if error:
+                    logger.warning(f"⚠️  PDF 提取失败: {error}")
+                    return ""
+
+                logger.info(f"✅ PDF 提取成功，内容长度: {len(markdown_content)} 字符")
+                return markdown_content
+
+            # 普通 HTML 页面处理
+            logger.debug(f"📄 正在获取完整内容: {url}")
+            headers = {"User-Agent": self.user_agent}
+            response = requests.get(url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+
+            # 解析HTML
+            soup = BeautifulSoup(response.content, "html.parser")
+
+            # ⭐ 先检查是否是错误页面（在提取内容之前）
+            page_text = soup.get_text()
+            if self._is_error_page(page_text, soup):
+                logger.warning(f"⚠️  URL返回错误页面，跳过: {url}")
+                return ""
+
+            # 提取文章完整内容
+            result = self._fetch_article_details_from_soup(soup, url, {})
+
+            return result.get("content", "")
         except Exception as e:
             logger.warning(f"⚠️  获取完整内容失败 {url}: {e}")
             return ""

@@ -85,16 +85,17 @@ export default function DataCleanup() {
           <Form.Item
             name="delete_articles_by_sources"
             label="删除指定订阅源的文章"
-            help="选择要删除的订阅源，可多选"
+            help="选择订阅源或输入关键词匹配文章（使用标题/内容搜索）"
           >
             <Select
-              mode="multiple"
-              placeholder="选择订阅源"
+              mode="tags"
+              placeholder="选择订阅源或输入关键词"
               style={{ width: '100%' }}
               allowClear
               maxTagCount="responsive"
               showSearch
               disabled={!isAuthenticated}
+              tokenSeparators={[',', ' ', '\n']}
               filterOption={(input, option) => {
                 if (option?.type === 'group') return true;
                 const label = String(option?.label ?? '');
@@ -102,8 +103,8 @@ export default function DataCleanup() {
               }}
             >
               {Object.entries(groupedSources).map(([type, sourcesList]) => (
-                <OptGroup 
-                  key={type} 
+                <OptGroup
+                  key={type}
                   label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
                 >
                   {sourcesList.map((source) => (

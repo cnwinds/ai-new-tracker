@@ -104,20 +104,20 @@ export default function ArticleList() {
                 onModeChange={handleFilterModeChange}
               />
               <Select
-                mode="multiple"
+                mode="tags"
                 placeholder={
-                  filter.source_filter_mode === 'exclude' 
-                    ? '排除订阅来源' 
-                    : '选择订阅来源'
+                  filter.source_filter_mode === 'exclude'
+                    ? '排除订阅源或搜索关键词'
+                    : '选择订阅源或输入关键词搜索'
                 }
-                style={{ 
-                  minWidth: 250,
+                style={{
+                  minWidth: 280,
                   borderTopLeftRadius: 0,
                   borderBottomLeftRadius: 0,
                 }}
                 value={
-                  filter.source_filter_mode === 'exclude' 
-                    ? filter.exclude_sources 
+                  filter.source_filter_mode === 'exclude'
+                    ? filter.exclude_sources
                     : filter.sources
                 }
                 onChange={handleSourceChange}
@@ -129,10 +129,11 @@ export default function ArticleList() {
                   const label = String(option?.label ?? '');
                   return label.toLowerCase().includes(input.toLowerCase());
                 }}
+                tokenSeparators={[',', ' ', '\n']}
               >
                 {Object.entries(groupedSources).map(([type, sourcesList]) => (
-                  <OptGroup 
-                    key={type} 
+                  <OptGroup
+                    key={type}
                     label={`${SOURCE_TYPE_LABELS[type] || type} (${sourcesList.length})`}
                   >
                     {sourcesList.map((source) => (

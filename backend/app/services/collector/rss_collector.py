@@ -381,6 +381,22 @@ class RSSCollector(BaseCollector):
             (完整内容文本, 发布时间) 的元组
         """
         try:
+            # 检查是否是 PDF 文件
+            from backend.app.services.collector.pdf_processor import get_pdf_processor
+            pdf_processor = get_pdf_processor()
+
+            if pdf_processor.is_pdf_url(url):
+                logger.info(f"📕 检测到 PDF 文件，开始提取文本: {url}")
+                markdown_content, error = pdf_processor.pdf_to_markdown(url, timeout=self.timeout)
+
+                if error:
+                    logger.warning(f"⚠️  PDF 提取失败: {error}")
+                    return "", None
+
+                logger.info(f"✅ PDF 提取成功，内容长度: {len(markdown_content)} 字符")
+                return markdown_content, None
+
+            # 普通 HTML 页面处理
             logger.info(f"📄 正在获取完整内容: {url}")
             headers = {"User-Agent": self.user_agent}
             response = requests.get(url, headers=headers, timeout=self.timeout)
@@ -389,10 +405,8 @@ class RSSCollector(BaseCollector):
             # 解析HTML
             soup = BeautifulSoup(response.content, "html.parser")
 
-            # 获取页面文本内容用于错误检测
+            # ⭐ 先检查是否是错误页面（在提取内容之前）
             page_text = soup.get_text()
-
-            # 检查是否是错误页面
             if self._is_error_page(page_text, soup):
                 logger.warning(f"⚠️  URL返回错误页面，跳过内容提取: {url}")
                 return "", None

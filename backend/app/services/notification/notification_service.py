@@ -279,6 +279,114 @@ class NotificationService:
                 logger.error(f"❌ 记录通知日志失败: {e}")
                 db.rollback()
 
+    def send_weekly_summary(
+        self,
+        summary_content: str,
+        db: Union[Session, DatabaseManager],
+        limit: int = 20
+    ) -> bool:
+        """
+        发送每周摘要
+
+        Args:
+            summary_content: 摘要内容
+            db: 数据库会话或数据库管理器
+            limit: 推荐文章数量限制
+
+        Returns:
+            是否发送成功
+        """
+        # 检查是否在勿扰时段内
+        if self._is_in_quiet_hours():
+            logger.info("⏰ 当前处于勿扰时段，跳过每周摘要通知")
+            return False
+
+        # 如果是 DatabaseManager，使用上下文管理器获取会话
+        if isinstance(db, DatabaseManager):
+            try:
+                with db.get_session() as session:
+                    # 获取推荐文章
+                    articles = (
+                        session.query(Article)
+                        .filter(Article.importance.in_(["high", "medium"]))
+                        .order_by(Article.published_at.desc())
+                        .limit(limit)
+                        .all()
+                    )
+
+                    # 构建消息内容
+                    if self.platform == "feishu":
+                        content = self._build_feishu_weekly_summary_message(summary_content, articles)
+                    else:  # dingtalk
+                        content = self._build_dingtalk_weekly_summary_message(summary_content, articles)
+
+                    # 发送消息
+                    success = self._send_message(content)
+
+                    # 记录日志（传递 DatabaseManager，让 _log_notification 处理）
+                    self._log_notification(
+                        db=db,
+                        notification_type="weekly_summary",
+                        status="success" if success else "error",
+                        articles_count=len(articles),
+                        error_message=None if success else "发送失败"
+                    )
+
+                    return success
+
+            except Exception as e:
+                logger.error(f"❌ 发送每周摘要失败: {e}", exc_info=True)
+                self._log_notification(
+                    db=db,
+                    notification_type="weekly_summary",
+                    status="error",
+                    articles_count=0,
+                    error_message=str(e)
+                )
+                return False
+        else:
+            # 如果是 Session，直接使用
+            try:
+                # 获取推荐文章
+                articles = (
+                    db.query(Article)
+                    .filter(Article.importance.in_(["high", "medium"]))
+                    .order_by(Article.published_at.desc())
+                    .limit(limit)
+                    .all()
+                )
+
+                # 构建消息内容
+                if self.platform == "feishu":
+                    content = self._build_feishu_weekly_summary_message(summary_content, articles)
+                else:  # dingtalk
+                    content = self._build_dingtalk_weekly_summary_message(summary_content, articles)
+
+                # 发送消息
+                success = self._send_message(content)
+
+                # 记录日志
+                self._log_notification(
+                    db=db,
+                    notification_type="weekly_summary",
+                    status="success" if success else "error",
+                    articles_count=len(articles),
+                    error_message=None if success else "发送失败"
+                )
+
+                return success
+
+            except Exception as e:
+                logger.error(f"❌ 发送每周摘要失败: {e}", exc_info=True)
+                self._log_notification(
+                    db=db,
+                    notification_type="weekly_summary",
+                    status="error",
+                    articles_count=0,
+                    error_message=str(e)
+                )
+                return False
+
     def send_daily_summary(
         self,
         summary_content: str,
@@ -286,13 +394,13 @@ class NotificationService:
         limit: int = 20
     ) -> bool:
         """
-        发送每日/每周摘要
-        
+        发送每日摘要
+
         Args:
             summary_content: 摘要内容
             db: 数据库会话或数据库管理器
             limit: 推荐文章数量限制
-            
+
         Returns:
             是否发送成功
         """
@@ -437,12 +545,12 @@ class NotificationService:
                 )
             return False
 
-    def _build_feishu_summary_message(
+    def _build_feishu_weekly_summary_message(
         self,
         summary_content: str,
         articles: List[Article]
     ) -> Dict[str, Any]:
-        """构建飞书摘要消息"""
+        """构建飞书每周摘要消息"""
         # 构建推荐文章列表
         article_elements = []
         for article in articles[:10]:  # 最多显示10篇
@@ -454,7 +562,98 @@ class NotificationService:
                     "content": f"• [{title}]({article.url})"
                 }
             })
-        
+
+        content = {
+            "msg_type": "interactive",
+            "card": {
+                "config": {
+                    "wide_screen_mode": True
+                },
+                "header": {
+                    "title": {
+                        "tag": "plain_text",
+                        "content": "📰 AI新闻每周摘要"
+                    },
+                    "template": "blue"
+                },
+                "elements": [
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": f"**摘要内容**\n\n{summary_content}"
+                        }
+                    },
+                    {
+                        "tag": "hr"
+                    },
+                    {
+                        "tag": "div",
+                        "text": {
+                            "tag": "lark_md",
+                            "content": f"**推荐文章** ({len(articles)} 篇)"
+                        }
+                    },
+                    *article_elements
+                ]
+            }
+        }
+
+        return content
+
+    def _build_dingtalk_weekly_summary_message(
+        self,
+        summary_content: str,
+        articles: List[Article]
+    ) -> Dict[str, Any]:
+        """构建钉钉每周摘要消息"""
+        # 构建推荐文章列表
+        article_list = []
+        for article in articles[:10]:  # 最多显示10篇
+            title = article.title_zh or article.title
+            article_list.append(f"• [{title}]({article.url})")
+
+        articles_text = "\n".join(article_list) if article_list else "暂无推荐文章"
+
+        content = {
+            "msgtype": "markdown",
+            "markdown": {
+                "title": "📰 AI新闻每周摘要",
+                "text": f"""## 📰 AI新闻每周摘要
+
+**摘要内容**
+
+{summary_content}
+
+---
+
+**推荐文章** ({len(articles)} 篇)
+
+{articles_text}
+"""
+            }
+        }
+
+        return content
+
+    def _build_feishu_summary_message(
+        self,
+        summary_content: str,
+        articles: List[Article]
+    ) -> Dict[str, Any]:
+        """构建飞书每日摘要消息"""
+        # 构建推荐文章列表
+        article_elements = []
+        for article in articles[:10]:  # 最多显示10篇
+            title = article.title_zh or article.title
+            article_elements.append({
+                "tag": "div",
+                "text": {
+                    "tag": "lark_md",
+                    "content": f"• [{title}]({article.url})"
+                }
+            })
+
         content = {
             "msg_type": "interactive",
             "card": {
@@ -490,7 +689,7 @@ class NotificationService:
                 ]
             }
         }
-        
+
         return content
 
     def _build_dingtalk_summary_message(
