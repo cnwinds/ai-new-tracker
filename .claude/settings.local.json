@@ -6,6 +6,8 @@
       "Bash(python:*)",
       "Bash(cd:*)",
       "Bash(git:*)",
+      "Read(C:\\Users\\Administrator\\Downloads\\n8n信息聚合器.json)",
+      "Bash(head:*)",
       "mcp__acp__Bash"
     ],
     "deny": [],

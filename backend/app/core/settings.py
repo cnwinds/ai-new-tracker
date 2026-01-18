@@ -78,6 +78,7 @@ class Settings:
         self._image_settings_loaded = False
         self._collector_settings_loaded = False
         self._notification_settings_loaded = False
+        self._social_media_settings_loaded = False
         
         # 设置默认值（如果数据库中没有配置，将使用这些值）
         self.MAX_ARTICLE_AGE_DAYS: int = int(os.getenv("MAX_ARTICLE_AGE_DAYS", "30"))
@@ -97,6 +98,18 @@ class Settings:
         # 图片生成提供商选择配置（从数据库加载）
         self.SELECTED_IMAGE_PROVIDER_ID: Optional[int] = None
         self.SELECTED_IMAGE_MODELS: List[str] = []  # 选定的图片生成模型列表
+        
+        # 社交平台API密钥配置（从数据库加载）
+        self.YOUTUBE_API_KEY: Optional[str] = None
+        self.TIKTOK_API_KEY: Optional[str] = None
+        self.TWITTER_API_KEY: Optional[str] = None
+        self.REDDIT_CLIENT_ID: Optional[str] = None
+        self.REDDIT_CLIENT_SECRET: Optional[str] = None
+        self.REDDIT_USER_AGENT: Optional[str] = None
+        
+        # 社交平台定时任务配置（从数据库加载）
+        self.SOCIAL_MEDIA_AUTO_REPORT_ENABLED: bool = False
+        self.SOCIAL_MEDIA_AUTO_REPORT_TIME: str = "09:00"
 
     def is_ai_enabled(self) -> bool:
         """检查AI分析是否启用"""
@@ -131,6 +144,7 @@ class Settings:
         self._load_image_settings()
         self._load_collector_settings()
         self._load_notification_settings()
+        self._load_social_media_settings()
     
     def _load_collection_settings(self):
         """加载采集配置（从数据库读取，支持运行时修改）"""
@@ -913,6 +927,171 @@ class Settings:
         except Exception as e:
             logger.error(f"保存通知配置失败: {e}")
             return False
+    
+    def _load_social_media_settings(self):
+        """加载社交平台配置（从数据库读取，支持运行时修改）"""
+        if self._social_media_settings_loaded:
+            return
+
+        try:
+            from backend.app.db import get_db
+            from backend.app.db.repositories import AppSettingsRepository
+
+            db = get_db()
+            # 确保数据库已初始化
+            if not hasattr(db, 'engine'):
+                return
+
+            with db.get_session() as session:
+                self.YOUTUBE_API_KEY = AppSettingsRepository.get_setting(
+                    session, "youtube_api_key", None
+                )
+                self.TIKTOK_API_KEY = AppSettingsRepository.get_setting(
+                    session, "tiktok_api_key", None
+                )
+                self.TWITTER_API_KEY = AppSettingsRepository.get_setting(
+                    session, "twitter_api_key", None
+                )
+                self.REDDIT_CLIENT_ID = AppSettingsRepository.get_setting(
+                    session, "reddit_client_id", None
+                )
+                self.REDDIT_CLIENT_SECRET = AppSettingsRepository.get_setting(
+                    session, "reddit_client_secret", None
+                )
+                self.REDDIT_USER_AGENT = AppSettingsRepository.get_setting(
+                    session, "reddit_user_agent", None
+                )
+                # 加载定时任务配置
+                self.SOCIAL_MEDIA_AUTO_REPORT_ENABLED = AppSettingsRepository.get_setting(
+                    session, "social_media_auto_report_enabled", False
+                )
+                self.SOCIAL_MEDIA_AUTO_REPORT_TIME = AppSettingsRepository.get_setting(
+                    session, "social_media_auto_report_time", "09:00"
+                )
+
+            # 兼容环境变量（如果数据库中没有配置，尝试从环境变量读取）
+            if not self.YOUTUBE_API_KEY:
+                self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", None)
+            if not self.TIKTOK_API_KEY:
+                self.TIKTOK_API_KEY = os.getenv("TIKTOK_API_KEY", None)
+            if not self.TWITTER_API_KEY:
+                self.TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", None)
+            if not self.REDDIT_CLIENT_ID:
+                self.REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", None)
+            if not self.REDDIT_CLIENT_SECRET:
+                self.REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", None)
+            if not self.REDDIT_USER_AGENT:
+                self.REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", None)
+
+            self._social_media_settings_loaded = True
+        except Exception as e:
+            # 如果数据库未初始化或读取失败，尝试从环境变量读取
+            logger.debug(f"从数据库加载社交平台配置失败，尝试从环境变量读取: {e}")
+            self.YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", None)
+            self.TIKTOK_API_KEY = os.getenv("TIKTOK_API_KEY", None)
+            self.TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", None)
+            self.REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", None)
+            self.REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", None)
+            self.REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", None)
+    
+    def load_social_media_settings(self):
+        """公共方法：强制重新加载社交平台配置（从数据库读取最新值）"""
+        self._social_media_settings_loaded = False
+        self._load_social_media_settings()
+    
+    def save_social_media_settings(
+        self,
+        youtube_api_key: Optional[str] = None,
+        tiktok_api_key: Optional[str] = None,
+        twitter_api_key: Optional[str] = None,
+        reddit_client_id: Optional[str] = None,
+        reddit_client_secret: Optional[str] = None,
+        reddit_user_agent: Optional[str] = None,
+        auto_report_enabled: Optional[bool] = None,
+        auto_report_time: Optional[str] = None
+    ):
+        """保存社交平台配置到数据库"""
+        try:
+            from backend.app.db import get_db
+            from backend.app.db.repositories import AppSettingsRepository
+
+            db = get_db()
+            with db.get_session() as session:
+                if youtube_api_key is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "youtube_api_key", youtube_api_key, "string",
+                        "YouTube API密钥"
+                    )
+                    self.YOUTUBE_API_KEY = youtube_api_key
+
+                if tiktok_api_key is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "tiktok_api_key", tiktok_api_key, "string",
+                        "TikTok API密钥"
+                    )
+                    self.TIKTOK_API_KEY = tiktok_api_key
+
+                if twitter_api_key is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "twitter_api_key", twitter_api_key, "string",
+                        "Twitter API密钥"
+                    )
+                    self.TWITTER_API_KEY = twitter_api_key
+
+                if reddit_client_id is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "reddit_client_id", reddit_client_id, "string",
+                        "Reddit客户端ID"
+                    )
+                    self.REDDIT_CLIENT_ID = reddit_client_id
+
+                if reddit_client_secret is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "reddit_client_secret", reddit_client_secret, "string",
+                        "Reddit客户端密钥"
+                    )
+                    self.REDDIT_CLIENT_SECRET = reddit_client_secret
+
+                if reddit_user_agent is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "reddit_user_agent", reddit_user_agent, "string",
+                        "Reddit用户代理"
+                    )
+                    self.REDDIT_USER_AGENT = reddit_user_agent
+
+                # 保存定时任务配置
+                if auto_report_enabled is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "social_media_auto_report_enabled", auto_report_enabled, "bool",
+                        "是否启用定时生成AI小报"
+                    )
+                    self.SOCIAL_MEDIA_AUTO_REPORT_ENABLED = auto_report_enabled
+
+                if auto_report_time is not None:
+                    AppSettingsRepository.set_setting(
+                        session, "social_media_auto_report_time", auto_report_time, "string",
+                        "定时生成时间（格式：HH:MM）"
+                    )
+                    self.SOCIAL_MEDIA_AUTO_REPORT_TIME = auto_report_time
+
+            return True
+        except Exception as e:
+            logger.error(f"保存社交平台配置失败: {e}")
+            return False
+    
+    def get_social_media_auto_report_cron(self) -> Optional[str]:
+        """根据定时生成时间生成cron表达式"""
+        if not self.SOCIAL_MEDIA_AUTO_REPORT_ENABLED:
+            return None
+        
+        try:
+            hour, minute = self.SOCIAL_MEDIA_AUTO_REPORT_TIME.split(":")
+            hour = int(hour)
+            minute = int(minute)
+            # cron格式: 分 时 日 月 周（每天执行）
+            return f"{minute} {hour} * * *"
+        except (ValueError, AttributeError):
+            return None
 
 
 # 全局配置实例

@@ -1,5 +1,5 @@
 /**
- * 自动采集组件
+ * 采集日志组件
  */
 import { useState, useEffect } from 'react';
 import {
@@ -117,22 +117,22 @@ export default function CollectionHistory() {
     },
   });
 
-  // 获取自动采集配置
+  // 获取采集日志配置
   const { data: autoCollectionSettings } = useQuery({
     queryKey: ['auto-collection-settings'],
     queryFn: () => apiService.getAutoCollectionSettings(),
   });
 
-  // 更新自动采集配置
+  // 更新采集日志配置
   const updateAutoCollectionMutation = useMutation({
     mutationFn: (data: AutoCollectionSettings) => apiService.updateAutoCollectionSettings(data),
     onSuccess: () => {
-      message.success('自动采集设置已保存');
+      message.success('采集日志设置已保存');
       setAutoCollectionModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['auto-collection-settings'] });
     },
     onError: () => {
-      message.error('保存自动采集设置失败');
+      message.error('保存采集日志设置失败');
     },
   });
 
@@ -279,7 +279,7 @@ export default function CollectionHistory() {
   return (
     <div>
       <Card
-        title="🚀 自动采集"
+        title="🚀 采集日志"
         extra={
           <Space>
             <Button
@@ -287,7 +287,7 @@ export default function CollectionHistory() {
               onClick={() => setAutoCollectionModalVisible(true)}
               disabled={!isAuthenticated}
             >
-              自动采集设置
+              采集日志设置
             </Button>
             {status?.status === 'running' ? (
               <Button
@@ -526,9 +526,9 @@ export default function CollectionHistory() {
         )}
       </Modal>
 
-      {/* 自动采集设置Modal */}
+      {/* 采集日志设置Modal */}
       <Modal
-        title="自动采集设置"
+        title="采集日志设置"
         open={autoCollectionModalVisible}
         onCancel={() => {
           setAutoCollectionModalVisible(false);
@@ -553,7 +553,7 @@ export default function CollectionHistory() {
         >
           <Form.Item
             name="enabled"
-            label="启用自动采集"
+            label="启用采集日志"
             valuePropName="checked"
             initialValue={false}
           >
@@ -567,7 +567,7 @@ export default function CollectionHistory() {
               { required: true, message: '请输入采集间隔' },
               { type: 'number', min: 1, message: '采集间隔至少为1小时' },
             ]}
-            tooltip="设置自动采集的间隔时间，单位为小时"
+            tooltip="设置采集日志的间隔时间，单位为小时"
           >
             <InputNumber
               min={1}
@@ -616,7 +616,7 @@ export default function CollectionHistory() {
           
           {autoCollectionSettings?.enabled && (
             <Alert
-              message={`当前已启用自动采集，每 ${autoCollectionSettings.interval_hours} 小时执行一次`}
+              message={`当前已启用采集日志，每 ${autoCollectionSettings.interval_hours} 小时执行一次`}
               type="info"
               showIcon
               style={{ marginTop: 16 }}

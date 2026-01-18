@@ -124,6 +124,9 @@ class DatabaseManager:
             # 升级：将老格式的sub_type从extra_config中提取并写入sub_type字段
             self._upgrade_sub_type_fields()
             
+            # 迁移：添加 Reddit 字段到社交平台报告表（如果不存在）
+            self._migrate_add_reddit_fields()
+            
             logger.info("✅ 数据库基础表初始化成功")
         except Exception as e:
             logger.error(f"❌ 数据库初始化失败: {e}")
@@ -282,6 +285,57 @@ class DatabaseManager:
         except Exception as e:
             # 如果升级失败，记录但不中断
             logger.warning(f"⚠️  升级sub_type字段失败: {e}")
+
+    def _migrate_add_reddit_fields(self):
+        """迁移：为 social_media_reports 表添加 reddit_count 和 reddit_enabled 字段（如果不存在）"""
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(self.engine)
+            
+            # 检查表是否存在
+            try:
+                columns = [col['name'] for col in inspector.get_columns('social_media_reports')]
+            except Exception:
+                # 表不存在，跳过迁移
+                logger.debug("social_media_reports 表不存在，跳过 Reddit 字段迁移")
+                return
+            
+            # 添加 reddit_count 字段
+            if 'reddit_count' not in columns:
+                logger.info("🔄 检测到缺少 reddit_count 字段，正在添加...")
+                with self.engine.connect() as conn:
+                    conn.execute(text("""
+                        ALTER TABLE social_media_reports 
+                        ADD COLUMN reddit_count INTEGER DEFAULT 0
+                    """))
+                    # 更新现有记录的默认值
+                    conn.execute(text("""
+                        UPDATE social_media_reports 
+                        SET reddit_count = 0 
+                        WHERE reddit_count IS NULL
+                    """))
+                    conn.commit()
+                logger.info("✅ reddit_count 字段添加成功")
+            
+            # 添加 reddit_enabled 字段
+            if 'reddit_enabled' not in columns:
+                logger.info("🔄 检测到缺少 reddit_enabled 字段，正在添加...")
+                with self.engine.connect() as conn:
+                    conn.execute(text("""
+                        ALTER TABLE social_media_reports 
+                        ADD COLUMN reddit_enabled BOOLEAN DEFAULT 0
+                    """))
+                    # 更新现有记录的默认值
+                    conn.execute(text("""
+                        UPDATE social_media_reports 
+                        SET reddit_enabled = 0 
+                        WHERE reddit_enabled IS NULL
+                    """))
+                    conn.commit()
+                logger.info("✅ reddit_enabled 字段添加成功")
+        except Exception as e:
+            # 如果字段已存在或其他错误，记录但不中断
+            logger.debug(f"Reddit 字段迁移检查: {e}")
 
     def init_sqlite_vec_table(self, embedding_model: str = None):
         """

@@ -22,7 +22,7 @@ interface GlobalNavigationProps {
 export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationProps) {
   const { theme, toggleTheme } = useTheme();
   const { openModal, setSearchQuery, searchQuery } = useAIConversation();
-  const { isAuthenticated, username } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [, setIsFocused] = useState(false);
   const [articleDetailModalOpen, setArticleDetailModalOpen] = useState(false);
@@ -268,29 +268,24 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
         )}
       </div>
 
-      <div style={{ marginLeft: 'auto', minWidth: '120px' }}>
-        <Space>
-          {isAuthenticated && (
-            <span style={{ color: '#fff', marginRight: 8 }}>
-              {username}
-            </span>
-          )}
+      <div style={{ marginLeft: 'auto', minWidth: '120px', paddingRight: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+        <Space size="middle">
           <Button
             type="text"
-            icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+            icon={theme === 'dark' ? <SunOutlined style={{ fontSize: '18px' }} /> : <MoonOutlined style={{ fontSize: '18px' }} />}
             onClick={toggleTheme}
-            style={{ color: '#fff' }}
+            style={{ color: '#fff', fontSize: '18px', padding: '8px 12px' }}
             title={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
-          >
-            {theme === 'dark' ? '浅色' : '深色'}
-          </Button>
-          <Button
-            type="text"
-            icon={<SettingOutlined />}
-            style={{ color: '#fff' }}
-            title="设置"
-            onClick={onSettingsClick}
           />
+          {isAuthenticated && (
+            <Button
+              type="text"
+              icon={<SettingOutlined style={{ fontSize: '18px' }} />}
+              style={{ color: '#fff', fontSize: '18px', padding: '8px 12px' }}
+              title="设置"
+              onClick={onSettingsClick}
+            />
+          )}
         </Space>
       </div>
 

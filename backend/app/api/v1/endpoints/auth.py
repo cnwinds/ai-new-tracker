@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,7 +22,10 @@ router = APIRouter()
 security = HTTPBearer()
 
 # 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 直接使用 bcrypt 库，避免 passlib 初始化时的密码长度检测问题
+# passlib 在初始化时会检测 bcrypt 后端，使用的测试密码可能超过 72 字节导致错误
+# 因此我们直接使用 bcrypt 库，而不是通过 passlib
+pwd_context = None  # 标记为使用直接 bcrypt
 
 # JWT配置
 SECRET_KEY = settings.DATABASE_URL  # 使用数据库URL作为密钥（实际项目中应使用更安全的密钥）
@@ -51,13 +55,20 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     
     bcrypt 限制密码长度不能超过 72 字节，如果超过则截断
     """
-    # bcrypt 限制密码不能超过 72 字节
-    # 将密码编码为 UTF-8 字节，然后截断到 72 字节
-    password_bytes = plain_password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        plain_password = password_bytes.decode('utf-8', errors='ignore')
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # bcrypt 限制密码不能超过 72 字节
+        # 将密码编码为 UTF-8 字节，然后截断到 72 字节
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+            plain_password = password_bytes.decode('utf-8', errors='ignore')
+        
+        # 直接使用 bcrypt 库验证密码
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except (ValueError, TypeError, Exception) as e:
+        # 如果验证失败（可能是密码格式问题），返回 False
+        logging.error(f"密码验证错误: {e}")
+        return False
 
 
 def get_password_hash(password: str) -> str:
@@ -65,13 +76,22 @@ def get_password_hash(password: str) -> str:
     
     bcrypt 限制密码长度不能超过 72 字节，如果超过则截断
     """
-    # bcrypt 限制密码不能超过 72 字节
-    # 将密码编码为 UTF-8 字节，然后截断到 72 字节
-    password_bytes = password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-        password = password_bytes.decode('utf-8', errors='ignore')
-    return pwd_context.hash(password)
+    try:
+        # bcrypt 限制密码不能超过 72 字节
+        # 将密码编码为 UTF-8 字节，然后截断到 72 字节
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+            password = password_bytes.decode('utf-8', errors='ignore')
+        
+        # 直接使用 bcrypt 库生成密码哈希
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
+    except (ValueError, TypeError, Exception) as e:
+        # 如果哈希失败，记录错误并抛出异常
+        logging.error(f"密码哈希错误: {e}")
+        raise
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

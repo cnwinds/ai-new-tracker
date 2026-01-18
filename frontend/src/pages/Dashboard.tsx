@@ -9,6 +9,7 @@ import {
   ReadOutlined,
   LoginOutlined,
   LogoutOutlined,
+  ShareAltOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import ArticleList from '@/components/ArticleList';
@@ -17,6 +18,7 @@ import Statistics from '@/components/Statistics';
 import SystemSettings from '@/components/SystemSettings';
 import GlobalNavigation from '@/components/GlobalNavigation';
 import AIConversationModal from '@/components/AIConversationModal';
+import SocialMediaReport from '@/components/SocialMediaReport';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
@@ -60,6 +62,16 @@ export default function Dashboard() {
         </span>
       ),
       children: <DailySummary />,
+    },
+    {
+      key: 'social-media',
+      label: (
+        <span>
+          <ShareAltOutlined />
+          社交平台
+        </span>
+      ),
+      children: <SocialMediaReport />,
     },
     {
       key: 'statistics',

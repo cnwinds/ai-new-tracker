@@ -131,3 +131,15 @@ class ImageSettings(BaseModel):
     selected_image_models: Optional[List[str]] = Field(None, description="选定的图片生成模型列表")
 
 
+class SocialMediaSettings(BaseModel):
+    """社交平台配置模型"""
+    youtube_api_key: Optional[str] = Field(None, description="YouTube API密钥")
+    tiktok_api_key: Optional[str] = Field(None, description="TikTok API密钥")
+    twitter_api_key: Optional[str] = Field(None, description="Twitter API密钥")
+    reddit_client_id: Optional[str] = Field(None, description="Reddit客户端ID")
+    reddit_client_secret: Optional[str] = Field(None, description="Reddit客户端密钥")
+    reddit_user_agent: Optional[str] = Field(None, description="Reddit用户代理")
+    auto_report_enabled: bool = Field(default=False, description="是否启用定时生成AI小报")
+    auto_report_time: str = Field(default="09:00", description="定时生成时间（格式：HH:MM，如09:00）")
+
+

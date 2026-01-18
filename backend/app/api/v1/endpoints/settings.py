@@ -30,6 +30,7 @@ from backend.app.schemas.settings import (
     ImageProvider,
     ImageProviderCreate,
     ImageProviderUpdate,
+    SocialMediaSettings,
 )
 
 router = APIRouter()
@@ -841,4 +842,58 @@ async def restore_database(
             status_code=500,
             detail=f"还原数据库失败: {str(e)}"
         )
+
+
+@router.get("/social-media", response_model=SocialMediaSettings)
+async def get_social_media_settings():
+    """获取社交平台配置"""
+    # 确保从数据库加载最新配置
+    settings.load_social_media_settings()
+    return SocialMediaSettings(
+        youtube_api_key=settings.YOUTUBE_API_KEY or None,
+        tiktok_api_key=settings.TIKTOK_API_KEY or None,
+        twitter_api_key=settings.TWITTER_API_KEY or None,
+        reddit_client_id=settings.REDDIT_CLIENT_ID or None,
+        reddit_client_secret=settings.REDDIT_CLIENT_SECRET or None,
+        reddit_user_agent=settings.REDDIT_USER_AGENT or None,
+        auto_report_enabled=settings.SOCIAL_MEDIA_AUTO_REPORT_ENABLED,
+        auto_report_time=settings.SOCIAL_MEDIA_AUTO_REPORT_TIME,
+    )
+
+
+@router.put("/social-media", response_model=SocialMediaSettings)
+async def update_social_media_settings(
+    new_settings: SocialMediaSettings,
+    current_user: str = Depends(require_auth),
+):
+    """更新社交平台配置"""
+    success = settings.save_social_media_settings(
+        youtube_api_key=new_settings.youtube_api_key,
+        tiktok_api_key=new_settings.tiktok_api_key,
+        twitter_api_key=new_settings.twitter_api_key,
+        reddit_client_id=new_settings.reddit_client_id,
+        reddit_client_secret=new_settings.reddit_client_secret,
+        reddit_user_agent=new_settings.reddit_user_agent,
+        auto_report_enabled=new_settings.auto_report_enabled,
+        auto_report_time=new_settings.auto_report_time,
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="保存配置失败")
+
+    # 重新加载配置
+    settings.load_social_media_settings()
+    
+    # 注意：调度器会在应用启动时自动加载配置，这里不需要手动更新
+    # 如果需要立即生效，需要重启应用或手动触发调度器重新加载
+
+    return SocialMediaSettings(
+        youtube_api_key=settings.YOUTUBE_API_KEY or None,
+        tiktok_api_key=settings.TIKTOK_API_KEY or None,
+        twitter_api_key=settings.TWITTER_API_KEY or None,
+        reddit_client_id=settings.REDDIT_CLIENT_ID or None,
+        reddit_client_secret=settings.REDDIT_CLIENT_SECRET or None,
+        reddit_user_agent=settings.REDDIT_USER_AGENT or None,
+        auto_report_enabled=settings.SOCIAL_MEDIA_AUTO_REPORT_ENABLED,
+        auto_report_time=settings.SOCIAL_MEDIA_AUTO_REPORT_TIME,
+    )
 

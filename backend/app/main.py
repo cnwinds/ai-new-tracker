@@ -65,27 +65,25 @@ async def lifespan(app: FastAPI):
         logger.warning(f"⚠️  从数据库加载配置失败: {e}")
     
     # 启动定时任务调度器
-    # 如果自动采集已启用，则启动调度器
-    if app_settings and app_settings.AUTO_COLLECTION_ENABLED:
-        try:
-            from backend.app.services.scheduler.scheduler import create_scheduler
-            scheduler = create_scheduler()
-            logger.info("✅ 定时任务调度器已启动")
-            
-            # 检查调度器中的任务
-            if scheduler and scheduler.scheduler:
-                jobs = scheduler.scheduler.get_jobs()
-                if jobs:
-                    logger.info(f"📋 已注册 {len(jobs)} 个定时任务:")
-                    for job in jobs:
-                        logger.info(f"   - {job.name} (ID: {job.id}, Next: {job.next_run_time})")
-                else:
-                    logger.warning("⚠️  调度器已启动，但未找到任何定时任务")
-        except Exception as e:
-            logger.error(f"❌ 启动定时任务调度器失败: {e}", exc_info=True)
-    else:
-        logger.info("ℹ️  定时任务调度器未启用（自动采集未启用）")
-        logger.info("   提示: 在系统功能中启用自动采集以启动调度器")
+    # 调度器会检查配置并只添加已启用的任务
+    try:
+        from backend.app.services.scheduler.scheduler import create_scheduler
+        scheduler = create_scheduler()
+        logger.info("✅ 定时任务调度器已启动")
+        
+        # 检查调度器中的任务
+        if scheduler and scheduler.scheduler:
+            jobs = scheduler.scheduler.get_jobs()
+            if jobs:
+                logger.info(f"📋 已注册 {len(jobs)} 个定时任务:")
+                for job in jobs:
+                    logger.info(f"   - {job.name} (ID: {job.id}, Next: {job.next_run_time})")
+            else:
+                logger.info("ℹ️  调度器已启动，但当前没有启用的定时任务")
+        else:
+            logger.warning("⚠️  调度器初始化失败")
+    except Exception as e:
+        logger.error(f"❌ 启动定时任务调度器失败: {e}", exc_info=True)
     
     yield
     

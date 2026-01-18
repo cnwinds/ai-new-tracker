@@ -160,6 +160,33 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"❌ 添加每周摘要任务失败: {e}")
 
+    def add_social_media_report_job(self, cron_expression: str = None):
+        """
+        添加社交平台AI小报定时生成任务
+
+        Args:
+            cron_expression: cron表达式，默认从配置读取
+        """
+        if cron_expression is None:
+            cron_expression = settings.get_social_media_auto_report_cron()
+            if not cron_expression:
+                logger.warning("⚠️  社交平台定时生成AI小报未启用或配置无效")
+                return
+        
+        try:
+            self.scheduler.add_job(
+                func=self._run_social_media_report,
+                trigger=CronTrigger.from_crontab(cron_expression),
+                id="social_media_report_job",
+                name="社交平台AI小报生成",
+                replace_existing=True,
+            )
+
+            logger.info(f"✅ 社交平台AI小报定时生成任务已添加: {cron_expression}")
+
+        except Exception as e:
+            logger.error(f"❌ 添加社交平台AI小报定时生成任务失败: {e}")
+
     def _run_collection(self):
         """执行采集任务（自动定时采集）"""
         task_id = None
@@ -340,6 +367,218 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"❌ 每周摘要任务执行失败: {e}", exc_info=True)
 
+    def _run_social_media_report(self):
+        """执行社交平台AI小报生成任务"""
+        try:
+            logger.info("=" * 60)
+            logger.info("📰 开始执行社交平台AI小报生成任务")
+            logger.info(f"⏰ 时间: {datetime.now()}")
+
+            # 导入社交平台采集器和报告生成器
+            from backend.app.services.social_media import SocialMediaCollector
+            from backend.app.core.settings import settings
+            
+            # 重新加载配置
+            settings.load_social_media_settings()
+            
+            # 初始化采集器
+            collector = SocialMediaCollector()
+            youtube_key = settings.YOUTUBE_API_KEY
+            twitter_key = settings.TWITTER_API_KEY
+            tiktok_key = settings.TIKTOK_API_KEY
+            reddit_client_id = settings.REDDIT_CLIENT_ID
+            reddit_client_secret = settings.REDDIT_CLIENT_SECRET
+            reddit_user_agent = settings.REDDIT_USER_AGENT
+
+            collector.initialize(
+                youtube_api_key=youtube_key,
+                twitter_api_key=twitter_key,
+                tiktok_api_key=tiktok_key,
+                reddit_client_id=reddit_client_id,
+                reddit_client_secret=reddit_client_secret,
+                reddit_user_agent=reddit_user_agent
+            )
+
+            if not collector.report_generator:
+                logger.warning("⚠️  报告生成器未初始化，跳过生成")
+                return
+
+            # 检查哪些平台已配置
+            youtube_enabled = collector.youtube_collector is not None
+            tiktok_enabled = collector.tiktok_collector is not None
+            twitter_enabled = collector.twitter_collector is not None
+            reddit_enabled = collector.reddit_collector is not None
+
+            if not any([youtube_enabled, tiktok_enabled, twitter_enabled, reddit_enabled]):
+                logger.warning("⚠️  没有已配置的社交平台，跳过生成")
+                return
+
+            # 采集数据
+            from datetime import timedelta
+            published_after = datetime.now() - timedelta(days=1)
+            
+            results = {
+                "youtube": [],
+                "tiktok": [],
+                "twitter": [],
+                "reddit": []
+            }
+
+            # YouTube采集
+            if youtube_enabled:
+                try:
+                    youtube_videos = collector.youtube_collector.search_videos(
+                        query="AI",
+                        published_after=published_after,
+                        max_results=50,
+                    )
+                    results["youtube"] = youtube_videos
+                except Exception as e:
+                    logger.error(f"YouTube采集失败: {e}")
+
+            # TikTok采集
+            if tiktok_enabled:
+                try:
+                    tiktok_videos = collector.tiktok_collector.search_videos(
+                        keyword="AI",
+                        min_viral_score=8.0,
+                        max_days=1,
+                        max_results=50,
+                    )
+                    results["tiktok"] = tiktok_videos
+                except Exception as e:
+                    logger.error(f"TikTok采集失败: {e}")
+
+            # Twitter采集
+            if twitter_enabled:
+                try:
+                    twitter_tweets = collector.twitter_collector.search_tweets(
+                        query="AI",
+                        query_type="Top",
+                        min_view_count=10000,
+                        min_engagement_score=1000,
+                        max_results=50,
+                    )
+                    results["twitter"] = twitter_tweets
+                except Exception as e:
+                    logger.error(f"Twitter采集失败: {e}")
+
+            # Reddit采集
+            if reddit_enabled:
+                try:
+                    reddit_posts = collector.reddit_collector.search_posts(
+                        subreddits=["ArtificialInteligence", "artificial"],
+                        category="hot",
+                        time_range="day",
+                        min_upvotes=50,
+                        max_results=50,
+                    )
+                    results["reddit"] = reddit_posts
+                except Exception as e:
+                    logger.error(f"Reddit采集失败: {e}")
+
+            # 汇总采集数据
+            all_posts = []
+            for platform, posts in results.items():
+                all_posts.extend(posts)
+
+            if not all_posts:
+                logger.warning("⚠️  未采集到任何数据，跳过生成")
+                return
+
+            # 将字典转换为SocialMediaPost对象（临时对象）
+            temp_posts = []
+            for post_data in all_posts:
+                try:
+                    from backend.app.db.models import SocialMediaPost
+                    temp_post = SocialMediaPost(**post_data)
+                    temp_posts.append(temp_post)
+                except Exception as e:
+                    logger.warning(f"转换帖子数据失败: {e}")
+                    continue
+
+            if not temp_posts:
+                logger.warning("⚠️  转换帖子数据失败，跳过生成")
+                return
+
+            # 保存到数据库（作为缓存）
+            with self.db.get_session() as session:
+                saved_posts = collector.save_posts(session, all_posts)
+
+            # 从数据库加载已有的翻译和价值判断结果，填充到临时对象中
+            post_ids_by_platform = {}
+            for temp_post in temp_posts:
+                if temp_post.post_id:
+                    platform = temp_post.platform
+                    if platform not in post_ids_by_platform:
+                        post_ids_by_platform[platform] = []
+                    post_ids_by_platform[platform].append(temp_post.post_id)
+
+            # 批量查询已有的翻译和价值判断结果
+            if post_ids_by_platform:
+                with self.db.get_session() as session:
+                    for platform, post_ids in post_ids_by_platform.items():
+                        existing_posts = session.query(SocialMediaPost).filter(
+                            SocialMediaPost.platform == platform,
+                            SocialMediaPost.post_id.in_(post_ids)
+                        ).all()
+                        
+                        existing_posts_map = {p.post_id: p for p in existing_posts}
+                        
+                        for temp_post in temp_posts:
+                            if temp_post.platform == platform and temp_post.post_id in existing_posts_map:
+                                existing_post = existing_posts_map[temp_post.post_id]
+                                if existing_post.title_zh:
+                                    temp_post.title_zh = existing_post.title_zh
+                                if existing_post.has_value is not None:
+                                    temp_post.has_value = existing_post.has_value
+
+            # AI分析(异步执行) - 只对新保存的帖子进行分析
+            if saved_posts:
+                import asyncio
+                asyncio.create_task(self._analyze_posts_async(collector, [p.id for p in saved_posts]))
+
+            # 生成报告
+            report_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            with self.db.get_session() as session:
+                report = collector.report_generator.generate_daily_report(
+                    db=session,
+                    posts=temp_posts,
+                    report_date=report_date,
+                    youtube_enabled=youtube_enabled,
+                    tiktok_enabled=tiktok_enabled,
+                    twitter_enabled=twitter_enabled,
+                    reddit_enabled=reddit_enabled,
+                )
+
+            if report:
+                logger.info("✅ 社交平台AI小报生成完成")
+                logger.info(f"   YouTube: {report.youtube_count}条")
+                logger.info(f"   TikTok: {report.tiktok_count}条")
+                logger.info(f"   Twitter: {report.twitter_count}条")
+                logger.info(f"   Reddit: {report.reddit_count}条")
+                logger.info(f"   总计: {report.total_count}条")
+            else:
+                logger.warning("⚠️  生成报告失败，数据可能为空")
+
+            logger.info("=" * 60)
+
+        except Exception as e:
+            logger.error(f"❌ 社交平台AI小报生成任务执行失败: {e}", exc_info=True)
+
+    def _analyze_posts_async(self, collector, post_ids):
+        """异步分析帖子"""
+        try:
+            import asyncio
+            from backend.app.db import get_db
+            db = get_db()
+            with db.get_session() as session:
+                from backend.app.db.models import SocialMediaPost
+                posts = session.query(SocialMediaPost).filter(SocialMediaPost.id.in_(post_ids)).all()
+                collector.analyze_posts(session, posts)
+        except Exception as e:
+            logger.error(f"异步分析失败: {e}")
+
     def _send_instant_alerts(self):
         """发送即时提醒（高重要性文章）"""
         try:
@@ -410,6 +649,11 @@ class TaskScheduler:
             
             if settings.WEEKLY_SUMMARY_ENABLED:
                 self.add_weekly_summary_job()
+            
+            # 添加社交平台AI小报生成任务
+            settings.load_social_media_settings()
+            if settings.SOCIAL_MEDIA_AUTO_REPORT_ENABLED:
+                self.add_social_media_report_job()
 
             # 启动调度器（BackgroundScheduler 在后台运行）
             self.scheduler.start()

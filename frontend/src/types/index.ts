@@ -334,4 +334,70 @@ export interface RAGBatchIndexResponse {
   message: string;
 }
 
+// 社交平台相关类型定义
+export interface SocialMediaPost {
+  id: number;
+  platform: string;
+  post_id: string;
+  title?: string;
+  title_zh?: string;
+  content?: string;
+  author_name?: string;
+  author_url?: string;
+  view_count: number;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+  viral_score?: number;
+  post_url: string;
+  published_at?: string;
+  collected_at: string;
+  has_value?: boolean;
+}
+
+export interface SocialMediaReport {
+  id: number;
+  report_date: string;
+  youtube_count: number;
+  tiktok_count: number;
+  twitter_count: number;
+  reddit_count: number;
+  total_count: number;
+  report_content: string;
+  youtube_enabled: boolean;
+  tiktok_enabled: boolean;
+  twitter_enabled: boolean;
+  reddit_enabled: boolean;
+  created_at: string;
+}
+
+export interface SocialMediaReportRequest {
+  youtube_enabled: boolean;
+  tiktok_enabled: boolean;
+  twitter_enabled: boolean;
+  reddit_enabled: boolean;
+  date?: string; // YYYY-MM-DD格式
+}
+
+export interface SocialMediaStats {
+  total_posts: number;
+  youtube_count: number;
+  tiktok_count: number;
+  twitter_count: number;
+  reddit_count: number;
+  today_posts: number;
+  week_posts: number;
+}
+
+export interface SocialMediaSettings {
+  youtube_api_key?: string;
+  tiktok_api_key?: string;
+  twitter_api_key?: string;
+  reddit_client_id?: string;
+  reddit_client_secret?: string;
+  reddit_user_agent?: string;
+  auto_report_enabled?: boolean;
+  auto_report_time?: string;
+}
+
 

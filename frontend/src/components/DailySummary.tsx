@@ -26,6 +26,7 @@ import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor, getSelectedStyle } from '@/utils/theme';
 import { showError } from '@/utils/error';
@@ -80,6 +81,7 @@ export default function DailySummary() {
   const [recommendedArticles, setRecommendedArticles] = useState<Map<number, Article[]>>(new Map());
   const [loadingArticles, setLoadingArticles] = useState<Set<number>>(new Set());
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuth();
 
   const { data: summaries, isLoading } = useQuery({
     queryKey: ['summaries'],
@@ -272,13 +274,15 @@ export default function DailySummary() {
       <Card
         title="📊 内容总结"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setGenerateModalVisible(true)}
-          >
-            生成新摘要
-          </Button>
+          isAuthenticated ? (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setGenerateModalVisible(true)}
+            >
+              生成新摘要
+            </Button>
+          ) : null
         }
       >
         {isLoading ? (
@@ -395,23 +399,27 @@ export default function DailySummary() {
                           );
                         })()}
                         <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                          <Button
-                            type="default"
-                            icon={<ReloadOutlined />}
-                            onClick={() => handleRegenerate(summary)}
-                            loading={regenerateMutation.isPending}
-                          >
-                            重新生成
-                          </Button>
-                          <Button
-                            type="primary"
-                            danger
-                            icon={<DeleteOutlined />}
-                            onClick={() => handleDelete(summary.id)}
-                            loading={deleteMutation.isPending}
-                          >
-                            删除
-                          </Button>
+                          {isAuthenticated && (
+                            <>
+                              <Button
+                                type="default"
+                                icon={<ReloadOutlined />}
+                                onClick={() => handleRegenerate(summary)}
+                                loading={regenerateMutation.isPending}
+                              >
+                                重新生成
+                              </Button>
+                              <Button
+                                type="primary"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleDelete(summary.id)}
+                                loading={deleteMutation.isPending}
+                              >
+                                删除
+                              </Button>
+                            </>
+                          )}
                           <Button
                             type="default"
                             icon={<UpOutlined />}

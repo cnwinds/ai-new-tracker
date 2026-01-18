@@ -36,6 +36,11 @@ import type {
   RAGQueryResponse,
   RAGStatsResponse,
   RAGBatchIndexResponse,
+  SocialMediaPost,
+  SocialMediaReport,
+  SocialMediaReportRequest,
+  SocialMediaStats,
+  SocialMediaSettings,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
@@ -778,6 +783,69 @@ class ApiService {
         old_password: oldPassword,
         new_password: newPassword,
       })
+    );
+  }
+
+  // 社交平台相关
+  async generateSocialMediaReport(request: SocialMediaReportRequest): Promise<SocialMediaReport> {
+    return this.handleRequest(
+      this.client.post<SocialMediaReport>('/social-media/report/generate', request)
+    );
+  }
+
+  async getSocialMediaReports(limit: number = 20): Promise<SocialMediaReport[]> {
+    return this.handleRequest(
+      this.client.get<SocialMediaReport[]>(`/social-media/reports?limit=${limit}`)
+    );
+  }
+
+  async getSocialMediaReport(reportId: number): Promise<SocialMediaReport> {
+    return this.handleRequest(
+      this.client.get<SocialMediaReport>(`/social-media/reports/${reportId}`)
+    );
+  }
+
+  async deleteSocialMediaReport(reportId: number): Promise<{ message: string }> {
+    return this.handleRequest(
+      this.client.delete<{ message: string }>(`/social-media/reports/${reportId}`)
+    );
+  }
+
+  async getSocialMediaStats(): Promise<SocialMediaStats> {
+    return this.handleRequest(
+      this.client.get<SocialMediaStats>('/social-media/stats')
+    );
+  }
+
+  async getSocialMediaPosts(params?: {
+    platform?: string;
+    min_viral_score?: number;
+    has_value?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<SocialMediaPost[]> {
+    const queryParams = new URLSearchParams();
+    if (params?.platform) queryParams.append('platform', params.platform);
+    if (params?.min_viral_score !== undefined) queryParams.append('min_viral_score', params.min_viral_score.toString());
+    if (params?.has_value !== undefined) queryParams.append('has_value', params.has_value.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.offset) queryParams.append('offset', params.offset.toString());
+
+    return this.handleRequest(
+      this.client.get<SocialMediaPost[]>(`/social-media/posts?${queryParams.toString()}`)
+    );
+  }
+
+  // 社交平台设置相关
+  async getSocialMediaSettings(): Promise<SocialMediaSettings> {
+    return this.handleRequest(
+      this.client.get<SocialMediaSettings>('/settings/social-media')
+    );
+  }
+
+  async updateSocialMediaSettings(data: SocialMediaSettings): Promise<SocialMediaSettings> {
+    return this.handleRequest(
+      this.client.put<SocialMediaSettings>('/settings/social-media', data)
     );
   }
 
