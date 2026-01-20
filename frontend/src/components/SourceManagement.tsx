@@ -28,7 +28,7 @@ import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessage } from '@/hooks/useMessage';
 import { useErrorHandler } from '@/utils/errorHandler';
-import type { RSSSource, RSSSourceCreate, RSSSourceUpdate } from '@/types';
+import type { RSSSource, RSSSourceCreate, RSSSourceUpdate, SourceFormValues, DefaultSource, FixHistoryEntry } from '@/types';
 import { groupSourcesByType, SOURCE_TYPE_LABELS, sourceTypeSupportsSubType, getSubTypeOptions } from '@/utils/source';
 import { getDaysAgo, getDaysAgoText, formatDate, getDaysAgoColor } from '@/utils/date';
 
@@ -164,7 +164,7 @@ export default function SourceManagement() {
 
   const handleEdit = (source: RSSSource) => {
     setEditingSource(source);
-    const formValues: any = { ...source };
+    const formValues: Partial<SourceFormValues> = { ...source };
     
     // 处理 extra_config 字段
     if (source.extra_config) {
@@ -240,50 +240,64 @@ export default function SourceManagement() {
     setModalVisible(true);
   };
 
-  const handleSubmit = (values: any) => {
-    const submitData: any = { ...values };
-    
-    // 如果源类型不支持子类型，清空sub_type字段
-    if (!sourceTypeSupportsSubType(values.source_type)) {
-      submitData.sub_type = undefined;
-    }
+  const handleSubmit = (values: SourceFormValues) => {
+    const submitData: RSSSourceCreate = {
+      name: values.name,
+      url: values.url,
+      description: values.description,
+      category: values.category,
+      tier: values.tier,
+      source_type: values.source_type,
+      sub_type: sourceTypeSupportsSubType(values.source_type) ? values.sub_type : undefined,
+      language: values.language,
+      enabled: values.enabled,
+      priority: values.priority,
+      note: values.note,
+      analysis_prompt: values.analysis_prompt,
+    };
     
     // 如果是邮件源，需要将表单字段转换为extra_config JSON
     if (values.source_type === 'email') {
-      const emailConfig: any = {};
+      const emailConfig: Record<string, unknown> = {};
 
       // 邮件服务器配置
-      if (values.extra_config) {
-        emailConfig.protocol = values.extra_config.protocol || 'imap';
-        emailConfig.server = values.extra_config.server;
-        emailConfig.port = values.extra_config.port || 993;
-        emailConfig.use_ssl = values.extra_config.use_ssl !== false;
-        emailConfig.username = values.extra_config.username || values.url;
-        emailConfig.password = values.extra_config.password;
-        emailConfig.folder = values.extra_config.folder || 'INBOX';
-        emailConfig.max_emails = values.extra_config.max_emails || 50;
+      if (values.extra_config && typeof values.extra_config === 'object') {
+        const extraConfig = values.extra_config as Record<string, unknown>;
+        emailConfig.protocol = extraConfig.protocol || 'imap';
+        emailConfig.server = extraConfig.server;
+        emailConfig.port = extraConfig.port || 993;
+        emailConfig.use_ssl = extraConfig.use_ssl !== false;
+        emailConfig.username = extraConfig.username || values.url;
+        emailConfig.password = extraConfig.password;
+        emailConfig.folder = extraConfig.folder || 'INBOX';
+        emailConfig.max_emails = extraConfig.max_emails || 50;
 
         // 邮件过滤配置
-        if (values.extra_config.email_filter) {
-          const condition = values.extra_config.email_filter.condition;
+        if (extraConfig.email_filter && typeof extraConfig.email_filter === 'object') {
+          const emailFilter = extraConfig.email_filter as { condition?: string; type?: string };
+          const condition = emailFilter.condition;
 
           if (!condition || (typeof condition === 'string' && condition.trim() === '')) {
             // 如果没有设置过滤条件，不添加email_filter配置
           } else {
             emailConfig.email_filter = {
-              type: values.extra_config.email_filter.type || 'sender',
+              type: emailFilter.type || 'sender',
               keywords: condition.trim(),  // 统一使用keywords字段，后端会自动识别
             };
           }
         }
 
         // 内容提取配置
-        if (values.extra_config.content_extraction) {
-          const parserType = values.extra_config.content_extraction.parser_type || 'original';
-          const extractMode = values.extra_config.content_extraction.extract_mode || 'plain_preferred';
+        if (extraConfig.content_extraction && typeof extraConfig.content_extraction === 'object') {
+          const contentExtraction = extraConfig.content_extraction as {
+            parser_type?: string;
+            extract_mode?: string;
+          };
+          const parserType = contentExtraction.parser_type || 'original';
+          const extractMode = contentExtraction.extract_mode || 'plain_preferred';
 
           // 根据解析器类型设置配置
-          emailConfig.content_extraction = {
+          const contentExtractionConfig: Record<string, unknown> = {
             parser_type: parserType,
           };
 
@@ -291,30 +305,31 @@ export default function SourceManagement() {
           if (parserType === 'tldr') {
             switch (extractMode) {
               case 'plain_preferred':
-                emailConfig.content_extraction.from_plain = true;
-                emailConfig.content_extraction.from_html = true;
+                contentExtractionConfig.from_plain = true;
+                contentExtractionConfig.from_html = true;
                 break;
               case 'html_preferred':
-                emailConfig.content_extraction.from_plain = true;
-                emailConfig.content_extraction.from_html = true;
+                contentExtractionConfig.from_plain = true;
+                contentExtractionConfig.from_html = true;
                 break;
               case 'plain_only':
-                emailConfig.content_extraction.from_plain = true;
-                emailConfig.content_extraction.from_html = false;
+                contentExtractionConfig.from_plain = true;
+                contentExtractionConfig.from_html = false;
                 break;
               case 'html_only':
-                emailConfig.content_extraction.from_plain = false;
-                emailConfig.content_extraction.from_html = true;
+                contentExtractionConfig.from_plain = false;
+                contentExtractionConfig.from_html = true;
                 break;
               default:
-                emailConfig.content_extraction.from_html = false;
-                emailConfig.content_extraction.from_plain = true;
+                contentExtractionConfig.from_html = false;
+                contentExtractionConfig.from_plain = true;
             }
           } else {
             // 原始模式不需要这些字段
-            emailConfig.content_extraction.from_html = false;
-            emailConfig.content_extraction.from_plain = true;
+            contentExtractionConfig.from_html = false;
+            contentExtractionConfig.from_plain = true;
           }
+          emailConfig.content_extraction = contentExtractionConfig;
         }
       }
 
@@ -956,7 +971,7 @@ export default function SourceManagement() {
               }
               onChange={(e) => {
                 if (e.target.checked) {
-                  setSelectedSources(defaultSources.map((s: any) => s.name));
+                  setSelectedSources(defaultSources.map((s: DefaultSource) => s.name));
                 } else {
                   setSelectedSources([]);
                 }
@@ -1010,7 +1025,7 @@ export default function SourceManagement() {
                   label: `${SOURCE_TYPE_LABELS.api} (${groupedDefaultSources.api?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                      {groupedDefaultSources.api?.map((source: any) => {
+                      {groupedDefaultSources.api?.map((source: DefaultSource) => {
                         const exists = isSourceExists(source.name, source.url);
                         return (
                           <div key={source.name} style={{ marginBottom: 8 }}>
@@ -1084,7 +1099,7 @@ export default function SourceManagement() {
                   label: `${SOURCE_TYPE_LABELS.email} (${groupedDefaultSources.email?.length || 0})`,
                   children: (
                     <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-                      {groupedDefaultSources.email?.map((source: any) => {
+                      {groupedDefaultSources.email?.map((source: DefaultSource) => {
                         const exists = isSourceExists(source.name, source.url);
                         return (
                           <div key={source.name} style={{ marginBottom: 8 }}>
@@ -1149,7 +1164,7 @@ export default function SourceManagement() {
             />
             {fixHistory.fix_history && fixHistory.fix_history.length > 0 ? (
               <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-                {fixHistory.fix_history.map((entry: any, index: number) => (
+                {fixHistory.fix_history.map((entry: FixHistoryEntry, index: number) => (
                   <Card
                     key={index}
                     size="small"

@@ -21,7 +21,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useMessage } from '@/hooks/useMessage';
 import { useErrorHandler } from '@/utils/errorHandler';
-import type { SummaryGenerateRequest, Article, DailySummaryListItem, SummaryFieldsResponse } from '@/types';
+import type { SummaryGenerateRequest, Article, DailySummaryListItem, SummaryFieldsResponse, SummaryGenerateFormValues } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
@@ -171,7 +171,7 @@ export default function DailySummary() {
     });
   };
 
-  const handleGenerate = (values: any) => {
+  const handleGenerate = (values: SummaryGenerateFormValues) => {
     const requestData: { summary_type: 'daily' | 'weekly'; date?: string; week?: string } = {
       summary_type: values.summary_type as 'daily' | 'weekly',
     };

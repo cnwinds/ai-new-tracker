@@ -36,6 +36,7 @@ import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import type { MarkdownLinkProps } from '@/types';
 
 dayjs.extend(relativeTime);
 
@@ -609,7 +610,7 @@ export default function AIConversationModal() {
                               components={{
                                 ...createMarkdownComponents(theme),
                                 // 自定义引用链接
-                                a: ({ href, children }: any) => {
+                                a: ({ href, children }: MarkdownLinkProps) => {
                                   const match = href?.match(/\[(\d+)\]/);
                                   if (match) {
                                     const index = parseInt(match[1]);

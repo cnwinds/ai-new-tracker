@@ -34,7 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useErrorHandler } from '@/utils/errorHandler';
 import dayjs from 'dayjs';
-import type { CollectionTask, CollectionTaskStatus, AutoCollectionSettings } from '@/types';
+import type { CollectionTask, CollectionTaskStatus, AutoCollectionSettings, CollectionTaskDetail, CollectionTaskLog } from '@/types';
 
 const { Text, Paragraph } = Typography;
 
@@ -85,7 +85,7 @@ export default function CollectionHistory() {
   }, [status?.status, queryClient]);
 
   // 获取任务详情
-  const { data: taskDetail, isLoading: detailLoading } = useQuery({
+  const { data: taskDetail, isLoading: detailLoading } = useQuery<CollectionTaskDetail>({
     queryKey: ['collection-task-detail', selectedTaskId],
     queryFn: () => apiService.getCollectionTaskDetail(selectedTaskId!),
     enabled: !!selectedTaskId && detailModalVisible,
@@ -428,8 +428,8 @@ export default function CollectionHistory() {
                 label: `成功源 (${taskDetail.success_sources || 0})`,
                 children: (
                   <List
-                    dataSource={(taskDetail as any).success_logs || []}
-                    renderItem={(log: any) => (
+                    dataSource={taskDetail?.success_logs || []}
+                    renderItem={(log: CollectionTaskLog) => (
                       <List.Item>
                         <List.Item.Meta
                           avatar={<CheckCircleOutlined style={{ color: '#52c41a', fontSize: 20 }} />}
@@ -461,8 +461,8 @@ export default function CollectionHistory() {
                 label: `失败源 (${taskDetail.failed_sources || 0})`,
                 children: (
                   <List
-                    dataSource={(taskDetail as any).failed_logs || []}
-                    renderItem={(log: any) => (
+                    dataSource={taskDetail?.failed_logs || []}
+                    renderItem={(log: CollectionTaskLog) => (
                       <List.Item>
                         <List.Item.Meta
                           avatar={<CloseCircleOutlined style={{ color: '#ff4d4f', fontSize: 20 }} />}
@@ -496,8 +496,8 @@ export default function CollectionHistory() {
                 label: `新增文章 (${taskDetail.new_articles_count || 0})`,
                 children: (
                   <List
-                    dataSource={(taskDetail as any).new_articles || []}
-                    renderItem={(article: any) => (
+                    dataSource={taskDetail?.new_articles || []}
+                    renderItem={(article: { id: number; title: string; url: string; source: string; published_at?: string }) => (
                       <List.Item>
                         <List.Item.Meta
                           title={

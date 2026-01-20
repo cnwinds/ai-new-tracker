@@ -19,7 +19,7 @@ import { PlusOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-des
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useErrorHandler } from '@/utils/errorHandler';
-import type { SocialMediaReport, SocialMediaReportRequest } from '@/types';
+import type { SocialMediaReport, SocialMediaReportRequest, SocialMediaReportGenerateFormValues } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -99,7 +99,7 @@ export default function SocialMediaReport() {
     });
   };
 
-  const handleGenerate = (values: any) => {
+  const handleGenerate = (values: SocialMediaReportGenerateFormValues) => {
     // 只启用已配置的平台
     const platforms = values.platforms || [];
     const requestData: SocialMediaReportRequest = {

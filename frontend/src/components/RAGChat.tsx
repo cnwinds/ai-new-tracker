@@ -55,11 +55,16 @@ export default function RAGChat() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        const histories: ChatHistory[] = JSON.parse(saved).map((h: any) => ({
+        const parsedHistories = JSON.parse(saved) as Array<Omit<ChatHistory, 'createdAt' | 'updatedAt'> & {
+          createdAt: string;
+          updatedAt: string;
+          messages: Array<Omit<Message, 'timestamp'> & { timestamp: string }>;
+        }>;
+        const histories: ChatHistory[] = parsedHistories.map((h) => ({
           ...h,
           createdAt: new Date(h.createdAt),
           updatedAt: new Date(h.updatedAt),
-          messages: h.messages.map((m: any) => ({
+          messages: h.messages.map((m) => ({
             ...m,
             timestamp: new Date(m.timestamp),
           })),

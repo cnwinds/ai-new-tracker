@@ -262,7 +262,7 @@ export interface WebSocketMessage {
   type: string;
   message?: string;
   timestamp: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface SummaryGenerateRequest {
@@ -416,5 +416,92 @@ export interface AccessStatsResponse {
   avg_daily_page_views: number; // 平均日文章展开数
   avg_daily_users: number; // 平均日独立用户数
 }
+
+// 采集任务详情相关类型
+export interface CollectionTaskLog {
+  source_name: string;
+  source_type: string;
+  articles_count?: number;
+  started_at?: string;
+  error_message?: string;
+}
+
+export interface CollectionTaskDetail extends CollectionTask {
+  success_logs?: CollectionTaskLog[];
+  failed_logs?: CollectionTaskLog[];
+  new_articles?: Array<{
+    id: number;
+    title: string;
+    url: string;
+    source: string;
+    published_at?: string;
+  }>;
+}
+
+// 表单值类型
+export interface DataCleanupFormValues {
+  delete_articles_older_than_days?: number;
+  delete_logs_older_than_days?: number;
+  delete_unanalyzed_articles?: boolean;
+  delete_articles_by_sources?: string[];
+}
+
+export interface SummaryGenerateFormValues {
+  summary_type: 'daily' | 'weekly';
+  date?: string;
+  week?: string;
+}
+
+export interface SocialMediaReportGenerateFormValues {
+  platforms?: Array<'youtube' | 'tiktok' | 'twitter' | 'reddit'>;
+}
+
+// 源表单值类型（用于编辑）
+export interface SourceFormValues extends Omit<RSSSource, 'id' | 'created_at' | 'updated_at' | 'last_collected_at' | 'latest_article_published_at' | 'articles_count' | 'last_error' | 'extra_config'> {
+  extra_config?: string | Record<string, unknown>;
+}
+
+// 默认源类型
+export interface DefaultSource {
+  name: string;
+  url: string;
+  description?: string;
+  category?: string;
+  source_type: string;
+  sub_type?: string;
+  language?: string;
+  tier?: string;
+  enabled?: boolean;
+}
+
+// 聊天历史相关类型
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date | string;
+}
+
+export interface ChatHistory {
+  id: string;
+  title: string;
+  messages: ChatHistoryMessage[];
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+// Markdown 链接组件 Props
+export interface MarkdownLinkProps {
+  href?: string;
+  children?: React.ReactNode;
+}
+
+// 智能下拉项数据类型
+export type SmartDropdownItemData = 
+  | { query: string }
+  | { url: string }
+  | ArticleSearchResult
+  | { chatId: string }
+  | { searchQuery: string }
+  | { unindexed_count: number };
 
 

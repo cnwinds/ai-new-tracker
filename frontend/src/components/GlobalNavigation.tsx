@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Layout, Input, Button, Space } from 'antd';
+import type { InputRef } from 'antd';
 import { SearchOutlined, SunOutlined, MoonOutlined, SettingOutlined } from '@ant-design/icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAIConversation } from '@/contexts/AIConversationContext';
@@ -13,6 +14,7 @@ import SmartDropdown from './SmartDropdown';
 import ArticleDetailModal from './ArticleDetailModal';
 import { getThemeColor } from '@/utils/theme';
 import { apiService } from '@/services/api';
+import type { ApiError } from '@/components/settings/types';
 
 const { Header } = Layout;
 
@@ -29,7 +31,7 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
   const [, setIsFocused] = useState(false);
   const [articleDetailModalOpen, setArticleDetailModalOpen] = useState(false);
   const [selectedArticleId, setSelectedArticleId] = useState<number | null>(null);
-  const inputRef = useRef<any>(null);
+  const inputRef = useRef<InputRef>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 全局快捷键 Cmd/Ctrl + K
@@ -105,18 +107,20 @@ export default function GlobalNavigation({ onSettingsClick }: GlobalNavigationPr
       // 打开文章详情
       setSelectedArticleId(article.id);
       setArticleDetailModalOpen(true);
-    } catch (error: any) {
-      if (error.status === 409) {
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+      if (apiError.status === 409) {
         message.warning('文章已存在');
         // 尝试从错误消息中提取文章ID
-        const match = error.message?.match(/ID:\s*(\d+)/);
+        const match = apiError.message?.match(/ID:\s*(\d+)/);
         if (match) {
           const articleId = parseInt(match[1]);
           setSelectedArticleId(articleId);
           setArticleDetailModalOpen(true);
         }
       } else {
-        message.error(error.message || '采集文章失败');
+        const errorMessage = apiError.message || (apiError.response?.data?.detail) || '采集文章失败';
+        message.error(errorMessage);
       }
     }
   };

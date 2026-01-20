@@ -8,6 +8,7 @@ import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useErrorHandler } from '@/utils/errorHandler';
 import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
+import type { DataCleanupFormValues } from '@/types';
 
 const { Option, OptGroup } = Select;
 
@@ -47,7 +48,7 @@ export default function DataCleanup() {
     }),
   });
 
-  const handleCleanup = (values: any) => {
+  const handleCleanup = (values: DataCleanupFormValues) => {
     cleanupMutation.mutate(values);
   };
 

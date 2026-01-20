@@ -18,7 +18,7 @@ import { useAIConversation } from '@/contexts/AIConversationContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useErrorHandler } from '@/utils/errorHandler';
-import type { ArticleSearchResult } from '@/types';
+import type { ArticleSearchResult, SmartDropdownItemData } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getThemeColor } from '@/utils/theme';
 import dayjs from 'dayjs';
@@ -209,7 +209,7 @@ export default function SmartDropdown({
       // 输入态：AI 问答选项 + 相关文章 + 索引提示（如果有未索引文章）
       const items: Array<{
         type: 'ai' | 'article' | 'index';
-        data: any;
+        data: SmartDropdownItemData;
         index: number;
       }> = [];
 
@@ -265,13 +265,16 @@ export default function SmartDropdown({
               onSelectAIQuery(query);
             } else if (option.type === 'index') {
               handleCreateIndex();
-            } else {
+            } else if (option.type === 'article') {
               // 保存搜索历史（用户用键盘选择了文章）
               if (query.trim().length >= 2) {
                 saveSearchHistory(query.trim());
                 setSearchHistory(getSearchHistory());
               }
-              onSelectArticle(option.data);
+              // 类型守卫：确保 data 是 ArticleSearchResult
+              if ('id' in option.data && 'title' in option.data && 'url' in option.data) {
+                onSelectArticle(option.data as ArticleSearchResult);
+              }
             }
           }
         } else if (e.key === 'Enter' && isUrlInput && !isCollecting) {
