@@ -20,7 +20,7 @@ import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutline
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { LLMSettings, LLMProvider, LLMProviderCreate, LLMProviderUpdate } from '@/types';
 import type { LLMFormValues } from './types';

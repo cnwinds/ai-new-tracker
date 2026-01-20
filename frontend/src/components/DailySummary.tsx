@@ -20,7 +20,7 @@ import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useMessage } from '@/hooks/useMessage';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { SummaryGenerateRequest, Article, DailySummaryListItem, SummaryFieldsResponse, SummaryGenerateFormValues } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
@@ -355,7 +355,7 @@ export default function DailySummary() {
                             // 正在加载详情
                             return (
                               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                                <Spin tip="加载摘要内容..." />
+                                <Spin size="large" />
                               </div>
                             );
                           }
@@ -471,7 +471,7 @@ export default function DailySummary() {
         closable={!generateMutation.isPending}
         maskClosable={!generateMutation.isPending}
       >
-        <Spin spinning={generateMutation.isPending} tip="正在生成摘要，请稍候...">
+        <Spin spinning={generateMutation.isPending}>
           {generateMutation.isPending && (
             <Alert
               message="正在生成摘要"

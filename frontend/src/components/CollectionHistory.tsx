@@ -32,9 +32,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import dayjs from 'dayjs';
-import type { CollectionTask, CollectionTaskStatus, AutoCollectionSettings, CollectionTaskDetail, CollectionTaskLog } from '@/types';
+import type { CollectionTask, CollectionTaskStatus as CollectionTaskStatusResponse, AutoCollectionSettings, CollectionTaskDetail, CollectionTaskLog } from '@/types';
 
 const { Text, Paragraph } = Typography;
 
@@ -59,7 +59,7 @@ export default function CollectionHistory() {
     queryFn: () => apiService.getCollectionStatus(),
     // 只在有运行中任务时才轮询
     refetchInterval: (query) => {
-      const currentStatus = query.state.data as CollectionTaskStatus | undefined;
+      const currentStatus = query.state.data as CollectionTaskStatusResponse | undefined;
       // 如果有运行中的任务，每2秒刷新一次；否则不轮询
       return currentStatus?.status === 'running' ? 2000 : false;
     },

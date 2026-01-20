@@ -27,7 +27,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessage } from '@/hooks/useMessage';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { RSSSource, RSSSourceCreate, RSSSourceUpdate, SourceFormValues, DefaultSource, FixHistoryEntry } from '@/types';
 import { groupSourcesByType, SOURCE_TYPE_LABELS, sourceTypeSupportsSubType, getSubTypeOptions } from '@/utils/source';
 import { getDaysAgo, getDaysAgoText, formatDate, getDaysAgoColor } from '@/utils/date';

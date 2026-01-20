@@ -6,7 +6,7 @@ import { DatabaseOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/
 import { useMutation } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 export default function DatabaseSettingsTab() {
   const { isAuthenticated } = useAuth();

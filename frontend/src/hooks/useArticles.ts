@@ -1,16 +1,17 @@
-/**
- * Articles Hook
- */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import type { ArticleFilter, Article } from '@/types';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from './useErrorHandler';
+
+const STALE_TIME_30S = 30 * 1000;
+const STALE_TIME_1M = 60 * 1000;
+const STALE_TIME_5M = 5 * 60 * 1000;
 
 export function useArticles(filter: ArticleFilter = {}) {
   return useQuery({
     queryKey: ['articles', filter],
     queryFn: () => apiService.getArticles(filter),
-    staleTime: 30 * 1000, // 30秒
+    staleTime: STALE_TIME_30S,
   });
 }
 
@@ -19,7 +20,7 @@ export function useArticle(id: number) {
     queryKey: ['article', id],
     queryFn: () => apiService.getArticle(id),
     enabled: !!id && id > 0,
-    staleTime: 60 * 1000, // 1分钟
+    staleTime: STALE_TIME_1M,
   });
 }
 
@@ -28,8 +29,8 @@ export function useAnalyzeArticle() {
   const { showError, showSuccess } = useErrorHandler();
 
   return useMutation({
-    mutationFn: ({ id, force }: { id: number; force?: boolean }) => 
-      apiService.analyzeArticle(id, force ?? false),
+    mutationFn: ({ id, force = false }: { id: number; force?: boolean }) => 
+      apiService.analyzeArticle(id, force),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['article', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['articles'] });
@@ -114,17 +115,11 @@ export function useUpdateArticle() {
   });
 }
 
-/**
- * 获取文章的详细信息（按需加载）
- * 一次性获取所有详细字段：summary, content, author, tags, user_notes等
- */
 export function useArticleDetails(id: number, enabled: boolean = true) {
   return useQuery({
     queryKey: ['article', id, 'details'],
-    queryFn: async () => {
-      return await apiService.getArticleFields(id, 'all');
-    },
+    queryFn: () => apiService.getArticleFields(id, 'all'),
     enabled: enabled && !!id && id > 0,
-    staleTime: 5 * 60 * 1000, // 5分钟
+    staleTime: STALE_TIME_5M,
   });
 }

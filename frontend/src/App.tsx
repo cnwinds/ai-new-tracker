@@ -1,6 +1,3 @@
-/**
- * 主应用组件
- */
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, App as AntdApp } from 'antd';
@@ -14,13 +11,14 @@ import Login from '@/pages/Login';
 import ShareArticle from '@/pages/ShareArticle';
 import './App.css';
 
-// 创建 QueryClient 实例（单例模式）
+const STALE_TIME = 5 * 60 * 1000;
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5分钟
+      staleTime: STALE_TIME,
     },
   },
 });

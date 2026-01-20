@@ -15,7 +15,7 @@ import { SyncOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 
 export default function RAGSettingsTab() {
   const queryClient = useQueryClient();

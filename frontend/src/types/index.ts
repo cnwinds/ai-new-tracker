@@ -1,6 +1,9 @@
-/**
- * TypeScript 类型定义
- */
+export type ImportanceLevel = 'high' | 'medium' | 'low';
+export type SummaryType = 'daily' | 'weekly';
+export type SourceFilterMode = 'include' | 'exclude';
+export type CollectionTaskStatusType = 'running' | 'completed' | 'error';
+export type NotificationPlatform = 'feishu' | 'dingtalk';
+export type MessageRole = 'user' | 'assistant';
 
 export interface Article {
   id: number;
@@ -15,7 +18,7 @@ export interface Article {
   author?: string;
   published_at?: string;
   collected_at: string;
-  importance?: 'high' | 'medium' | 'low';
+  importance?: ImportanceLevel;
   tags?: string[];
   target_audience?: string;
   extra_data?: Record<string, unknown>;
@@ -39,7 +42,7 @@ export interface ArticleFilter {
   time_range?: string;
   sources?: string[];
   exclude_sources?: string[];
-  source_filter_mode?: 'include' | 'exclude'; // 过滤模式：包含或排除
+  source_filter_mode?: SourceFilterMode;
   importance?: string[];
   category?: string[];
   page?: number;
@@ -48,7 +51,7 @@ export interface ArticleFilter {
 
 export interface CollectionTask {
   id: number;
-  status: 'running' | 'completed' | 'error';
+  status: CollectionTaskStatusType;
   new_articles_count: number;
   total_sources: number;
   success_sources: number;
@@ -76,10 +79,9 @@ export interface CollectionTaskStatus {
   };
 }
 
-// 摘要列表项（简化版，不包含详细内容）
 export interface DailySummaryListItem {
   id: number;
-  summary_type: 'daily' | 'weekly';
+  summary_type: SummaryType;
   summary_date: string;
   start_date: string;
   end_date: string;
@@ -90,10 +92,9 @@ export interface DailySummaryListItem {
   updated_at: string;
 }
 
-// 摘要详情（完整版）
 export interface DailySummary {
   id: number;
-  summary_type: 'daily' | 'weekly';
+  summary_type: SummaryType;
   summary_date: string;
   start_date: string;
   end_date: string;
@@ -113,7 +114,6 @@ export interface DailySummary {
   updated_at: string;
 }
 
-// 摘要字段响应（按需加载）
 export interface SummaryFieldsResponse {
   summary_content?: string;
   key_topics?: string[];
@@ -251,7 +251,7 @@ export interface QuietHours {
 }
 
 export interface NotificationSettings {
-  platform: 'feishu' | 'dingtalk';
+  platform: NotificationPlatform;
   webhook_url: string;
   secret: string; // 钉钉加签密钥（可选）
   instant_notification_enabled: boolean;
@@ -281,7 +281,7 @@ export interface ArticleSearchResult {
   summary?: string;
   source: string;
   published_at?: string;
-  importance?: 'high' | 'medium' | 'low';
+  importance?: ImportanceLevel;
   tags?: string[];
   similarity: number; // 相似度分数 (0-1)
 }
@@ -290,7 +290,7 @@ export interface RAGSearchRequest {
   query: string;
   top_k?: number;
   sources?: string[];
-  importance?: string[];
+  importance?: ImportanceLevel[];
   time_from?: string;
   time_to?: string;
 }
@@ -447,7 +447,7 @@ export interface DataCleanupFormValues {
 }
 
 export interface SummaryGenerateFormValues {
-  summary_type: 'daily' | 'weekly';
+  summary_type: SummaryType;
   date?: string;
   week?: string;
 }

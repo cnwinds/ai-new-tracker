@@ -1,7 +1,4 @@
-/**
- * 主题上下文 - 管理明暗主题切换
- */
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { ThemeConfig, theme } from 'antd';
 
 export type ThemeMode = 'light' | 'dark';
@@ -16,20 +13,19 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const THEME_STORAGE_KEY = 'ai-news-tracker-theme';
 
-// 获取初始主题（从 localStorage 或系统偏好）
 const getInitialTheme = (): ThemeMode => {
   const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode;
-  if (savedTheme) {
+  if (savedTheme === 'light' || savedTheme === 'dark') {
     return savedTheme;
   }
-  // 检查系统偏好
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  
+  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     return 'dark';
   }
+  
   return 'light';
 };
 
-// 主题配置
 const lightThemeConfig: ThemeConfig = {
   token: {
     colorPrimary: '#1890ff',
@@ -106,21 +102,14 @@ const darkThemeConfig: ThemeConfig = {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
 
-  // 应用主题到 body
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark-theme');
-      root.classList.remove('light-theme');
-    } else {
-      root.classList.add('light-theme');
-      root.classList.remove('dark-theme');
-    }
-    // 保存到 localStorage
+    root.classList.toggle('dark-theme', theme === 'dark');
+    root.classList.toggle('light-theme', theme === 'light');
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
-  const toggleTheme = () => {
+  const toggleTheme = (): void => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 

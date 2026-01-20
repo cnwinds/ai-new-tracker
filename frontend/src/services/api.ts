@@ -1,6 +1,3 @@
-/**
- * API 服务层
- */
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import type {
   Article,
@@ -45,10 +42,8 @@ import type {
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+const TOKEN_STORAGE_KEY = 'auth_token';
 
-/**
- * API 错误接口
- */
 export interface ApiError {
   status: number;
   message: string;
@@ -56,9 +51,6 @@ export interface ApiError {
   data?: unknown;
 }
 
-/**
- * 修复历史条目
- */
 interface FixHistoryEntry {
   timestamp: string;
   old_config: string | null;
@@ -67,9 +59,6 @@ interface FixHistoryEntry {
   success: boolean;
 }
 
-/**
- * 修复解析响应
- */
 interface FixParseResponse {
   message: string;
   source_id: number;
@@ -77,9 +66,6 @@ interface FixParseResponse {
   fix_history?: FixHistoryEntry;
 }
 
-/**
- * 默认数据源
- */
 interface DefaultSource {
   name: string;
   url: string;
@@ -88,9 +74,6 @@ interface DefaultSource {
   source_type: string;
 }
 
-/**
- * 流式查询数据块
- */
 interface StreamChunk {
   type: 'articles' | 'content' | 'done' | 'error';
   data: {
@@ -113,55 +96,47 @@ class ApiService {
       },
     });
 
-    // 从localStorage加载token
-    const savedToken = localStorage.getItem('auth_token');
+    const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
     if (savedToken) {
       this.token = savedToken;
     }
 
-    // 请求拦截器
     this.client.interceptors.request.use(
       (config) => {
-        // 如果有token，添加到请求头
         if (this.token) {
           config.headers.Authorization = `Bearer ${this.token}`;
         }
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error)
     );
 
-    // 响应拦截器
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response) {
-          console.error('API Error:', error.response.data);
-        } else if (error.request) {
-          console.error('Network Error:', error.request);
-        } else {
-          console.error('Error:', error.message);
+        if (import.meta.env.DEV) {
+          if (error.response) {
+            console.error('API Error:', error.response.data);
+          } else if (error.request) {
+            console.error('Network Error:', error.request);
+          } else {
+            console.error('Error:', error.message);
+          }
         }
         return Promise.reject(error);
       }
     );
   }
 
-  /**
-   * 设置认证token
-   */
-  setToken(token: string | null) {
+  setToken(token: string | null): void {
     this.token = token;
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
   }
 
-  /**
-   * 统一的请求错误处理
-   * @param request Axios 请求 Promise
-   * @returns 响应数据
-   * @throws ApiError 格式化的错误对象
-   */
   private async handleRequest<T>(request: Promise<AxiosResponse<T>>): Promise<T> {
     try {
       const response = await request;
@@ -179,7 +154,6 @@ class ApiService {
         };
         throw apiError;
       }
-      // 非 Axios 错误，包装为 ApiError
       const apiError: ApiError = {
         status: 500,
         message: error instanceof Error ? error.message : '未知错误',
@@ -189,21 +163,22 @@ class ApiService {
     }
   }
 
-  // 文章相关
   async getArticles(filter: ArticleFilter = {}): Promise<ArticleListResponse> {
     const params = new URLSearchParams();
+    
     if (filter.time_range) params.append('time_range', filter.time_range);
-    // 根据过滤模式决定使用sources还是exclude_sources
+    
     if (filter.source_filter_mode === 'exclude' && filter.exclude_sources?.length) {
       params.append('exclude_sources', filter.exclude_sources.join(','));
     } else if (filter.source_filter_mode !== 'exclude' && filter.sources?.length) {
       params.append('sources', filter.sources.join(','));
     }
+    
     if (filter.importance?.length) params.append('importance', filter.importance.join(','));
     if (filter.category?.length) params.append('category', filter.category.join(','));
     if (filter.page) params.append('page', filter.page.toString());
     if (filter.page_size) params.append('page_size', filter.page_size.toString());
-    // 默认不包含详细信息以节省流量（只返回标题行显示所需的基本字段）
+    
     params.append('include_details', 'false');
 
     return this.handleRequest(
@@ -217,23 +192,12 @@ class ApiService {
     );
   }
 
-  /**
-   * 批量获取文章的基本信息（不包含详细字段，节省流量）
-   * @param articleIds 文章ID列表
-   * @returns 文章列表（只包含基本字段）
-   */
   async getArticlesBasic(articleIds: number[]): Promise<Article[]> {
     return this.handleRequest(
       this.client.post<Article[]>(`/articles/batch/basic`, articleIds)
     );
   }
 
-  /**
-   * 获取文章的特定字段（用于按需加载）
-   * @param id 文章ID
-   * @param fields 要获取的字段，如：'summary' 或 'summary,content,tags'，或 'all' 获取所有详细字段
-   * @returns 包含请求字段的对象
-   */
   async getArticleFields(
     id: number, 
     fields: string = 'all'
@@ -255,7 +219,7 @@ class ApiService {
   async analyzeArticle(id: number, force: boolean = false): Promise<{ is_processed: boolean }> {
     return this.handleRequest(
       this.client.post<{ is_processed: boolean }>(`/articles/${id}/analyze`, null, {
-        params: { force: force },
+        params: { force },
       })
     );
   }
@@ -313,7 +277,7 @@ class ApiService {
     );
   }
 
-  // 兼容旧接口（已废弃，使用 getCollectionTask(id, true) 替代）
+  /** @deprecated 使用 getCollectionTask(id, true) 替代 */
   async getCollectionTaskDetail(id: number): Promise<CollectionTask> {
     return this.getCollectionTask(id, true);
   }
@@ -343,12 +307,6 @@ class ApiService {
     );
   }
 
-  /**
-   * 获取摘要的特定字段（用于按需加载）
-   * @param id 摘要ID
-   * @param fields 要获取的字段，如：'summary_content' 或 'summary_content,key_topics,recommended_articles'，或 'all' 获取所有详细字段
-   * @returns 包含请求字段的对象
-   */
   async getSummaryFields(
     id: number,
     fields: string = 'all'
@@ -380,10 +338,13 @@ class ApiService {
     enabled_only?: boolean;
   }): Promise<RSSSource[]> {
     const queryParams = new URLSearchParams();
+    
     if (params?.category) queryParams.append('category', params.category);
     if (params?.tier) queryParams.append('tier', params.tier);
     if (params?.source_type) queryParams.append('source_type', params.source_type);
-    if (params?.enabled_only !== undefined) queryParams.append('enabled_only', params.enabled_only.toString());
+    if (params?.enabled_only !== undefined) {
+      queryParams.append('enabled_only', params.enabled_only.toString());
+    }
 
     return this.handleRequest(
       this.client.get<RSSSource[]>(`/sources?${queryParams.toString()}`)
@@ -625,22 +586,23 @@ class ApiService {
     );
   }
 
-  /**
-   * 流式查询文章（问答）
-   * @param request 问答请求
-   * @param onChunk 处理每个数据块的回调函数
-   * @returns Promise<void>
-   */
   async queryArticlesStream(
     request: RAGQueryRequest,
     onChunk: (chunk: StreamChunk) => void
   ): Promise<void> {
     try {
+      const token = this.token;
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/rag/query/stream`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(request),
       });
 
@@ -664,43 +626,46 @@ class ApiService {
           break;
         }
 
-        // 解码数据块
         buffer += decoder.decode(value, { stream: true });
         
-        // 处理SSE格式的数据（以 "data: " 开头，以 "\n\n" 结尾）
         const lines = buffer.split('\n\n');
-        buffer = lines.pop() || ''; // 保留最后一个不完整的数据块
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const jsonStr = line.slice(6); // 移除 "data: " 前缀
-              const chunk = JSON.parse(jsonStr);
+              const jsonStr = line.slice(6);
+              const chunk = JSON.parse(jsonStr) as StreamChunk;
               onChunk(chunk);
             } catch (e) {
-              console.error('解析SSE数据失败:', e, line);
+              if (import.meta.env.DEV) {
+                console.error('解析SSE数据失败:', e, line);
+              }
             }
           }
         }
       }
 
-      // 处理剩余的缓冲区数据
       if (buffer.trim()) {
         const lines = buffer.split('\n\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const jsonStr = line.slice(6);
-              const chunk = JSON.parse(jsonStr);
+              const chunk = JSON.parse(jsonStr) as StreamChunk;
               onChunk(chunk);
             } catch (e) {
-              console.error('解析SSE数据失败:', e, line);
+              if (import.meta.env.DEV) {
+                console.error('解析SSE数据失败:', e, line);
+              }
             }
           }
         }
       }
     } catch (error) {
-      console.error('流式查询失败:', error);
+      if (import.meta.env.DEV) {
+        console.error('流式查询失败:', error);
+      }
       onChunk({
         type: 'error',
         data: {
@@ -724,10 +689,9 @@ class ApiService {
   }
 
   async indexAllUnindexedArticles(batchSize: number = 10): Promise<RAGBatchIndexResponse> {
-    // 使用批量索引接口，article_ids为空时自动索引所有未索引的文章
     return this.handleRequest(
       this.client.post<RAGBatchIndexResponse>(`/rag/index/batch`, {
-        article_ids: null, // 为空时索引所有未索引的文章
+        article_ids: null,
         batch_size: batchSize,
       })
     );
@@ -759,8 +723,9 @@ class ApiService {
     try {
       await this.handleRequest(this.client.post('/auth/logout'));
     } catch (error) {
-      // 即使后端失败，也清除本地token
-      console.error('登出失败:', error);
+      if (import.meta.env.DEV) {
+        console.error('登出失败:', error);
+      }
     } finally {
       this.setToken(null);
     }
@@ -826,9 +791,14 @@ class ApiService {
     offset?: number;
   }): Promise<SocialMediaPost[]> {
     const queryParams = new URLSearchParams();
+    
     if (params?.platform) queryParams.append('platform', params.platform);
-    if (params?.min_viral_score !== undefined) queryParams.append('min_viral_score', params.min_viral_score.toString());
-    if (params?.has_value !== undefined) queryParams.append('has_value', params.has_value.toString());
+    if (params?.min_viral_score !== undefined) {
+      queryParams.append('min_viral_score', params.min_viral_score.toString());
+    }
+    if (params?.has_value !== undefined) {
+      queryParams.append('has_value', params.has_value.toString());
+    }
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.offset) queryParams.append('offset', params.offset.toString());
 

@@ -1,8 +1,5 @@
-/**
- * 认证上下文
- */
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { message } from 'antd';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { App } from 'antd';
 import { apiService } from '@/services/api';
 
 interface AuthContextType {
@@ -19,35 +16,28 @@ const TOKEN_KEY = 'auth_token';
 const USERNAME_KEY = 'auth_username';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { message } = App.useApp();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 初始化时检查token
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     const savedUsername = localStorage.getItem(USERNAME_KEY);
     
     if (token && savedUsername) {
-      // 先设置token到API服务
       apiService.setToken(token);
-      // 验证token是否有效
       verifyToken(token)
         .then((valid) => {
           if (valid) {
             setIsAuthenticated(true);
             setUsername(savedUsername);
           } else {
-            // token无效，清除
-            localStorage.removeItem(TOKEN_KEY);
-            localStorage.removeItem(USERNAME_KEY);
-            apiService.setToken(null);
+            clearAuth();
           }
         })
         .catch(() => {
-          localStorage.removeItem(TOKEN_KEY);
-          localStorage.removeItem(USERNAME_KEY);
-          apiService.setToken(null);
+          clearAuth();
         })
         .finally(() => {
           setLoading(false);
@@ -57,14 +47,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const clearAuth = (): void => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USERNAME_KEY);
+    apiService.setToken(null);
+  };
+
   const verifyToken = async (token: string): Promise<boolean> => {
     try {
-      // 设置token到API服务
       apiService.setToken(token);
-      // 验证token
       await apiService.verifyToken();
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   };
@@ -88,10 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USERNAME_KEY);
-    apiService.setToken(null);
+  const logout = (): void => {
+    clearAuth();
     setIsAuthenticated(false);
     setUsername(null);
     message.success('已登出');

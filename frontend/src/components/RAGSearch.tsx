@@ -7,7 +7,7 @@ import { SearchOutlined, LinkOutlined, StarFilled } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { apiService } from '@/services/api';
-import type { RAGSearchRequest, ArticleSearchResult } from '@/types';
+import type { RAGSearchRequest, ArticleSearchResult, ImportanceLevel } from '@/types';
 import dayjs from 'dayjs';
 import { useTheme } from '@/contexts/ThemeContext';
 import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
@@ -59,7 +59,7 @@ export default function RAGSearch() {
     }
 
     if (importance.length > 0) {
-      request.importance = importance;
+      request.importance = importance as ImportanceLevel[];
     }
 
     if (timeRange[0] && timeRange[1]) {

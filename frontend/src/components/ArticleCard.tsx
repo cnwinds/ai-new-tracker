@@ -15,6 +15,7 @@ import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
 import { getSummaryText, IMPORTANCE_COLORS, getImportanceLabel } from '@/utils/article';
 import { copyToClipboard } from '@/utils/clipboard';
+import { useMessage } from '@/hooks/useMessage';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -24,6 +25,7 @@ interface ArticleCardProps {
 }
 
 export default function ArticleCard({ article }: ArticleCardProps) {
+  const message = useMessage();
   const [expanded, setExpanded] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -115,7 +117,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
   const handleShareLink = () => {
     const shareUrl = `${window.location.origin}/share/${article.id}`;
-    void copyToClipboard(shareUrl, '分享链接已复制');
+    void copyToClipboard(shareUrl, { onSuccess: (msg) => message.success(msg) }, '分享链接已复制');
   };
 
   return (

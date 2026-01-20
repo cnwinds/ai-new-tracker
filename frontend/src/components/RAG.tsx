@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Tabs, Card, Statistic, Row, Col, Alert, Button, Modal } from 'antd';
 import { SearchOutlined, MessageOutlined, DatabaseOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import RAGSearch from './RAGSearch';
 import RAGChat from './RAGChat';
 import { apiService } from '@/services/api';

@@ -1,10 +1,5 @@
-/**
- * 日期相关的工具函数
- */
+const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24;
 
-/**
- * 计算距离今天的天数
- */
 export function getDaysAgo(dateString: string | undefined): number | null {
   if (!dateString) return null;
   
@@ -14,12 +9,9 @@ export function getDaysAgo(dateString: string | undefined): number | null {
   date.setHours(0, 0, 0, 0);
   
   const diffTime = today.getTime() - date.getTime();
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.floor(diffTime / MILLISECONDS_PER_DAY);
 }
 
-/**
- * 获取天数显示文本
- */
 export function getDaysAgoText(daysAgo: number | null): string {
   if (daysAgo === null) return '';
   if (daysAgo === 0) return '今天';
@@ -27,9 +19,6 @@ export function getDaysAgoText(daysAgo: number | null): string {
   return `${daysAgo}天前`;
 }
 
-/**
- * 格式化日期显示
- */
 export function formatDate(dateString: string | undefined): string {
   if (!dateString) return '暂无';
   
@@ -43,9 +32,6 @@ export function formatDate(dateString: string | undefined): string {
   });
 }
 
-/**
- * 获取天数显示颜色
- */
 export function getDaysAgoColor(daysAgo: number | null): string {
   if (daysAgo === null) return '#999';
   if (daysAgo > 30) return '#ff4d4f';

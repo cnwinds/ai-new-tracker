@@ -17,7 +17,7 @@ import {
 import { useAIConversation } from '@/contexts/AIConversationContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { ArticleSearchResult, SmartDropdownItemData } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getThemeColor } from '@/utils/theme';

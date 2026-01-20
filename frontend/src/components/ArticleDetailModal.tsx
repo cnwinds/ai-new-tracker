@@ -22,6 +22,7 @@ import { useDeleteArticle } from '@/hooks/useArticles';
 import { getThemeColor } from '@/utils/theme';
 import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
 import { copyToClipboard } from '@/utils/clipboard';
+import { useMessage } from '@/hooks/useMessage';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 
@@ -121,10 +122,12 @@ export default function ArticleDetailModal({
     background: getThemeColor(theme, 'bgElevated'),
   };
 
+  const message = useMessage();
+
   const handleCopyShareLink = () => {
     if (!article) return;
     const shareUrl = `${window.location.origin}/share/${article.id}`;
-    void copyToClipboard(shareUrl, '分享链接已复制');
+    void copyToClipboard(shareUrl, { onSuccess: (msg) => message.success(msg) }, '分享链接已复制');
   };
 
   return (

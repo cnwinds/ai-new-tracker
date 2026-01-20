@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { SocialMediaSettings } from '@/types';
 import type { SocialMediaFormValues } from './types';

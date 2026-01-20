@@ -6,7 +6,7 @@ import { Card, Form, InputNumber, Switch, Button, Alert, Select } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
 import type { DataCleanupFormValues } from '@/types';
 

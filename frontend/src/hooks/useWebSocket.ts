@@ -1,9 +1,8 @@
-/**
- * WebSocket Hook
- */
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { wsService } from '@/services/websocket';
 import type { WebSocketMessage } from '@/types';
+
+const CONNECT_DELAY = 100;
 
 export function useWebSocket() {
   const [connected, setConnected] = useState(false);
@@ -13,31 +12,33 @@ export function useWebSocket() {
   useEffect(() => {
     isMountedRef.current = true;
     
-    // 延迟连接，避免在开发模式下重复连接
     const connectTimer = setTimeout(() => {
       if (isMountedRef.current) {
         wsService.connect();
       }
-    }, 100);
+    }, CONNECT_DELAY);
 
-    const unsubscribeConnected = wsService.on('connected', () => {
+    const handleConnected = () => {
       if (isMountedRef.current) {
         setConnected(true);
       }
-    });
+    };
 
-    const unsubscribeError = wsService.on('error', () => {
+    const handleError = () => {
       if (isMountedRef.current) {
         setConnected(false);
       }
-    });
+    };
 
-    // 监听连接关闭
-    const unsubscribeClose = wsService.on('close', () => {
+    const handleClose = () => {
       if (isMountedRef.current) {
         setConnected(false);
       }
-    });
+    };
+
+    const unsubscribeConnected = wsService.on('connected', handleConnected);
+    const unsubscribeError = wsService.on('error', handleError);
+    const unsubscribeClose = wsService.on('close', handleClose);
 
     return () => {
       clearTimeout(connectTimer);
@@ -45,8 +46,6 @@ export function useWebSocket() {
       unsubscribeConnected();
       unsubscribeError();
       unsubscribeClose();
-      // 不在组件卸载时断开连接，让 WebSocket 保持连接
-      // 如果需要完全断开，可以在应用关闭时调用 wsService.disconnect()
     };
   }, []);
 

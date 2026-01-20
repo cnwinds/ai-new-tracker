@@ -6,7 +6,7 @@ import { LockOutlined } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { PasswordFormValues } from './types';
 
 export default function PasswordSettingsTab() {

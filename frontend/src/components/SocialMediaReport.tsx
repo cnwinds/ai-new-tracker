@@ -18,7 +18,7 @@ import {
 import { PlusOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
-import { useErrorHandler } from '@/utils/errorHandler';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type { SocialMediaReport, SocialMediaReportRequest, SocialMediaReportGenerateFormValues } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
@@ -144,7 +144,7 @@ export default function SocialMediaReport() {
       >
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <Spin tip="加载中..." />
+            <Spin size="large" />
           </div>
         ) : !reports || reports.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: getThemeColor(theme, 'textSecondary') }}>
@@ -265,7 +265,7 @@ export default function SocialMediaReport() {
         closable={!generateMutation.isPending}
         maskClosable={!generateMutation.isPending}
       >
-        <Spin spinning={generateMutation.isPending} tip="正在生成AI热点小报，请稍候...">
+        <Spin spinning={generateMutation.isPending}>
           {generateMutation.isPending && (
             <Alert
               message="正在生成AI热点小报"
