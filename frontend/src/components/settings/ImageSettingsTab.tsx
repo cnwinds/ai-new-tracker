@@ -20,15 +20,15 @@ import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutline
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { ImageSettings, ImageProvider, ImageProviderCreate, ImageProviderUpdate } from '@/types';
-import type { ImageFormValues, ApiError } from './types';
+import type { ImageFormValues } from './types';
 
 export default function ImageSettingsTab() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [imageForm] = Form.useForm();
   const [imageProviderForm] = Form.useForm();
   const [imageProviderModalVisible, setImageProviderModalVisible] = useState(false);
@@ -50,71 +50,67 @@ export default function ImageSettingsTab() {
   const updateImageMutation = useMutation({
     mutationFn: (data: ImageSettings) => apiService.updateImageSettings(data),
     onSuccess: () => {
-      message.success('图片生成配置已保存');
+      showSuccess('图片生成配置已保存');
       queryClient.invalidateQueries({ queryKey: ['image-settings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能保存图片生成配置');
-      } else {
-        message.error('保存图片生成配置失败');
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '保存图片生成配置',
+      customMessages: {
+        auth: '需要登录才能保存图片生成配置',
+      },
+    }),
   });
 
   // 创建图片生成提供商
   const createImageProviderMutation = useMutation({
     mutationFn: (data: ImageProviderCreate) => apiService.createImageProvider(data),
     onSuccess: () => {
-      message.success('图片生成提供商创建成功');
+      showSuccess('图片生成提供商创建成功');
       queryClient.invalidateQueries({ queryKey: ['image-providers'] });
       setImageProviderModalVisible(false);
       imageProviderForm.resetFields();
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能创建图片生成提供商');
-      } else {
-        message.error(`创建图片生成提供商失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '创建图片生成提供商',
+      customMessages: {
+        auth: '需要登录才能创建图片生成提供商',
+      },
+    }),
   });
 
   // 更新图片生成提供商
   const updateImageProviderMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: ImageProviderUpdate }) => apiService.updateImageProvider(id, data),
     onSuccess: () => {
-      message.success('图片生成提供商更新成功');
+      showSuccess('图片生成提供商更新成功');
       queryClient.invalidateQueries({ queryKey: ['image-providers'] });
       queryClient.invalidateQueries({ queryKey: ['image-settings'] });
       setImageProviderModalVisible(false);
       setEditingImageProvider(null);
       imageProviderForm.resetFields();
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能更新图片生成提供商');
-      } else {
-        message.error(`更新图片生成提供商失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '更新图片生成提供商',
+      customMessages: {
+        auth: '需要登录才能更新图片生成提供商',
+      },
+    }),
   });
 
   // 删除图片生成提供商
   const deleteImageProviderMutation = useMutation({
     mutationFn: (id: number) => apiService.deleteImageProvider(id),
     onSuccess: () => {
-      message.success('图片生成提供商删除成功');
+      showSuccess('图片生成提供商删除成功');
       queryClient.invalidateQueries({ queryKey: ['image-providers'] });
       queryClient.invalidateQueries({ queryKey: ['image-settings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能删除图片生成提供商');
-      } else {
-        message.error(`删除图片生成提供商失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '删除图片生成提供商',
+      customMessages: {
+        auth: '需要登录才能删除图片生成提供商',
+      },
+    }),
   });
 
   useEffect(() => {

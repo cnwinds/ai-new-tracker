@@ -6,12 +6,12 @@ import { LockOutlined } from '@ant-design/icons';
 import { useMutation } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
-import type { PasswordFormValues, ApiError } from './types';
+import { useErrorHandler } from '@/utils/errorHandler';
+import type { PasswordFormValues } from './types';
 
 export default function PasswordSettingsTab() {
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess, showError } = useErrorHandler();
   const [passwordForm] = Form.useForm();
 
   // 修改密码
@@ -19,21 +19,20 @@ export default function PasswordSettingsTab() {
     mutationFn: ({ oldPassword, newPassword }: { oldPassword: string; newPassword: string }) =>
       apiService.changePassword(oldPassword, newPassword),
     onSuccess: () => {
-      message.success('密码修改成功');
+      showSuccess('密码修改成功');
       passwordForm.resetFields();
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能修改密码');
-      } else {
-        message.error(error.message || '修改密码失败');
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '修改密码',
+      customMessages: {
+        auth: '需要登录才能修改密码',
+      },
+    }),
   });
 
   const handlePasswordChange = (values: PasswordFormValues) => {
     if (values.newPassword !== values.confirmPassword) {
-      message.error('两次输入的新密码不一致');
+      showError(null, '两次输入的新密码不一致');
       return;
     }
     changePasswordMutation.mutate({

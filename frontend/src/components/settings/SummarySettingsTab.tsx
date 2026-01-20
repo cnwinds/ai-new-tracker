@@ -18,15 +18,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { SummarySettings } from '@/types';
-import type { SummaryFormValues, ApiError } from './types';
+import type { SummaryFormValues } from './types';
 
 export default function SummarySettingsTab() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [summaryForm] = Form.useForm();
 
   // 获取总结配置
@@ -39,16 +39,15 @@ export default function SummarySettingsTab() {
   const updateSummaryMutation = useMutation({
     mutationFn: (data: SummarySettings) => apiService.updateSummarySettings(data),
     onSuccess: () => {
-      message.success('自动总结配置已保存');
+      showSuccess('自动总结配置已保存');
       queryClient.invalidateQueries({ queryKey: ['summarySettings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能保存自动总结配置');
-      } else {
-        message.error('保存自动总结配置失败');
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '保存自动总结配置',
+      customMessages: {
+        auth: '需要登录才能保存自动总结配置',
+      },
+    }),
   });
 
   useEffect(() => {

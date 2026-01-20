@@ -20,6 +20,7 @@ import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import type { SummaryGenerateRequest, Article, DailySummaryListItem, SummaryFieldsResponse } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
@@ -29,7 +30,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
 import { getThemeColor, getSelectedStyle } from '@/utils/theme';
-import { showError } from '@/utils/error';
 import ArticleCard from './ArticleCard';
 
 dayjs.extend(weekOfYear);
@@ -76,6 +76,7 @@ export default function DailySummary() {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
   const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [selectedWeekDate, setSelectedWeekDate] = useState<dayjs.Dayjs | null>(null);
   const [hoveredWeekDate, setHoveredWeekDate] = useState<dayjs.Dayjs | null>(null);
@@ -96,39 +97,48 @@ export default function DailySummary() {
     mutationFn: (data: SummaryGenerateRequest) =>
       apiService.generateSummary(data),
     onSuccess: () => {
-      message.success('摘要生成成功');
+      showSuccess('摘要生成成功');
       setGenerateModalVisible(false);
       form.resetFields();
       setSelectedWeekDate(null);
       setHoveredWeekDate(null);
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
-    onError: (error) => {
-      showError(error, '生成摘要失败');
-    },
+    onError: createErrorHandler({
+      operationName: '生成摘要',
+      customMessages: {
+        auth: '需要登录才能生成摘要',
+      },
+    }),
   });
 
   const regenerateMutation = useMutation({
     mutationFn: (data: SummaryGenerateRequest) =>
       apiService.generateSummary(data),
     onSuccess: () => {
-      message.success('摘要重新生成成功');
+      showSuccess('摘要重新生成成功');
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
-    onError: (error) => {
-      showError(error, '重新生成摘要失败');
-    },
+    onError: createErrorHandler({
+      operationName: '重新生成摘要',
+      customMessages: {
+        auth: '需要登录才能重新生成摘要',
+      },
+    }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiService.deleteSummary(id),
     onSuccess: () => {
-      message.success('摘要已删除');
+      showSuccess('摘要已删除');
       queryClient.invalidateQueries({ queryKey: ['summaries'] });
     },
-    onError: (error) => {
-      showError(error, '删除摘要失败');
-    },
+    onError: createErrorHandler({
+      operationName: '删除摘要',
+      customMessages: {
+        auth: '需要登录才能删除摘要',
+      },
+    }),
   });
 
   const handleRegenerate = (summary: DailySummaryListItem) => {

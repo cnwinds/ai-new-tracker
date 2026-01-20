@@ -12,13 +12,13 @@ import {
   Modal,
   Form,
   Checkbox,
-  message,
   Spin,
   Alert,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
+import { useErrorHandler } from '@/utils/errorHandler';
 import type { SocialMediaReport, SocialMediaReportRequest } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
@@ -26,7 +26,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents } from '@/utils/markdown';
 import { getThemeColor } from '@/utils/theme';
-import { showError } from '@/utils/error';
 
 const { Title } = Typography;
 
@@ -37,6 +36,7 @@ export default function SocialMediaReport() {
   const [expandedReports, setExpandedReports] = useState<Set<number>>(new Set());
   const { theme } = useTheme();
   const { isAuthenticated } = useAuth();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
 
   const { data: reports, isLoading } = useQuery({
     queryKey: ['social-media-reports'],
@@ -59,25 +59,31 @@ export default function SocialMediaReport() {
     mutationFn: (data: SocialMediaReportRequest) =>
       apiService.generateSocialMediaReport(data),
     onSuccess: () => {
-      message.success('AI热点小报生成成功');
+      showSuccess('AI热点小报生成成功');
       setGenerateModalVisible(false);
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: ['social-media-reports'] });
     },
-    onError: (error) => {
-      showError(error, '生成AI热点小报失败');
-    },
+    onError: createErrorHandler({
+      operationName: '生成AI热点小报',
+      customMessages: {
+        auth: '需要登录才能生成AI热点小报',
+      },
+    }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiService.deleteSocialMediaReport(id),
     onSuccess: () => {
-      message.success('AI热点小报已删除');
+      showSuccess('AI热点小报已删除');
       queryClient.invalidateQueries({ queryKey: ['social-media-reports'] });
     },
-    onError: (error) => {
-      showError(error, '删除AI热点小报失败');
-    },
+    onError: createErrorHandler({
+      operationName: '删除AI热点小报',
+      customMessages: {
+        auth: '需要登录才能删除AI热点小报',
+      },
+    }),
   });
 
   const handleDelete = (id: number) => {

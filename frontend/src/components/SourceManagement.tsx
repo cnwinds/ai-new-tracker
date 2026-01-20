@@ -27,6 +27,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import type { RSSSource, RSSSourceCreate, RSSSourceUpdate } from '@/types';
 import { groupSourcesByType, SOURCE_TYPE_LABELS, sourceTypeSupportsSubType, getSubTypeOptions } from '@/utils/source';
 import { getDaysAgo, getDaysAgoText, formatDate, getDaysAgoColor } from '@/utils/date';
@@ -34,6 +35,7 @@ import { getDaysAgo, getDaysAgoText, formatDate, getDaysAgoColor } from '@/utils
 export default function SourceManagement() {
   const { isAuthenticated } = useAuth();
   const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [modalVisible, setModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [fixHistoryModalVisible, setFixHistoryModalVisible] = useState(false);
@@ -65,55 +67,67 @@ export default function SourceManagement() {
   const createMutation = useMutation({
     mutationFn: (data: RSSSourceCreate) => apiService.createSource(data),
     onSuccess: () => {
-      message.success('订阅源创建成功');
+      showSuccess('订阅源创建成功');
       setModalVisible(false);
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
-    onError: () => {
-      message.error('创建订阅源失败');
-    },
+    onError: createErrorHandler({
+      operationName: '创建订阅源',
+      customMessages: {
+        auth: '需要登录才能创建订阅源',
+      },
+    }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: RSSSourceUpdate }) =>
       apiService.updateSource(id, data),
     onSuccess: () => {
-      message.success('订阅源更新成功');
+      showSuccess('订阅源更新成功');
       setModalVisible(false);
       setEditingSource(null);
       form.resetFields();
       queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
-    onError: () => {
-      message.error('更新订阅源失败');
-    },
+    onError: createErrorHandler({
+      operationName: '更新订阅源',
+      customMessages: {
+        auth: '需要登录才能更新订阅源',
+      },
+    }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiService.deleteSource(id),
     onSuccess: () => {
-      message.success('订阅源已删除');
+      showSuccess('订阅源已删除');
       queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
-    onError: () => {
-      message.error('删除订阅源失败');
-    },
+    onError: createErrorHandler({
+      operationName: '删除订阅源',
+      customMessages: {
+        auth: '需要登录才能删除订阅源',
+      },
+    }),
   });
 
   const importMutation = useMutation({
     mutationFn: (sourceNames: string[]) => apiService.importDefaultSources(sourceNames),
     onSuccess: (data) => {
-      message.success(
+      showSuccess(
         `导入完成：成功 ${data.imported} 个，跳过 ${data.skipped} 个${data.errors ? `，错误 ${data.errors.length} 个` : ''}`
       );
       setImportModalVisible(false);
       setSelectedSources([]);
       queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
-    onError: () => {
-      message.error('导入失败');
-    },
+    onError: createErrorHandler({
+      operationName: '导入订阅源',
+      customMessages: {
+        auth: '需要登录才能导入订阅源',
+      },
+    }),
   });
 
   // fixParseMutation 可能在未来使用，暂时保留
@@ -121,12 +135,17 @@ export default function SourceManagement() {
   const fixParseMutation = useMutation({
     mutationFn: (id: number) => apiService.fixSourceParse(id),
     onSuccess: () => {
-      message.success('AI修复成功！新配置已自动更新');
+      showSuccess('AI修复成功！新配置已自动更新');
       setFixingSourceId(null);
       queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
-    onError: (error: any) => {
-      message.error(`修复失败: ${error?.response?.data?.detail || error.message || '未知错误'}`);
+    onError: (error: unknown) => {
+      createErrorHandler({
+        operationName: '修复订阅源',
+        customMessages: {
+          auth: '需要登录才能修复订阅源',
+        },
+      })(error);
       setFixingSourceId(null);
     },
   });

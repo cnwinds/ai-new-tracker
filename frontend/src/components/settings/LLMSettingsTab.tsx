@@ -20,15 +20,15 @@ import { SaveOutlined, ReloadOutlined, PlusOutlined, EditOutlined, DeleteOutline
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { LLMSettings, LLMProvider, LLMProviderCreate, LLMProviderUpdate } from '@/types';
-import type { LLMFormValues, ApiError } from './types';
+import type { LLMFormValues } from './types';
 
 export default function LLMSettingsTab() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [llmForm] = Form.useForm();
   const [providerForm] = Form.useForm();
   const [providerModalVisible, setProviderModalVisible] = useState(false);
@@ -50,71 +50,67 @@ export default function LLMSettingsTab() {
   const updateLLMMutation = useMutation({
     mutationFn: (data: LLMSettings) => apiService.updateLLMSettings(data),
     onSuccess: () => {
-      message.success('LLM配置已保存');
+      showSuccess('LLM配置已保存');
       queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能保存LLM配置');
-      } else {
-        message.error('保存LLM配置失败');
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '保存LLM配置',
+      customMessages: {
+        auth: '需要登录才能保存LLM配置',
+      },
+    }),
   });
 
   // 创建提供商
   const createProviderMutation = useMutation({
     mutationFn: (data: LLMProviderCreate) => apiService.createProvider(data),
     onSuccess: () => {
-      message.success('提供商创建成功');
+      showSuccess('提供商创建成功');
       queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
       setProviderModalVisible(false);
       providerForm.resetFields();
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能创建提供商');
-      } else {
-        message.error(`创建提供商失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '创建提供商',
+      customMessages: {
+        auth: '需要登录才能创建提供商',
+      },
+    }),
   });
 
   // 更新提供商
   const updateProviderMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: LLMProviderUpdate }) => apiService.updateProvider(id, data),
     onSuccess: () => {
-      message.success('提供商更新成功');
+      showSuccess('提供商更新成功');
       queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
       queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
       setProviderModalVisible(false);
       setEditingProvider(null);
       providerForm.resetFields();
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能更新提供商');
-      } else {
-        message.error(`更新提供商失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '更新提供商',
+      customMessages: {
+        auth: '需要登录才能更新提供商',
+      },
+    }),
   });
 
   // 删除提供商
   const deleteProviderMutation = useMutation({
     mutationFn: (id: number) => apiService.deleteProvider(id),
     onSuccess: () => {
-      message.success('提供商删除成功');
+      showSuccess('提供商删除成功');
       queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
       queryClient.invalidateQueries({ queryKey: ['llm-settings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能删除提供商');
-      } else {
-        message.error(`删除提供商失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '删除提供商',
+      customMessages: {
+        auth: '需要登录才能删除提供商',
+      },
+    }),
   });
 
   // 当配置加载完成后，初始化表单数据

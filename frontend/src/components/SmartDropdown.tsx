@@ -17,7 +17,7 @@ import {
 import { useAIConversation } from '@/contexts/AIConversationContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import type { ArticleSearchResult } from '@/types';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getThemeColor } from '@/utils/theme';
@@ -83,7 +83,7 @@ export default function SmartDropdown({
   const { theme } = useTheme();
   const { chatHistories } = useAIConversation();
   const queryClient = useQueryClient();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isCollecting, setIsCollecting] = useState(false);
@@ -100,7 +100,7 @@ export default function SmartDropdown({
   const indexMutation = useMutation({
     mutationFn: () => apiService.indexAllUnindexedArticles(10),
     onSuccess: async (data) => {
-      message.success(`索引创建成功：${data.success} 篇文章已索引`);
+      showSuccess(`索引创建成功：${data.success} 篇文章已索引`);
       setIsIndexing(false);
       // 立即刷新索引统计（使用 refetch 确保立即更新）
       await refetchStats();
@@ -113,8 +113,13 @@ export default function SmartDropdown({
         onKeepDropdownOpen();
       }
     },
-    onError: (error: any) => {
-      message.error(`索引创建失败：${error.message || '未知错误'}`);
+    onError: (error: unknown) => {
+      createErrorHandler({
+        operationName: '创建索引',
+        customMessages: {
+          auth: '需要登录才能创建索引',
+        },
+      })(error);
       setIsIndexing(false);
       // 即使失败也刷新一次统计（可能部分索引成功）
       refetchStats();

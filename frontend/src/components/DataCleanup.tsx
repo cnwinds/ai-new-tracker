@@ -6,7 +6,7 @@ import { Card, Form, InputNumber, Switch, Button, Alert, Select } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import { groupSourcesByType, SOURCE_TYPE_LABELS } from '@/utils/source';
 
 const { Option, OptGroup } = Select;
@@ -14,7 +14,7 @@ const { Option, OptGroup } = Select;
 export default function DataCleanup() {
   const [form] = Form.useForm();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
 
   // 获取所有订阅源列表
   const { data: sources } = useQuery({
@@ -36,12 +36,15 @@ export default function DataCleanup() {
       delete_articles_by_sources?: string[];
     }) => apiService.cleanupData(data),
     onSuccess: (data) => {
-      message.success(data.message || '清理完成');
+      showSuccess(data.message || '清理完成');
       form.resetFields();
     },
-    onError: () => {
-      message.error('清理失败');
-    },
+    onError: createErrorHandler({
+      operationName: '数据清理',
+      customMessages: {
+        auth: '需要登录才能执行数据清理',
+      },
+    }),
   });
 
   const handleCleanup = (values: any) => {

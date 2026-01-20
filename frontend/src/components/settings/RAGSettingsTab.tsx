@@ -15,13 +15,12 @@ import { SyncOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
-import type { ApiError } from './types';
+import { useErrorHandler } from '@/utils/errorHandler';
 
 export default function RAGSettingsTab() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess, showWarning } = useErrorHandler();
   const [isIndexing, setIsIndexing] = useState(false);
   const [batchSize, setBatchSize] = useState(10);
 
@@ -36,13 +35,18 @@ export default function RAGSettingsTab() {
   const rebuildIndexMutation = useMutation({
     mutationFn: (batchSize: number) => apiService.indexAllUnindexedArticles(batchSize),
     onSuccess: async (data) => {
-      message.success(`索引重建成功：${data.success} 篇文章已索引`);
+      showSuccess(`索引重建成功：${data.success} 篇文章已索引`);
       setIsIndexing(false);
       await refetchRAGStats();
       queryClient.invalidateQueries({ queryKey: ['rag-stats'] });
     },
-    onError: (error: ApiError) => {
-      message.error(`索引重建失败：${error.message || '未知错误'}`);
+    onError: (error: unknown) => {
+      createErrorHandler({
+        operationName: '重建索引',
+        customMessages: {
+          auth: '需要登录才能重建索引',
+        },
+      })(error);
       setIsIndexing(false);
     },
   });
@@ -51,20 +55,25 @@ export default function RAGSettingsTab() {
   const forceRebuildIndexMutation = useMutation({
     mutationFn: (batchSize: number) => apiService.rebuildAllIndexes(batchSize),
     onSuccess: async (data) => {
-      message.success(`强制重建索引成功：${data.success} 篇文章已索引`);
+      showSuccess(`强制重建索引成功：${data.success} 篇文章已索引`);
       setIsIndexing(false);
       await refetchRAGStats();
       queryClient.invalidateQueries({ queryKey: ['rag-stats'] });
     },
-    onError: (error: ApiError) => {
-      message.error(`强制重建索引失败：${error.message || '未知错误'}`);
+    onError: (error: unknown) => {
+      createErrorHandler({
+        operationName: '强制重建索引',
+        customMessages: {
+          auth: '需要登录才能强制重建索引',
+        },
+      })(error);
       setIsIndexing(false);
     },
   });
 
   const handleRebuildIndex = () => {
     if (!isAuthenticated) {
-      message.warning('需要登录才能重建索引');
+      showWarning('需要登录才能重建索引');
       return;
     }
     setIsIndexing(true);
@@ -73,7 +82,7 @@ export default function RAGSettingsTab() {
 
   const handleForceRebuildIndex = () => {
     if (!isAuthenticated) {
-      message.warning('需要登录才能强制重建索引');
+      showWarning('需要登录才能强制重建索引');
       return;
     }
     setIsIndexing(true);

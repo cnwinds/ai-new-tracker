@@ -12,7 +12,6 @@ import {
   Modal,
   Form,
   InputNumber,
-  message,
   Tabs,
   List,
   Typography,
@@ -33,6 +32,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useErrorHandler } from '@/utils/errorHandler';
 import dayjs from 'dayjs';
 import type { CollectionTask, CollectionTaskStatus, AutoCollectionSettings } from '@/types';
 
@@ -47,6 +47,7 @@ export default function CollectionHistory() {
   const [autoCollectionForm] = Form.useForm();
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
 
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['collection-tasks'],
@@ -93,28 +94,31 @@ export default function CollectionHistory() {
   const startCollectionMutation = useMutation({
     mutationFn: (enableAi: boolean) => apiService.startCollection(enableAi),
     onSuccess: () => {
-      message.success('采集任务已启动');
+      showSuccess('采集任务已启动');
       queryClient.invalidateQueries({ queryKey: ['collection-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['collection-status'] });
     },
-    onError: () => {
-      message.error('启动采集任务失败');
-    },
+    onError: createErrorHandler({
+      operationName: '启动采集任务',
+      customMessages: {
+        auth: '需要登录才能启动采集任务',
+      },
+    }),
   });
 
   const stopCollectionMutation = useMutation({
     mutationFn: () => apiService.stopCollection(),
     onSuccess: () => {
-      message.success('已发送停止信号，采集任务将尽快停止');
+      showSuccess('已发送停止信号，采集任务将尽快停止');
       queryClient.invalidateQueries({ queryKey: ['collection-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['collection-status'] });
     },
-    onError: (error) => {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : '停止采集任务失败';
-      message.error(errorMessage);
-    },
+    onError: createErrorHandler({
+      operationName: '停止采集任务',
+      customMessages: {
+        auth: '需要登录才能停止采集任务',
+      },
+    }),
   });
 
   // 获取采集日志配置
@@ -127,13 +131,16 @@ export default function CollectionHistory() {
   const updateAutoCollectionMutation = useMutation({
     mutationFn: (data: AutoCollectionSettings) => apiService.updateAutoCollectionSettings(data),
     onSuccess: () => {
-      message.success('采集日志设置已保存');
+      showSuccess('采集日志设置已保存');
       setAutoCollectionModalVisible(false);
       queryClient.invalidateQueries({ queryKey: ['auto-collection-settings'] });
     },
-    onError: () => {
-      message.error('保存采集日志设置失败');
-    },
+    onError: createErrorHandler({
+      operationName: '保存采集日志设置',
+      customMessages: {
+        auth: '需要登录才能保存采集日志设置',
+      },
+    }),
   });
 
   // 初始化表单

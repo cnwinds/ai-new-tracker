@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Tabs, Card, Statistic, Row, Col, Alert, Button, Modal } from 'antd';
 import { SearchOutlined, MessageOutlined, DatabaseOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import RAGSearch from './RAGSearch';
 import RAGChat from './RAGChat';
 import { apiService } from '@/services/api';
@@ -13,7 +13,7 @@ import { apiService } from '@/services/api';
 export default function RAG() {
   const [activeTab, setActiveTab] = useState('search');
   const queryClient = useQueryClient();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess, showInfo } = useErrorHandler();
 
   // 获取RAG统计信息
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -26,20 +26,23 @@ export default function RAG() {
   const indexAllMutation = useMutation({
     mutationFn: (batchSize: number) => apiService.indexAllUnindexedArticles(batchSize),
     onSuccess: (data) => {
-      message.success(
+      showSuccess(
         `批量索引完成：总计 ${data.total}，成功 ${data.success}，失败 ${data.failed}`
       );
       // 刷新统计信息
       queryClient.invalidateQueries({ queryKey: ['rag-stats'] });
     },
-    onError: (error: any) => {
-      message.error(`批量索引失败: ${error?.response?.data?.detail || error.message}`);
-    },
+    onError: createErrorHandler({
+      operationName: '批量索引',
+      customMessages: {
+        auth: '需要登录才能执行批量索引',
+      },
+    }),
   });
 
   const handleIndexAll = () => {
     if (!stats || stats.unindexed_articles === 0) {
-      message.info('没有需要索引的文章');
+      showInfo('没有需要索引的文章');
       return;
     }
 

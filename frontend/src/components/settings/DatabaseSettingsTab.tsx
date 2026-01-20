@@ -6,12 +6,11 @@ import { DatabaseOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/
 import { useMutation } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
-import type { ApiError } from './types';
+import { useErrorHandler } from '@/utils/errorHandler';
 
 export default function DatabaseSettingsTab() {
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess, showInfo, showError } = useErrorHandler();
 
   // 数据库备份
   const backupDatabaseMutation = useMutation({
@@ -27,44 +26,42 @@ export default function DatabaseSettingsTab() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      message.success('数据库备份下载成功');
+      showSuccess('数据库备份下载成功');
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能备份数据库');
-      } else {
-        message.error(`备份数据库失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '备份数据库',
+      customMessages: {
+        auth: '需要登录才能备份数据库',
+      },
+    }),
   });
 
   // 数据库还原
   const restoreDatabaseMutation = useMutation({
     mutationFn: (file: File) => apiService.restoreDatabase(file),
     onSuccess: (data: { message: string; filename?: string; auto_backup?: string }) => {
-      message.success(data.message || '数据库还原成功，请刷新页面');
+      showSuccess(data.message || '数据库还原成功，请刷新页面');
       if (data.auto_backup) {
-        message.info(`已自动备份原数据库到: ${data.auto_backup}`);
+        showInfo(`已自动备份原数据库到: ${data.auto_backup}`);
       }
       // 延迟刷新页面，让用户看到消息
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能还原数据库');
-      } else {
-        message.error(`还原数据库失败: ${error.response?.data?.detail || error.message}`);
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '还原数据库',
+      customMessages: {
+        auth: '需要登录才能还原数据库',
+      },
+    }),
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.name.endsWith('.db')) {
-        message.error('只能上传 .db 格式的数据库文件');
+        showError(null, '只能上传 .db 格式的数据库文件');
         return;
       }
       restoreDatabaseMutation.mutate(file);

@@ -19,15 +19,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { NotificationSettings } from '@/types';
-import type { NotificationFormValues, ApiError } from './types';
+import type { NotificationFormValues } from './types';
 
 export default function NotificationSettingsTab() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess, showError } = useErrorHandler();
   const [notificationForm] = Form.useForm();
 
   // 获取通知配置
@@ -40,16 +40,15 @@ export default function NotificationSettingsTab() {
   const updateNotificationMutation = useMutation({
     mutationFn: (data: NotificationSettings) => apiService.updateNotificationSettings(data),
     onSuccess: () => {
-      message.success('通知配置已保存');
+      showSuccess('通知配置已保存');
       queryClient.invalidateQueries({ queryKey: ['notification-settings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能保存通知配置');
-      } else {
-        message.error('保存通知配置失败');
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '保存通知配置',
+      customMessages: {
+        auth: '需要登录才能保存通知配置',
+      },
+    }),
   });
 
   useEffect(() => {
@@ -67,7 +66,7 @@ export default function NotificationSettingsTab() {
 
   const handleNotificationSave = (values: NotificationFormValues) => {
     if (!values.platform || !values.webhook_url) {
-      message.error('请填写必填字段');
+      showError(null, '请填写必填字段');
       return;
     }
     const notificationData: NotificationSettings = {

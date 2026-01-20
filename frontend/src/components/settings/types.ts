@@ -58,6 +58,10 @@ export interface PasswordFormValues {
 export interface ApiError {
   status: number;
   message: string;
+  data?: {
+    detail?: string;
+    message?: string;
+  };
   response?: {
     data?: {
       detail?: string;

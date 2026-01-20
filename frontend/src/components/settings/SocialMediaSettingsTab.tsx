@@ -18,15 +18,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMessage } from '@/hooks/useMessage';
+import { useErrorHandler } from '@/utils/errorHandler';
 import { safeSetFieldsValue } from '@/utils/form';
 import type { SocialMediaSettings } from '@/types';
-import type { SocialMediaFormValues, ApiError } from './types';
+import type { SocialMediaFormValues } from './types';
 
 export default function SocialMediaSettingsTab() {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  const message = useMessage();
+  const { createErrorHandler, showSuccess } = useErrorHandler();
   const [socialMediaForm] = Form.useForm();
 
   // 获取社交平台配置
@@ -39,16 +39,15 @@ export default function SocialMediaSettingsTab() {
   const updateSocialMediaMutation = useMutation({
     mutationFn: (data: SocialMediaSettings) => apiService.updateSocialMediaSettings(data),
     onSuccess: () => {
-      message.success('社交平台配置已保存');
+      showSuccess('社交平台配置已保存');
       queryClient.invalidateQueries({ queryKey: ['social-media-settings'] });
     },
-    onError: (error: ApiError) => {
-      if (error.status === 401) {
-        message.error('需要登录才能保存社交平台配置');
-      } else {
-        message.error('保存社交平台配置失败');
-      }
-    },
+    onError: createErrorHandler({
+      operationName: '保存社交平台配置',
+      customMessages: {
+        auth: '需要登录才能保存社交平台配置',
+      },
+    }),
   });
 
   useEffect(() => {
