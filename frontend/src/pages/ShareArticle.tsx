@@ -11,6 +11,8 @@ import {
   LinkOutlined,
   DownOutlined,
   UpOutlined,
+  SunOutlined,
+  MoonOutlined,
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
@@ -26,7 +28,7 @@ export default function ShareArticle() {
   const { id } = useParams();
   const articleId = Number(id);
   const navigate = useNavigate();
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   const { data: article, isLoading, error } = useQuery({
@@ -51,11 +53,25 @@ export default function ShareArticle() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             marginBottom: 16,
           }}
         >
-          <Text type="secondary">AI News Tracker</Text>
+          <div></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Text type="secondary">AI News Tracker</Text>
+            <Button
+              type="text"
+              icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggleTheme}
+              style={{ 
+                color: getThemeColor(theme, 'text'),
+                fontSize: '18px',
+                padding: '4px 8px',
+              }}
+              title={theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'}
+            />
+          </div>
         </div>
 
         <div style={containerStyle}>
