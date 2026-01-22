@@ -298,15 +298,10 @@ class Settings:
 
             db = get_db()
             with db.get_session() as session:
-                logger.info(f"🔧 准备保存 auto_collection_enabled={enabled} (类型: {type(enabled).__name__})")
                 self._save_setting(
                     session, "auto_collection_enabled", enabled, "bool",
                     "是否启用自动采集"
                 )
-                # 验证保存的值
-                from backend.app.db.repositories import AppSettingsRepository
-                saved_value = AppSettingsRepository.get_setting(session, "auto_collection_enabled", None)
-                logger.info(f"✅ 验证保存后的值: auto_collection_enabled={saved_value} (类型: {type(saved_value).__name__})")
                 
                 if interval_hours is not None:
                     self._save_setting(
@@ -333,7 +328,7 @@ class Settings:
                 session.flush()
             
             self.AUTO_COLLECTION_ENABLED = enabled
-            logger.info(f"✅ 自动采集配置已保存: enabled={enabled}, interval_hours={interval_hours}, max_articles_per_source={max_articles_per_source}, request_timeout={request_timeout}")
+            logger.debug(f"自动采集配置已保存: enabled={enabled}, interval_hours={interval_hours}, max_articles_per_source={max_articles_per_source}, request_timeout={request_timeout}")
             return True
         except Exception as e:
             logger.error(f"保存自动采集配置失败: {e}", exc_info=True)
