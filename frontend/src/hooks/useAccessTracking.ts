@@ -2,15 +2,13 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-
-function generateSessionId(): string {
-  return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-}
+import { getOrCreateSessionId } from '@/utils/sessionId';
 
 export function useAccessTracking() {
   const location = useLocation();
   const { username } = useAuth();
-  const sessionIdRef = useRef<string>(generateSessionId());
+  // 使用统一的 sessionId 工具函数，确保持久化
+  const sessionIdRef = useRef<string>(getOrCreateSessionId());
   const lastPathRef = useRef<string>('');
 
   useEffect(() => {

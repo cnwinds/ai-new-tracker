@@ -3,22 +3,7 @@
  */
 import { useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-
-// 获取或生成 session ID（使用 localStorage 持久化）
-function getOrCreateSessionId(): string {
-  const STORAGE_KEY = 'access_session_id';
-
-  // 尝试从 localStorage 获取
-  let sessionId = localStorage.getItem(STORAGE_KEY);
-
-  // 如果不存在，生成新的并保存
-  if (!sessionId) {
-    sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem(STORAGE_KEY, sessionId);
-  }
-
-  return sessionId;
-}
+import { getOrCreateSessionId } from '@/utils/sessionId';
 
 export default function AccessTracker() {
   // 这个组件不直接使用 username，但保留 useAuth 调用以备将来使用

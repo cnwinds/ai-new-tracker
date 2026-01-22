@@ -63,54 +63,72 @@ async def get_access_stats(
         # 所以直接使用DATE()函数提取日期即可
         date_expr = func.date(AccessLog.access_date)
         
-        daily_stats_query = (
+        # 查询每日统计数据
+        # 使用更清晰的方式：分别查询 page_view 和 click，然后在 Python 中合并
+        # 这样可以避免复杂的 SQL case 语句，逻辑更清晰
+        
+        # 查询 page_view 的每日统计（包含独立用户数）
+        page_view_query = (
             db.query(
                 date_expr.label('date'),
-                func.sum(
-                    case(
-                        (AccessLog.access_type == 'page_view', 1),
-                        else_=0
-                    )
-                ).label('page_views'),
-                func.count(
-                    func.distinct(
-                        case(
-                            (AccessLog.access_type == 'page_view', AccessLog.user_id),
-                            else_=None
-                        )
-                    )
-                ).label('unique_users'),
-                func.sum(
-                    case(
-                        (AccessLog.access_type == 'click', 1),
-                        else_=0
-                    )
-                ).label('clicks')
+                func.count().label('page_views'),
+                func.count(func.distinct(AccessLog.user_id)).label('unique_users')
             )
             .filter(
                 and_(
                     date_expr >= start_date,
-                    date_expr <= end_date
+                    date_expr <= end_date,
+                    AccessLog.access_type == 'page_view'
                 )
             )
             .group_by(date_expr)
-            .order_by(date_expr)
         )
-
-        results = daily_stats_query.all()
+        
+        # 查询 click 的每日统计
+        click_query = (
+            db.query(
+                date_expr.label('date'),
+                func.count().label('clicks')
+            )
+            .filter(
+                and_(
+                    date_expr >= start_date,
+                    date_expr <= end_date,
+                    AccessLog.access_type == 'click'
+                )
+            )
+            .group_by(date_expr)
+        )
+        
+        # 获取结果
+        page_view_results = {row.date: row for row in page_view_query.all()}
+        click_results = {row.date: row for row in click_query.all()}
+        
+        # 合并所有日期
+        all_dates = set(page_view_results.keys()) | set(click_results.keys())
+        daily_stats_list = []
+        
+        for date in sorted(all_dates):
+            page_view_row = page_view_results.get(date)
+            click_row = click_results.get(date)
+            
+            daily_stats_list.append({
+                'date': date,
+                'page_views': int(page_view_row.page_views) if page_view_row else 0,
+                'unique_users': int(page_view_row.unique_users) if page_view_row else 0,
+                'clicks': int(click_row.clicks) if click_row else 0
+            })
 
         # 构建每日统计列表
         daily_stats = []
         total_page_views = 0
-        total_unique_users_set = set()
         total_clicks = 0
 
-        for row in results:
-            # row.date 已经是字符串格式 (YYYY-MM-DD)
-            date_str = str(row.date)
-            page_views = int(row.page_views) if row.page_views else 0
-            unique_users = int(row.unique_users) if row.unique_users else 0
-            clicks = int(row.clicks) if row.clicks else 0
+        for stat in daily_stats_list:
+            date_str = str(stat['date'])
+            page_views = stat['page_views']
+            unique_users = stat['unique_users']
+            clicks = stat['clicks']
 
             daily_stats.append(DailyAccessStats(
                 date=date_str,

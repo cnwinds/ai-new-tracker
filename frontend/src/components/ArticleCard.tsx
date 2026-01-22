@@ -16,6 +16,7 @@ import { getThemeColor } from '@/utils/theme';
 import { getSummaryText, IMPORTANCE_COLORS, getImportanceLabel } from '@/utils/article';
 import { copyToClipboard } from '@/utils/clipboard';
 import { useMessage } from '@/hooks/useMessage';
+import { getOrCreateSessionId } from '@/utils/sessionId';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -70,7 +71,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         'page_view',  // 页面浏览量 = 文章展开
         window.location.pathname,
         `展开文章: ${article.title}`,
-        username || undefined
+        username || getOrCreateSessionId()
       ).catch((error) => {
         console.debug('Failed to log article expand:', error);
       });

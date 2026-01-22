@@ -23,6 +23,7 @@ import { getThemeColor } from '@/utils/theme';
 import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
 import { copyToClipboard } from '@/utils/clipboard';
 import { useMessage } from '@/hooks/useMessage';
+import { getOrCreateSessionId } from '@/utils/sessionId';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 
@@ -67,7 +68,7 @@ export default function ArticleDetailModal({
         'click',
         window.location.pathname,
         `查看文章: ${article.title}`,
-        username || undefined
+        username || getOrCreateSessionId()
       ).catch((error) => {
         console.debug('Failed to log article view:', error);
       });
