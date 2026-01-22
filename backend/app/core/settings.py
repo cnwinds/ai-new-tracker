@@ -1149,7 +1149,7 @@ class Settings:
 
             return True
         except Exception as e:
-            logger.error(f"保存社交平台配置失败: {e}")
+            logger.error(f"保存社交平台配置失败: {e}", exc_info=True)
             return False
     
     def get_social_media_auto_report_cron(self) -> Optional[str]:

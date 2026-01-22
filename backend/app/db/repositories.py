@@ -384,35 +384,35 @@ class AppSettingsRepository:
 
         Returns:
             是否成功
+            
+        Note:
+            此方法不会自动提交，需要调用者通过上下文管理器或手动提交。
+            这样可以确保多个设置在一个事务中保存，要么全部成功，要么全部失败。
         """
-        try:
-            # 转换值为字符串
-            if value_type == "json":
-                import json
-                value_str = json.dumps(value, ensure_ascii=False)
-            else:
-                value_str = str(value)
-            
-            setting = session.query(AppSettings).filter(AppSettings.key == key).first()
-            if setting:
-                setting.value = value_str
-                setting.value_type = value_type
-                if description:
-                    setting.description = description
-            else:
-                setting = AppSettings(
-                    key=key,
-                    value=value_str,
-                    value_type=value_type,
-                    description=description
-                )
-                session.add(setting)
-            
-            session.commit()
-            return True
-        except Exception as e:
-            session.rollback()
-            raise e
+        # 转换值为字符串
+        if value_type == "json":
+            import json
+            value_str = json.dumps(value, ensure_ascii=False)
+        else:
+            value_str = str(value)
+        
+        setting = session.query(AppSettings).filter(AppSettings.key == key).first()
+        if setting:
+            setting.value = value_str
+            setting.value_type = value_type
+            if description:
+                setting.description = description
+        else:
+            setting = AppSettings(
+                key=key,
+                value=value_str,
+                value_type=value_type,
+                description=description
+            )
+            session.add(setting)
+        
+        # 注意：不在这里提交，由上下文管理器统一处理
+        return True
 
     @staticmethod
     def get_all_settings(session: Session) -> dict:
