@@ -502,8 +502,10 @@ class TaskScheduler:
                 return
 
             # 保存到数据库（作为缓存）
+            saved_post_ids = []
             with self.db.get_session() as session:
                 saved_posts = collector.save_posts(session, all_posts)
+                saved_post_ids = [post.id for post in saved_posts]
 
             # 从数据库加载已有的翻译和价值判断结果，填充到临时对象中
             post_ids_by_platform = {}
@@ -534,9 +536,9 @@ class TaskScheduler:
                                     temp_post.has_value = existing_post.has_value
 
             # AI分析(异步执行) - 只对新保存的帖子进行分析
-            if saved_posts:
+            if saved_post_ids:
                 import asyncio
-                asyncio.create_task(self._analyze_posts_async(collector, [p.id for p in saved_posts]))
+                asyncio.create_task(self._analyze_posts_async(collector, saved_post_ids))
 
             # 生成报告
             report_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
