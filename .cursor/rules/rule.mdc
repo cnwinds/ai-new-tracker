@@ -24,3 +24,5 @@ with session as s:  # ✅ s 是真正的 Session 对象
     self.AUTO_COLLECTION_ENABLED = self._load_setting(
         s, "auto_collection_enabled", ...  # ✅ 传递 Session
     )
+
+# 查找程序bug的时候，要遵循第一性原理，找出问题的根源并解决，不要使用补丁方式掩盖问题。如果不能确定问题就加日志，通过日志反馈来确定问题。目标就是要通过一切手段找到问题的根源并解决问题。

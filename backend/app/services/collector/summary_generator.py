@@ -188,9 +188,6 @@ class SummaryGenerator:
         # 提取关键主题
         key_topics = self._extract_topics(articles_data)
 
-        # 推荐重要文章
-        recommended_articles = self._select_recommended_articles(articles_data)
-
         # 计算耗时
         generation_time = (datetime.now() - start_time).total_seconds()
 
@@ -238,7 +235,6 @@ class SummaryGenerator:
                 existing_summary.medium_importance_count = medium_count
                 existing_summary.summary_content = summary_text
                 existing_summary.key_topics = key_topics
-                existing_summary.recommended_articles = recommended_articles
                 existing_summary.model_used = self.ai_analyzer.model
                 existing_summary.generation_time = generation_time
                 existing_summary.updated_at = datetime.now()
@@ -257,7 +253,6 @@ class SummaryGenerator:
                     medium_importance_count=medium_count,
                     summary_content=summary_text,
                     key_topics=key_topics,
-                    recommended_articles=recommended_articles,
                     model_used=self.ai_analyzer.model,
                     generation_time=generation_time
                 )
@@ -278,7 +273,6 @@ class SummaryGenerator:
             medium_importance_count=medium_count,
             summary_content=summary_text,
             key_topics=key_topics,
-            recommended_articles=recommended_articles,
             model_used=self.ai_analyzer.model,
             generation_time=generation_time
         )
@@ -392,39 +386,3 @@ class SummaryGenerator:
         """
         # 不再从topics字段提取，返回空列表
         return []
-
-    def _select_recommended_articles(self, articles_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        选择推荐文章
-
-        Args:
-            articles_data: 文章数据列表
-
-        Returns:
-            推荐文章列表
-        """
-        recommended = []
-
-        # 优先选择高重要性文章
-        high_importance = [a for a in articles_data if a.get("importance") == "high"]
-        medium_importance = [a for a in articles_data if a.get("importance") == "medium"]
-
-        # 选择最多10篇推荐文章
-        selected_articles = (high_importance + medium_importance)[:10]
-
-        for article in selected_articles:
-            reason = ""
-            if article.get("importance") == "high":
-                reason = "高重要性文章，值得重点关注"
-            elif article.get("importance") == "medium":
-                reason = "中等重要性，建议阅读"
-
-            recommended.append({
-                "id": article.get("id"),
-                "title": article.get("title"),
-                "source": article.get("source"),
-                "importance": article.get("importance"),
-                "reason": reason
-            })
-
-        return recommended

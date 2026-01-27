@@ -1,7 +1,7 @@
 /**
  * 内容摘要组件
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Card,
   Button,
@@ -24,7 +24,6 @@ import { useMessage } from '@/hooks/useMessage';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
 import type {
   SummaryGenerateRequest,
-  Article,
   DailySummaryListItem,
   SummaryFieldsResponse,
   SummaryGenerateFormValues,
@@ -38,7 +37,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createMarkdownComponents, remarkGfm } from '@/utils/markdown';
 import { getThemeColor, getSelectedStyle } from '@/utils/theme';
-import ArticleCard from './ArticleCard';
 
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
@@ -91,10 +89,10 @@ export default function DailySummary() {
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [selectedWeekDate, setSelectedWeekDate] = useState<dayjs.Dayjs | null>(null);
   const [hoveredWeekDate, setHoveredWeekDate] = useState<dayjs.Dayjs | null>(null);
-  const [recommendedArticles, setRecommendedArticles] = useState<Map<number, Article[]>>(new Map());
-  const [loadingArticles, setLoadingArticles] = useState<Set<number>>(new Set());
   const { theme } = useTheme();
   const { isAuthenticated } = useAuth();
+  // 保存正在重新生成的摘要ID
+  const regeneratingSummaryIdRef = useRef<number | null>(null);
 
   const { data: summaries, isLoading } = useQuery({
     queryKey: ['summaries'],
@@ -112,6 +110,8 @@ export default function DailySummary() {
   
   // 存储已加载的摘要详情
   const [loadedDetails, setLoadedDetails] = useState<Map<number, SummaryFieldsResponse>>(new Map());
+  // 跟踪正在加载详情的摘要ID
+  const [loadingDetails, setLoadingDetails] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     // 当对话框打开且数据加载完成时，设置表单值
@@ -160,16 +160,52 @@ export default function DailySummary() {
   const regenerateMutation = useMutation({
     mutationFn: (data: SummaryGenerateRequest) =>
       apiService.generateSummary(data),
-    onSuccess: () => {
+    onSuccess: async () => {
       showSuccess('摘要重新生成成功');
-      queryClient.invalidateQueries({ queryKey: ['summaries'] });
+      
+      // 如果该摘要已展开，先清除其缓存和加载状态
+      const summaryId = regeneratingSummaryIdRef.current;
+      if (summaryId !== null && expandedSummaries.has(summaryId)) {
+        // 清除已加载的详情缓存
+        setLoadedDetails((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(summaryId);
+          return newMap;
+        });
+        // 清除加载状态
+        setLoadingDetails((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(summaryId);
+          return newSet;
+        });
+      }
+      
+      // 刷新摘要列表
+      await queryClient.invalidateQueries({ queryKey: ['summaries'] });
+      
+      // 等待列表刷新完成后重新加载详情
+      if (summaryId !== null && expandedSummaries.has(summaryId)) {
+        // 使用 Promise 等待列表数据刷新
+        await queryClient.refetchQueries({ queryKey: ['summaries'] });
+        
+        // 强制重新加载详情（延迟一点确保列表已更新）
+        setTimeout(() => {
+          loadSummaryDetails(summaryId, true);
+        }, 200);
+      }
+      
+      // 清除 ref
+      regeneratingSummaryIdRef.current = null;
     },
-    onError: createErrorHandler({
-      operationName: '重新生成摘要',
-      customMessages: {
-        auth: '需要登录才能重新生成摘要',
-      },
-    }),
+    onError: (error) => {
+      regeneratingSummaryIdRef.current = null;
+      createErrorHandler({
+        operationName: '重新生成摘要',
+        customMessages: {
+          auth: '需要登录才能重新生成摘要',
+        },
+      })(error);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -187,7 +223,7 @@ export default function DailySummary() {
   });
 
   const handleRegenerate = (summary: DailySummaryListItem) => {
-    const requestData: { summary_type: 'daily' | 'weekly'; date?: string; week?: string } = {
+    const requestData: SummaryGenerateRequest = {
       summary_type: summary.summary_type as 'daily' | 'weekly',
     };
 
@@ -200,6 +236,10 @@ export default function DailySummary() {
       requestData.week = `${summaryDate.year()}-${summaryDate.isoWeek().toString().padStart(2, '0')}`;
     }
 
+    // 保存正在重新生成的摘要ID
+    regeneratingSummaryIdRef.current = summary.id;
+
+    // 调用重新生成
     regenerateMutation.mutate(requestData);
   };
 
@@ -241,52 +281,20 @@ export default function DailySummary() {
     updatePromptMutation.mutate(values);
   };
 
-  // 加载推荐文章（只获取基本字段，详细字段由ArticleCard按需加载）
-  const loadRecommendedArticles = async (summary: DailySummaryListItem & { recommended_articles?: Array<{ id: number; title: string; reason: string }> }) => {
-    if (!summary.recommended_articles || summary.recommended_articles.length === 0) {
+  // 按需加载摘要详情
+  const loadSummaryDetails = async (summaryId: number, forceReload: boolean = false) => {
+    // 如果已经加载过且不是强制重新加载，直接返回
+    if (!forceReload && loadedDetails.has(summaryId)) {
       return;
     }
 
-    const summaryId = summary.id;
-
-    // 如果已经加载过，直接返回
-    if (recommendedArticles.has(summaryId)) {
+    // 如果正在加载，避免重复加载
+    if (loadingDetails.has(summaryId)) {
       return;
     }
 
     // 设置加载状态
-    setLoadingArticles((prev) => new Set(prev).add(summaryId));
-
-    try {
-      // 批量获取文章的基本字段（不包含content、summary等大字段）
-      // ArticleCard会自己按需加载详细字段
-      const articleIds = summary.recommended_articles.map(rec => rec.id);
-      const articles = await apiService.getArticlesBasic(articleIds);
-
-      // 保存到状态
-      setRecommendedArticles((prev) => {
-        const newMap = new Map(prev);
-        newMap.set(summaryId, articles);
-        return newMap;
-      });
-    } catch (error) {
-      console.error('加载推荐文章失败:', error);
-      message.error('加载推荐文章失败');
-    } finally {
-      setLoadingArticles((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(summaryId);
-        return newSet;
-      });
-    }
-  };
-
-  // 按需加载摘要详情
-  const loadSummaryDetails = async (summaryId: number) => {
-    // 如果已经加载过，直接返回
-    if (loadedDetails.has(summaryId)) {
-      return;
-    }
+    setLoadingDetails((prev) => new Set(prev).add(summaryId));
 
     try {
       const details = await apiService.getSummaryFields(summaryId, 'all');
@@ -295,22 +303,22 @@ export default function DailySummary() {
         newMap.set(summaryId, details);
         return newMap;
       });
-      
-      // 如果有推荐文章，加载推荐文章
-      if (details.recommended_articles && details.recommended_articles.length > 0) {
-        const summary = summaries?.find(s => s.id === summaryId);
-        if (summary) {
-          // 使用加载的推荐文章信息
-          const summaryWithDetails: DailySummaryListItem & { recommended_articles?: Array<{ id: number; title: string; reason: string }> } = {
-            ...summary,
-            recommended_articles: details.recommended_articles,
-          };
-          loadRecommendedArticles(summaryWithDetails);
-        }
-      }
     } catch (error) {
       console.error('加载摘要详情失败:', error);
       message.error('加载摘要详情失败');
+      // 如果加载失败，从缓存中移除
+      setLoadedDetails((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(summaryId);
+        return newMap;
+      });
+    } finally {
+      // 清除加载状态
+      setLoadingDetails((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(summaryId);
+        return newSet;
+      });
     }
   };
 
@@ -400,15 +408,28 @@ export default function DailySummary() {
                       <>
                         {(() => {
                           const details = loadedDetails.get(summary.id);
+                          const isLoading = loadingDetails.has(summary.id);
+                          
                           if (!details) {
-                            // 正在加载详情
-                            return (
-                              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                                <Spin size="large" />
-                              </div>
-                            );
+                            if (isLoading) {
+                              // 正在加载详情
+                              return (
+                                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                  <Spin size="large" />
+                                </div>
+                              );
+                            } else {
+                              // 加载失败或未加载，尝试重新加载
+                              loadSummaryDetails(summary.id);
+                              return (
+                                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                  <Spin size="large" />
+                                </div>
+                              );
+                            }
                           }
                           
+                          // details 已确认存在，可以安全使用
                           return (
                             <>
                               <div
@@ -437,25 +458,6 @@ export default function DailySummary() {
                                       {topic}
                                     </Tag>
                                   ))}
-                                </div>
-                              )}
-                              {/* 推荐文章列表 */}
-                              {details.recommended_articles && details.recommended_articles.length > 0 && (
-                                <div style={{ marginTop: '16px' }}>
-                                  <Title level={5} style={{ marginBottom: '12px', color: getThemeColor(theme, 'text') }}>
-                                    推荐文章 ({details.recommended_articles.length})
-                                  </Title>
-                                  {loadingArticles.has(summary.id) ? (
-                                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                                      <Spin />
-                                    </div>
-                                  ) : recommendedArticles.has(summary.id) ? (
-                                    <div>
-                                      {recommendedArticles.get(summary.id)?.map((article) => (
-                                        <ArticleCard key={article.id} article={article} />
-                                      ))}
-                                    </div>
-                                  ) : null}
                                 </div>
                               )}
                             </>

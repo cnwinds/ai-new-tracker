@@ -64,7 +64,7 @@ async def get_summary_fields(
     
     Args:
         summary_id: 摘要ID
-        fields: 要获取的字段，如：'summary_content' 或 'summary_content,key_topics,recommended_articles'，或 'all' 获取所有详细字段
+        fields: 要获取的字段，如：'summary_content' 或 'summary_content,key_topics'，或 'all' 获取所有详细字段
     """
     summary = db.query(DailySummary).filter(DailySummary.id == summary_id).first()
     if not summary:
@@ -72,7 +72,7 @@ async def get_summary_fields(
     
     # 解析字段列表
     if fields == "all":
-        field_list = ["summary_content", "key_topics", "recommended_articles"]
+        field_list = ["summary_content", "key_topics"]
     else:
         field_list = [f.strip() for f in fields.split(",")]
     
@@ -82,8 +82,6 @@ async def get_summary_fields(
         response_data["summary_content"] = summary.summary_content
     if "key_topics" in field_list:
         response_data["key_topics"] = summary.key_topics
-    if "recommended_articles" in field_list:
-        response_data["recommended_articles"] = summary.recommended_articles
     
     return SummaryFieldsResponse(**response_data)
 

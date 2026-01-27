@@ -103,11 +103,6 @@ export interface DailySummary {
   high_importance_count: number;
   medium_importance_count: number;
   key_topics?: string[];
-  recommended_articles?: Array<{
-    id: number;
-    title: string;
-    reason: string;
-  }>;
   model_used?: string;
   generation_time?: number;
   created_at: string;
@@ -117,11 +112,6 @@ export interface DailySummary {
 export interface SummaryFieldsResponse {
   summary_content?: string;
   key_topics?: string[];
-  recommended_articles?: Array<{
-    id: number;
-    title: string;
-    reason: string;
-  }>;
 }
 
 export interface RSSSource {

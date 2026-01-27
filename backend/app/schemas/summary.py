@@ -17,7 +17,6 @@ class DailySummaryBase(BaseModel):
     high_importance_count: int = 0
     medium_importance_count: int = 0
     key_topics: Optional[List[str]] = None
-    recommended_articles: Optional[List[Dict]] = None
 
 
 class DailySummaryCreate(DailySummaryBase):
@@ -66,7 +65,6 @@ class SummaryFieldsResponse(BaseModel):
     """摘要字段响应（按需加载）"""
     summary_content: Optional[str] = None
     key_topics: Optional[List[str]] = None
-    recommended_articles: Optional[List[Dict]] = None
 
 
 class SummaryGenerateRequest(BaseModel):
