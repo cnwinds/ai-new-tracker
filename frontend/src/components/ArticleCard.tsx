@@ -50,6 +50,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
   const articleWithLoadedData = {
     ...article,
     summary: loadedDetails?.summary ?? article.summary,
+    detailed_summary: loadedDetails?.detailed_summary ?? article.detailed_summary,
     content: loadedDetails?.content ?? article.content,
     author: loadedDetails?.author ?? article.author,
     tags: loadedDetails?.tags ?? article.tags,
@@ -78,7 +79,32 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     }
   }, [expanded, article, username]);
 
-  const summaryText = getSummaryText(articleWithLoadedData);
+  // 优先显示 detailed_summary（精读），如果没有则显示 summary（摘要）
+  const getDetailedSummaryText = (article: Article): string => {
+    if (article.detailed_summary) {
+      const detailedSummaryStr = String(article.detailed_summary).trim();
+      if (detailedSummaryStr) {
+        // 处理可能的 JSON 格式
+        if (detailedSummaryStr.startsWith('{') && detailedSummaryStr.includes('"detailed_summary"')) {
+          try {
+            const parsed = JSON.parse(detailedSummaryStr);
+            if (typeof parsed === 'object' && parsed !== null && 'detailed_summary' in parsed) {
+              if (typeof parsed.detailed_summary === 'string') {
+                return parsed.detailed_summary;
+              }
+            }
+          } catch {
+            // JSON 解析失败，返回原始字符串
+          }
+        }
+        return detailedSummaryStr;
+      }
+    }
+    // 如果没有 detailed_summary，回退到 summary
+    return getSummaryText(article);
+  };
+  
+  const summaryText = getDetailedSummaryText(articleWithLoadedData);
 
   const handleAnalyze = () => {
     // 如果已分析，使用 force=true 强制重新分析
@@ -261,7 +287,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               <div style={{ marginBottom: 12 }}>
                 {article.is_processed && (
                   <Tag icon={<RobotOutlined />} color="purple" style={{ marginBottom: 8 }}>
-                    AI生成的精简摘要
+                    AI生成的精读
                   </Tag>
                 )}
                 <div

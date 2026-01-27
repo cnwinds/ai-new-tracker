@@ -141,6 +141,9 @@ class DatabaseManager:
             # 迁移：添加 Reddit 字段到社交平台报告表（如果不存在）
             self._migrate_add_reddit_fields()
             
+            # 迁移：添加 detailed_summary 字段并迁移现有 summary 数据
+            self._migrate_add_detailed_summary()
+            
             logger.info("✅ 数据库基础表初始化成功")
         except Exception as e:
             logger.error(f"❌ 数据库初始化失败: {e}")
@@ -299,6 +302,49 @@ class DatabaseManager:
         except Exception as e:
             # 如果升级失败，记录但不中断
             logger.warning(f"⚠️  升级sub_type字段失败: {e}")
+
+    def _migrate_add_detailed_summary(self):
+        """迁移：为 articles 表添加 detailed_summary 字段，并将现有 summary 数据迁移到 detailed_summary"""
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(self.engine)
+            
+            # 检查 articles 表是否存在
+            try:
+                columns = [col['name'] for col in inspector.get_columns('articles')]
+            except Exception:
+                # 表不存在，跳过迁移
+                logger.debug("articles 表不存在，跳过 detailed_summary 字段迁移")
+                return
+            
+            # 添加 detailed_summary 字段
+            if 'detailed_summary' not in columns:
+                logger.info("🔄 检测到缺少 detailed_summary 字段，正在添加...")
+                with self.engine.connect() as conn:
+                    conn.execute(text("""
+                        ALTER TABLE articles 
+                        ADD COLUMN detailed_summary TEXT
+                    """))
+                    conn.commit()
+                logger.info("✅ detailed_summary 字段添加成功")
+                
+                # 迁移现有数据：将现有的 summary 数据复制到 detailed_summary
+                # 因为现有的 summary 实际上是精读内容
+                logger.info("🔄 开始迁移现有 summary 数据到 detailed_summary...")
+                with self.engine.connect() as conn:
+                    result = conn.execute(text("""
+                        UPDATE articles 
+                        SET detailed_summary = summary 
+                        WHERE summary IS NOT NULL AND summary != ''
+                    """))
+                    migrated_count = result.rowcount
+                    conn.commit()
+                logger.info(f"✅ 已迁移 {migrated_count} 条记录的 summary 数据到 detailed_summary")
+            else:
+                logger.debug("detailed_summary 字段已存在，跳过迁移")
+        except Exception as e:
+            # 如果字段已存在或其他错误，记录但不中断
+            logger.warning(f"⚠️  detailed_summary 字段迁移检查失败: {e}")
 
     def _migrate_add_reddit_fields(self):
         """迁移：为 social_media_reports 表添加 reddit_count 和 reddit_enabled 字段（如果不存在）"""

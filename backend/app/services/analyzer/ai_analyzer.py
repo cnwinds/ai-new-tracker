@@ -197,7 +197,7 @@ class AIAnalyzer:
                         logger.error(f"   内容长度: {len(content)} 字符")
                         logger.error(f"   提示词长度: {len(prompt)} 字符")
                         # 计算估算的请求体大小（UTF-8编码）
-                        estimated_size = len(prompt.encode('utf-8')) + len(json_format_section.encode('utf-8')) + 1000
+                        estimated_size = len(prompt.encode('utf-8')) + 1000
                         logger.error(f"   估算请求体大小: {estimated_size} 字节")
 
                     if "Exceeded limit on max bytes to request body" in error_msg:
@@ -217,9 +217,26 @@ class AIAnalyzer:
             result.setdefault("tags", [])
             result.setdefault("target_audience", "general")
             
-            # 处理 summary 字段：确保是字符串类型
+            # 处理 detailed_summary 字段（精读）：确保是字符串类型
+            if "detailed_summary" not in result or not result["detailed_summary"]:
+                # 如果新字段不存在，检查是否有旧的 summary 字段（向后兼容）
+                if "summary" in result and result["summary"]:
+                    result["detailed_summary"] = result["summary"]
+                else:
+                    result["detailed_summary"] = result_text if result_text else ""  # 保存完整响应内容，方便后续研究问题
+            else:
+                # 确保 detailed_summary 是字符串，而不是其他类型
+                detailed_summary_value = result["detailed_summary"]
+                if isinstance(detailed_summary_value, dict):
+                    # 如果是字典，转换为 JSON 字符串
+                    result["detailed_summary"] = json.dumps(detailed_summary_value, ensure_ascii=False)
+                elif not isinstance(detailed_summary_value, str):
+                    # 如果不是字符串，转换为字符串
+                    result["detailed_summary"] = str(detailed_summary_value) if detailed_summary_value else ""
+            
+            # 处理 summary 字段（3句话摘要）：确保是字符串类型
             if "summary" not in result or not result["summary"]:
-                result["summary"] = result_text if result_text else ""  # 保存完整响应内容，方便后续研究问题
+                result["summary"] = ""  # 如果没有生成摘要，使用空字符串
             else:
                 # 确保 summary 是字符串，而不是其他类型
                 summary_value = result["summary"]
@@ -323,12 +340,17 @@ class AIAnalyzer:
             try:
                 logger.info(f"🌐 正在翻译英文内容...")
                 translated = self._translate_content_to_chinese(content)
+                result["detailed_summary"] = translated
+                # 对于短内容，摘要和精读使用相同内容
                 result["summary"] = translated
             except Exception as e:
                 logger.warning(f"⚠️  翻译失败，使用原文: {e}")
+                result["detailed_summary"] = content
                 result["summary"] = content
         else:
             # 中文内容，直接使用
+            result["detailed_summary"] = content
+            # 对于短内容，摘要和精读使用相同内容
             result["summary"] = content
 
         # 如果标题是英文，翻译标题
@@ -555,18 +577,31 @@ class AIAnalyzer:
 请按以下JSON格式返回分析结果：
 {{
     "importance": "high/medium/low",
-    "summary": "根据上述要求处理后的内容（使用Markdown格式输出，可以使用标题、列表、加粗等Markdown语法，换行使用 \\n 表示）",
+    "detailed_summary": "根据上述要求处理后的内容（使用Markdown格式输出，可以使用标题、列表、加粗等Markdown语法，换行使用 \\n 表示）。这是精读版本，要求结构完整、信息齐全、逻辑严密。",
+    "summary": "使用最多3句话总结文章的核心内容，要求简洁明了、突出重点。",
     "tags": ["标签1", "标签2", "标签3"],
     "target_audience": "researcher/engineer/general",
     "title_zh": "如果文章标题是英文，请将其翻译成准确、自然的中文标题；如果标题已经是中文，则不输出该行"
 }}
 
-**重要提示：summary字段必须使用Markdown格式输出，可以使用以下Markdown语法：**
-- 标题：使用 #、##、### 等
-- 列表：使用 - 或 * 
-- 加粗：使用 **文本**
-- 强调：使用 *文本*
-- 代码：使用 `代码`
+**重要提示：**
+1. detailed_summary字段（精读）：
+   - 这是详细的精读版本，要求结构完整、信息齐全、逻辑严密
+   - 必须使用Markdown格式输出，可以使用以下Markdown语法：
+     * 标题：使用 #、##、### 等
+     * 列表：使用 - 或 * 
+     * 加粗：使用 **文本**
+     * 强调：使用 *文本*
+     * 代码：使用 `代码`
+   - 内容应该详细、完整，可以包含多个段落和结构化的信息
+
+2. summary字段（摘要）：
+   - 这是简短的摘要版本，要求使用最多3句话总结文章的核心内容
+   - 不需要Markdown格式，直接使用普通文本即可
+   - 要求简洁明了、突出重点，只包含最核心的信息
+   - 内容应该比detailed_summary短得多，通常只有1-3句话
+
+**关键要求：summary和detailed_summary必须是不同的内容！summary是简短摘要（1-3句话），detailed_summary是详细精读（多段落、结构化）。请确保两个字段的内容长度和详细程度有明显区别。**
 
 重要性评估标准：
 - high: 重大突破、重要研究、行业影响大
@@ -659,7 +694,8 @@ URL: {url}
         """解析文本响应（当API返回的不是JSON时）"""
         result = {
             "importance": "medium",
-            "summary": text,  # 保存完整响应内容，方便后续研究问题
+            "detailed_summary": text,  # 保存完整响应内容，方便后续研究问题
+            "summary": "",  # 如果没有解析出摘要，使用空字符串
             "tags": [],
             "target_audience": "general",
         }

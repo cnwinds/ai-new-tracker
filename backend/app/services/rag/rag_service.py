@@ -74,9 +74,10 @@ class RAGService:
         if article.title_zh:
             parts.append(f"中文标题: {article.title_zh}")
         
-        # 摘要
-        if article.summary:
-            parts.append(f"摘要: {article.summary}")
+        # 摘要（优先使用3句话摘要，如果没有则使用精读）
+        summary_text = article.summary or article.detailed_summary
+        if summary_text:
+            parts.append(f"摘要: {summary_text}")
         
         # 内容（增加索引长度以包含更多信息）
         # 使用更长的内容索引，确保能覆盖文章中的关键词
@@ -85,7 +86,7 @@ class RAGService:
             # - 如果有摘要：取前5000字符（之前是2000）
             # - 如果没有摘要：取前8000字符（之前是3000）
             # 这样可以确保文章中的专有名词（如 Nemotron）能被索引到
-            max_content_length = 5000 if article.summary else 8000
+            max_content_length = 5000 if summary_text else 8000
             content_preview = article.content[:max_content_length]
             parts.append(f"内容: {content_preview}")
         

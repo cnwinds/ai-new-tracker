@@ -730,7 +730,8 @@ class NotificationService:
     def _build_feishu_instant_message(self, article: Article) -> Dict[str, Any]:
         """构建飞书即时提醒消息"""
         title = article.title_zh or article.title
-        summary = article.summary or "暂无摘要"
+        # 优先使用摘要（3句话），如果没有则使用精读，最后使用"暂无摘要"
+        summary = article.summary or article.detailed_summary or "暂无摘要"
         
         content = {
             "msg_type": "interactive",
@@ -776,7 +777,8 @@ class NotificationService:
     def _build_dingtalk_instant_message(self, article: Article) -> Dict[str, Any]:
         """构建钉钉即时提醒消息"""
         title = article.title_zh or article.title
-        summary = article.summary or "暂无摘要"
+        # 优先使用摘要（3句话），如果没有则使用精读，最后使用"暂无摘要"
+        summary = article.summary or article.detailed_summary or "暂无摘要"
         
         content = {
             "msgtype": "markdown",

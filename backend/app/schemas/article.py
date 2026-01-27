@@ -12,7 +12,8 @@ class ArticleBase(BaseModel):
     title_zh: Optional[str] = None
     url: str
     content: Optional[str] = None
-    summary: Optional[str] = None
+    summary: Optional[str] = None  # 摘要：使用最多3句话总结内容
+    detailed_summary: Optional[str] = None  # 精读：结构完整、信息齐全、逻辑严密的精简短文
     source: str
     source_id: Optional[int] = None
     category: Optional[str] = None
@@ -30,7 +31,8 @@ class ArticleUpdate(BaseModel):
     title: Optional[str] = None
     title_zh: Optional[str] = None
     content: Optional[str] = None
-    summary: Optional[str] = None
+    summary: Optional[str] = None  # 摘要：使用最多3句话总结内容
+    detailed_summary: Optional[str] = None  # 精读：结构完整、信息齐全、逻辑严密的精简短文
     importance: Optional[str] = None
     tags: Optional[List[str]] = None
     is_processed: Optional[bool] = None

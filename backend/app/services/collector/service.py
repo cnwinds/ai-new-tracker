@@ -1587,7 +1587,21 @@ class CollectionService:
                         elif not isinstance(summary_value, str):
                             summary_value = str(summary_value) if summary_value else ""
 
+                        # 确保 detailed_summary 是字符串类型（AI可能返回dict）
+                        detailed_summary_value = result.get("detailed_summary", "")
+                        if isinstance(detailed_summary_value, dict):
+                            # 如果是字典，提取文本内容或转换为JSON字符串
+                            if "text" in detailed_summary_value:
+                                detailed_summary_value = detailed_summary_value["text"]
+                            elif "content" in detailed_summary_value:
+                                detailed_summary_value = detailed_summary_value["content"]
+                            else:
+                                detailed_summary_value = json.dumps(detailed_summary_value, ensure_ascii=False)
+                        elif not isinstance(detailed_summary_value, str):
+                            detailed_summary_value = str(detailed_summary_value) if detailed_summary_value else ""
+
                         article_obj.summary = summary_value
+                        article_obj.detailed_summary = detailed_summary_value
                         article_obj.tags = result.get("tags")
                         article_obj.importance = result.get("importance")
                         article_obj.target_audience = result.get("target_audience")
@@ -1703,7 +1717,21 @@ class CollectionService:
                     elif not isinstance(summary_value, str):
                         summary_value = str(summary_value) if summary_value else ""
 
+                    # 确保 detailed_summary 是字符串类型（AI可能返回dict）
+                    detailed_summary_value = result.get("detailed_summary", "")
+                    if isinstance(detailed_summary_value, dict):
+                        # 如果是字典，提取文本内容或转换为JSON字符串
+                        if "text" in detailed_summary_value:
+                            detailed_summary_value = detailed_summary_value["text"]
+                        elif "content" in detailed_summary_value:
+                            detailed_summary_value = detailed_summary_value["content"]
+                        else:
+                            detailed_summary_value = json.dumps(detailed_summary_value, ensure_ascii=False)
+                    elif not isinstance(detailed_summary_value, str):
+                        detailed_summary_value = str(detailed_summary_value) if detailed_summary_value else ""
+
                     article_obj.summary = summary_value
+                    article_obj.detailed_summary = detailed_summary_value
                     article_obj.tags = result.get("tags")
                     article_obj.importance = result.get("importance")
                     article_obj.target_audience = result.get("target_audience")

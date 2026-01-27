@@ -128,7 +128,7 @@ export default function ShareArticle() {
                 </Space>
               </div>
 
-              {article.summary && (
+              {(article.detailed_summary || article.summary) && (
                 <div style={{ marginBottom: 24 }}>
                   <div
                     style={{
@@ -144,7 +144,7 @@ export default function ShareArticle() {
                       components={createMarkdownComponents(theme)}
                       remarkPlugins={[remarkGfm]}
                     >
-                      {article.summary}
+                      {article.detailed_summary || article.summary}
                     </ReactMarkdown>
                   </div>
                 </div>

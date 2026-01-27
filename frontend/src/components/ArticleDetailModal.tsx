@@ -243,8 +243,8 @@ export default function ArticleDetailModal({
               </Space>
             </div>
 
-            {/* AI生成的摘要 */}
-            {article.summary && (
+            {/* AI生成的精读（优先显示detailed_summary，如果没有则显示summary） */}
+            {(article.detailed_summary || article.summary) && (
               <div style={{ marginBottom: 24 }}>
                 <div
                   style={{
@@ -260,7 +260,7 @@ export default function ArticleDetailModal({
                     components={createMarkdownComponents(theme)}
                     remarkPlugins={[remarkGfm]}
                   >
-                    {article.summary}
+                    {article.detailed_summary || article.summary}
                   </ReactMarkdown>
                 </div>
               </div>

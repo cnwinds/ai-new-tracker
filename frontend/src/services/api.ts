@@ -204,6 +204,7 @@ class ApiService {
     fields: string = 'all'
   ): Promise<{
     summary?: string;
+    detailed_summary?: string;
     content?: string;
     author?: string;
     tags?: string[];

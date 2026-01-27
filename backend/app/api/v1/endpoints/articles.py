@@ -45,8 +45,10 @@ def _update_article_analysis(article: Article, analysis_result: dict) -> None:
     if analysis_result.get("title_zh"):
         article.title_zh = analysis_result.get("title_zh")
     
-    # 规范化 summary 字段
+    # 规范化 summary 字段（3句话摘要）
     article.summary = _normalize_summary(analysis_result.get("summary", ""))
+    # 规范化 detailed_summary 字段（精读）
+    article.detailed_summary = _normalize_summary(analysis_result.get("detailed_summary", ""))
     article.is_processed = True
     article.updated_at = datetime.now()
 
@@ -136,11 +138,12 @@ async def get_articles(
             # 对每个关键词进行模糊搜索（标题或内容）
             for keyword in search_keywords:
                 keyword_pattern = f"%{keyword}%"
-                # 标题、内容或摘要中包含关键词
+                # 标题、内容、摘要或精读中包含关键词
                 source_conditions.append(
                     (Article.title.ilike(keyword_pattern)) |
                     (Article.content.ilike(keyword_pattern)) |
-                    (Article.summary.ilike(keyword_pattern))
+                    (Article.summary.ilike(keyword_pattern)) |
+                    (Article.detailed_summary.ilike(keyword_pattern))
                 )
 
         # 组合所有条件（OR关系）
@@ -184,6 +187,7 @@ async def get_articles(
             update_data = {
                 'content': None,
                 'summary': None,
+                'detailed_summary': None,
                 'author': None,
                 'tags': None,
                 'user_notes': None,
@@ -241,6 +245,7 @@ async def get_articles_basic(
         update_data = {
             'content': None,
             'summary': None,
+            'detailed_summary': None,
             'author': None,
             'tags': None,
             'user_notes': None,
@@ -261,14 +266,15 @@ async def get_article_fields(
     """获取文章的特定字段（用于按需加载）
     
     支持的字段：
-    - summary: AI总结
+    - summary: AI摘要（3句话）
+    - detailed_summary: AI精读（详细总结）
     - content: 文章内容
     - author: 作者
     - tags: 标签列表
     - user_notes: 用户笔记
     - target_audience: 目标受众
     
-    返回格式：{"summary": "...", "content": "...", "tags": [...], ...}
+    返回格式：{"summary": "...", "detailed_summary": "...", "content": "...", "tags": [...], ...}
     
     特殊值 "all" 可以获取所有详细字段。
     """
@@ -278,6 +284,7 @@ async def get_article_fields(
     if fields.strip().lower() == "all":
         return {
             "summary": article.summary,
+            "detailed_summary": article.detailed_summary,
             "content": article.content,
             "author": article.author,
             "tags": article.tags,
@@ -291,6 +298,7 @@ async def get_article_fields(
     # 支持的字段映射
     field_mapping = {
         "summary": lambda: article.summary,
+        "detailed_summary": lambda: article.detailed_summary,
         "content": lambda: article.content,
         "author": lambda: article.author,
         "tags": lambda: article.tags,

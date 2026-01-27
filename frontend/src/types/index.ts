@@ -11,7 +11,8 @@ export interface Article {
   title_zh?: string;
   url: string;
   content?: string;
-  summary?: string;
+  summary?: string;  // 摘要：使用最多3句话总结内容
+  detailed_summary?: string;  // 精读：结构完整、信息齐全、逻辑严密的精简短文
   source: string;
   source_id?: number;
   category?: string;
@@ -273,7 +274,8 @@ export interface ArticleSearchResult {
   title: string;
   title_zh?: string;
   url: string;
-  summary?: string;
+  summary?: string;  // 摘要：使用最多3句话总结内容
+  detailed_summary?: string;  // 精读：结构完整、信息齐全、逻辑严密的精简短文
   source: string;
   published_at?: string;
   importance?: ImportanceLevel;

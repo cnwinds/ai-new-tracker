@@ -27,7 +27,8 @@ class Article(Base):
     title_zh = Column(String(500), nullable=True, index=True)  # 中文标题（翻译后）
     url = Column(String(1000), unique=True, nullable=False, index=True)
     content = Column(Text, nullable=True)
-    summary = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)  # 摘要：使用最多3句话总结内容
+    detailed_summary = Column(Text, nullable=True)  # 精读：结构完整、信息齐全、逻辑严密的精简短文
     source_id = Column(Integer, ForeignKey('rss_sources.id'), nullable=True, index=True)
     source = Column(String(200), nullable=False, index=True)
     category = Column(String(100), nullable=True, index=True)
