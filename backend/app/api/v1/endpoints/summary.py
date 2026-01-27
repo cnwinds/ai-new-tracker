@@ -203,10 +203,12 @@ async def generate_summary(
     except HTTPException:
         raise
     except Exception as e:
-        # 记录详细的错误信息
-        logger.error(f"❌ 生成摘要失败: {str(e)}", exc_info=True)
-        logger.error(f"   摘要类型: {request.summary_type}")
-        logger.error(f"   日期/周: {request.date or request.week or '默认'}")
-        logger.error(f"   错误类型: {type(e).__name__}")
+        # 记录错误信息（包含必要参数）
+        logger.error(
+            f"生成摘要失败 [{request.summary_type}] | "
+            f"日期: {request.date or request.week or '默认'} | "
+            f"{type(e).__name__}: {str(e)}",
+            exc_info=True
+        )
         raise HTTPException(status_code=500, detail=f"生成摘要失败: {str(e)}")
 
