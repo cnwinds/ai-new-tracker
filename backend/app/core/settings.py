@@ -7,6 +7,11 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from backend.app.services.collector.summary_prompts import (
+    DEFAULT_DAILY_SUMMARY_PROMPT_TEMPLATE,
+    DEFAULT_WEEKLY_SUMMARY_PROMPT_TEMPLATE,
+)
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -89,6 +94,8 @@ class Settings:
         self.DAILY_SUMMARY_TIME: str = "09:00"
         self.WEEKLY_SUMMARY_ENABLED: bool = True
         self.WEEKLY_SUMMARY_TIME: str = "09:00"
+        self.DAILY_SUMMARY_PROMPT_TEMPLATE: str = DEFAULT_DAILY_SUMMARY_PROMPT_TEMPLATE
+        self.WEEKLY_SUMMARY_PROMPT_TEMPLATE: str = DEFAULT_WEEKLY_SUMMARY_PROMPT_TEMPLATE
         
         # 提供商选择配置（从数据库加载）
         self.SELECTED_LLM_PROVIDER_ID: Optional[int] = None
@@ -357,6 +364,18 @@ class Settings:
                 self.WEEKLY_SUMMARY_TIME = self._load_setting(
                     s, "weekly_summary_time", self.WEEKLY_SUMMARY_TIME, "string"
                 )
+                self.DAILY_SUMMARY_PROMPT_TEMPLATE = self._load_setting(
+                    s,
+                    "daily_summary_prompt_template",
+                    self.DAILY_SUMMARY_PROMPT_TEMPLATE,
+                    "string",
+                )
+                self.WEEKLY_SUMMARY_PROMPT_TEMPLATE = self._load_setting(
+                    s,
+                    "weekly_summary_prompt_template",
+                    self.WEEKLY_SUMMARY_PROMPT_TEMPLATE,
+                    "string",
+                )
             
             self._summary_settings_loaded = True
         except Exception as e:
@@ -405,6 +424,45 @@ class Settings:
             return True
         except Exception as e:
             logger.error(f"保存总结配置失败: {e}")
+            return False
+
+    def save_summary_prompt_settings(self, daily_prompt: str, weekly_prompt: str) -> bool:
+        """保存总结提示词配置到数据库
+
+        Args:
+            daily_prompt: 每日总结提示词模板
+            weekly_prompt: 每周总结提示词模板
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            from backend.app.db import get_db
+
+            db = get_db()
+            with db.get_session() as session:
+                self._save_setting(
+                    session,
+                    "daily_summary_prompt_template",
+                    daily_prompt,
+                    "string",
+                    "每日总结提示词模板",
+                )
+                self._save_setting(
+                    session,
+                    "weekly_summary_prompt_template",
+                    weekly_prompt,
+                    "string",
+                    "每周总结提示词模板",
+                )
+                session.flush()
+
+            self.DAILY_SUMMARY_PROMPT_TEMPLATE = daily_prompt
+            self.WEEKLY_SUMMARY_PROMPT_TEMPLATE = weekly_prompt
+            self._summary_settings_loaded = True
+            return True
+        except Exception as e:
+            logger.error(f"保存总结提示词失败: {e}")
             return False
 
     def _migrate_from_json_if_needed(self):

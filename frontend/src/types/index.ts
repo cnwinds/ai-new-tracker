@@ -198,6 +198,11 @@ export interface SummarySettings {
   weekly_summary_time: string; // 格式：HH:MM，如 "09:00"，在周六执行
 }
 
+export interface SummaryPromptSettings {
+  daily_summary_prompt: string;
+  weekly_summary_prompt: string;
+}
+
 export interface LLMProvider {
   id: number;
   name: string;
