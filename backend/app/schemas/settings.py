@@ -27,6 +27,12 @@ class SummarySettings(BaseModel):
     weekly_summary_time: str = Field(default="09:00", description="每周总结时间（格式：HH:MM，如09:00，在周六执行）")
 
 
+class SummaryPromptSettings(BaseModel):
+    """总结提示词配置模型"""
+    daily_summary_prompt: str = Field(..., description="每日总结提示词模板")
+    weekly_summary_prompt: str = Field(..., description="每周总结提示词模板")
+
+
 class LLMProviderBase(BaseModel):
     """LLM提供商基础模型"""
     name: str = Field(..., description="提供商名称")

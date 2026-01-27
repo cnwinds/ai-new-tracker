@@ -1,7 +1,7 @@
 /**
  * 内容摘要组件
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Card,
   Button,
@@ -15,13 +15,21 @@ import {
   DatePicker,
   Spin,
   Alert,
+  Input,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, DeleteOutlined, DownOutlined, UpOutlined, SettingOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiService } from '@/services/api';
 import { useMessage } from '@/hooks/useMessage';
 import { useErrorHandler } from '@/hooks/useErrorHandler';
-import type { SummaryGenerateRequest, Article, DailySummaryListItem, SummaryFieldsResponse, SummaryGenerateFormValues } from '@/types';
+import type {
+  SummaryGenerateRequest,
+  Article,
+  DailySummaryListItem,
+  SummaryFieldsResponse,
+  SummaryGenerateFormValues,
+  SummaryPromptSettings,
+} from '@/types';
 import ReactMarkdown from 'react-markdown';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
@@ -35,7 +43,8 @@ import ArticleCard from './ArticleCard';
 dayjs.extend(weekOfYear);
 dayjs.extend(isoWeek);
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 // 计算给定日期所在周的周六到周五范围
 // 一周定义为：从上周六到本周五（共7天）
@@ -73,7 +82,9 @@ const isInWeekRange = (date: dayjs.Dayjs, weekDate: dayjs.Dayjs | null) => {
 
 export default function DailySummary() {
   const [generateModalVisible, setGenerateModalVisible] = useState(false);
+  const [promptSettingsVisible, setPromptSettingsVisible] = useState(false);
   const [form] = Form.useForm();
+  const [promptForm] = Form.useForm();
   const queryClient = useQueryClient();
   const message = useMessage();
   const { createErrorHandler, showSuccess } = useErrorHandler();
@@ -89,9 +100,24 @@ export default function DailySummary() {
     queryKey: ['summaries'],
     queryFn: () => apiService.getSummaries(50),
   });
+
+  const { data: summaryPromptSettings, isLoading: summaryPromptLoading } = useQuery({
+    queryKey: ['summaryPromptSettings'],
+    queryFn: () => apiService.getSummaryPromptSettings(),
+    enabled: generateModalVisible,
+  });
   
   // 存储已加载的摘要详情
   const [loadedDetails, setLoadedDetails] = useState<Map<number, SummaryFieldsResponse>>(new Map());
+
+  useEffect(() => {
+    if (summaryPromptSettings) {
+      promptForm.setFieldsValue({
+        daily_summary_prompt: summaryPromptSettings.daily_summary_prompt,
+        weekly_summary_prompt: summaryPromptSettings.weekly_summary_prompt,
+      });
+    }
+  }, [summaryPromptSettings, promptForm]);
 
   const generateMutation = useMutation({
     mutationFn: (data: SummaryGenerateRequest) =>
@@ -99,6 +125,7 @@ export default function DailySummary() {
     onSuccess: () => {
       showSuccess('摘要生成成功');
       setGenerateModalVisible(false);
+      setPromptSettingsVisible(false);
       form.resetFields();
       setSelectedWeekDate(null);
       setHoveredWeekDate(null);
@@ -108,6 +135,20 @@ export default function DailySummary() {
       operationName: '生成摘要',
       customMessages: {
         auth: '需要登录才能生成摘要',
+      },
+    }),
+  });
+
+  const updatePromptMutation = useMutation({
+    mutationFn: (data: SummaryPromptSettings) => apiService.updateSummaryPromptSettings(data),
+    onSuccess: () => {
+      showSuccess('提示词已保存');
+      queryClient.invalidateQueries({ queryKey: ['summaryPromptSettings'] });
+    },
+    onError: createErrorHandler({
+      operationName: '保存提示词',
+      customMessages: {
+        auth: '需要登录才能保存提示词',
       },
     }),
   });
@@ -190,6 +231,10 @@ export default function DailySummary() {
     }
 
     generateMutation.mutate(requestData);
+  };
+
+  const handleSavePromptSettings = (values: SummaryPromptSettings) => {
+    updatePromptMutation.mutate(values);
   };
 
   // 加载推荐文章（只获取基本字段，详细字段由ArticleCard按需加载）
@@ -453,12 +498,26 @@ export default function DailySummary() {
       </Card>
 
       <Modal
-        title="生成新摘要"
+        title={(
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 32 }}>
+            <span>生成新摘要</span>
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              onClick={() => setPromptSettingsVisible((prev) => !prev)}
+              disabled={generateMutation.isPending}
+            >
+              设置
+            </Button>
+          </div>
+        )}
         open={generateModalVisible}
         onCancel={() => {
           if (!generateMutation.isPending) {
             setGenerateModalVisible(false);
+            setPromptSettingsVisible(false);
             form.resetFields();
+            promptForm.resetFields();
             setSelectedWeekDate(null);
             setHoveredWeekDate(null);
           }
@@ -480,6 +539,56 @@ export default function DailySummary() {
               showIcon
               style={{ marginBottom: 16 }}
             />
+          )}
+          {promptSettingsVisible && (
+            <Card size="small" title="提示词设置" style={{ marginBottom: 16 }}>
+              <Spin spinning={summaryPromptLoading || updatePromptMutation.isPending}>
+                <Form form={promptForm} onFinish={handleSavePromptSettings} layout="vertical">
+                  <Form.Item
+                    name="daily_summary_prompt"
+                    label="按天总结提示词"
+                    rules={[{ required: true, message: '请输入按天总结提示词' }]}
+                  >
+                    <TextArea autoSize={{ minRows: 6, maxRows: 16 }} />
+                  </Form.Item>
+                  <Form.Item
+                    name="weekly_summary_prompt"
+                    label="按周总结提示词"
+                    rules={[{ required: true, message: '请输入按周总结提示词' }]}
+                  >
+                    <TextArea autoSize={{ minRows: 8, maxRows: 18 }} />
+                  </Form.Item>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    可用变量：{'{{time_str}}'} / {'{{date_range}}'} / {'{{articles}}'}
+                  </Text>
+                  <div style={{ marginTop: 12 }}>
+                    <Space>
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={updatePromptMutation.isPending}
+                        disabled={!isAuthenticated}
+                      >
+                        保存提示词
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (summaryPromptSettings) {
+                            promptForm.setFieldsValue({
+                              daily_summary_prompt: summaryPromptSettings.daily_summary_prompt,
+                              weekly_summary_prompt: summaryPromptSettings.weekly_summary_prompt,
+                            });
+                          }
+                        }}
+                        disabled={!summaryPromptSettings}
+                      >
+                        重置
+                      </Button>
+                    </Space>
+                  </div>
+                </Form>
+              </Spin>
+            </Card>
           )}
           <Form form={form} onFinish={handleGenerate} layout="vertical">
             <Form.Item

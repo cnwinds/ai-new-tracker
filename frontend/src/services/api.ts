@@ -17,6 +17,7 @@ import type {
   CollectionSettings,
   AutoCollectionSettings,
   SummarySettings,
+  SummaryPromptSettings,
   LLMSettings,
   LLMProvider,
   LLMProviderCreate,
@@ -456,6 +457,18 @@ class ApiService {
   async updateSummarySettings(data: SummarySettings): Promise<SummarySettings> {
     return this.handleRequest(
       this.client.put<SummarySettings>('/settings/summary', data)
+    );
+  }
+
+  async getSummaryPromptSettings(): Promise<SummaryPromptSettings> {
+    return this.handleRequest(
+      this.client.get<SummaryPromptSettings>('/settings/summary/prompts')
+    );
+  }
+
+  async updateSummaryPromptSettings(data: SummaryPromptSettings): Promise<SummaryPromptSettings> {
+    return this.handleRequest(
+      this.client.put<SummaryPromptSettings>('/settings/summary/prompts', data)
     );
   }
 

@@ -20,6 +20,7 @@ from backend.app.schemas.settings import (
     CollectionSettings, 
     AutoCollectionSettings, 
     SummarySettings,
+    SummaryPromptSettings,
     LLMSettings,
     CollectorSettings,
     NotificationSettings,
@@ -236,6 +237,35 @@ async def update_summary_settings(
         daily_summary_time=settings.DAILY_SUMMARY_TIME,
         weekly_summary_enabled=settings.WEEKLY_SUMMARY_ENABLED,
         weekly_summary_time=settings.WEEKLY_SUMMARY_TIME,
+    )
+
+
+@router.get("/summary/prompts", response_model=SummaryPromptSettings)
+async def get_summary_prompt_settings():
+    """获取总结提示词配置"""
+    settings.load_settings_from_db()
+    return SummaryPromptSettings(
+        daily_summary_prompt=settings.DAILY_SUMMARY_PROMPT_TEMPLATE,
+        weekly_summary_prompt=settings.WEEKLY_SUMMARY_PROMPT_TEMPLATE,
+    )
+
+
+@router.put("/summary/prompts", response_model=SummaryPromptSettings)
+async def update_summary_prompt_settings(
+    new_settings: SummaryPromptSettings,
+    current_user: str = Depends(require_auth),
+):
+    """更新总结提示词配置"""
+    success = settings.save_summary_prompt_settings(
+        daily_prompt=new_settings.daily_summary_prompt,
+        weekly_prompt=new_settings.weekly_summary_prompt,
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="保存总结提示词失败")
+
+    return SummaryPromptSettings(
+        daily_summary_prompt=settings.DAILY_SUMMARY_PROMPT_TEMPLATE,
+        weekly_summary_prompt=settings.WEEKLY_SUMMARY_PROMPT_TEMPLATE,
     )
 
 
