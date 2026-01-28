@@ -295,17 +295,6 @@ async def query_articles_stream(
                     }
                     yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
                     break
-                chunk_type = chunk.get("type")
-                chunk_data = chunk.get("data", {})
-                
-                # 处理文章数据
-                if chunk_type == "articles" and "articles" in chunk_data:
-                    processed_articles = [process_article(article) for article in chunk_data["articles"]]
-                    chunk_data["articles"] = processed_articles
-                
-                # 发送SSE格式的数据
-                yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-            
         except Exception as e:
             logger.error(f"流式问答失败: {e}", exc_info=True)
             error_chunk = {
