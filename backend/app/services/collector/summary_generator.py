@@ -390,12 +390,6 @@ class SummaryGenerator:
         if not template_has_articles:
             rendered = f"{rendered}\n\n文章列表：\n{articles_str}"
 
-        rendered = (
-            f"{rendered}\n\n"
-            "链接要求：输出中涉及的文章标题必须使用Markdown链接格式"
-            " [文章标题（来源）](链接)，链接请使用输入中提供的“链接”字段，确保可点击打开。"
-        )
-
         return rendered
 
     def _extract_topics(self, articles_data: List[Dict[str, Any]]) -> List[str]:
