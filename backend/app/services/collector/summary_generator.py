@@ -143,6 +143,7 @@ class SummaryGenerator:
                     "importance": article.importance,
                     "published_at": article.published_at,
                     "summary": article.summary,
+                    "url": article.url,
                 })
 
         # 统计信息
@@ -337,12 +338,14 @@ class SummaryGenerator:
                 articles_str += f"""
 {i}. {importance_emoji} [ID: {article_id}] [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
    发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
+   链接: {article.get('url', 'N/A')}
    摘要: {article.get('summary', '')[:1000]}
 """
             else:
                 articles_str += f"""
 {i}. {importance_emoji} [ID: {article_id}] [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
    发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
+   链接: {article.get('url', 'N/A')}
    摘要: {article.get('summary', '')[:1000]}...
 """
 
