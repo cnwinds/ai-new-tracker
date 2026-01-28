@@ -1,14 +1,12 @@
 """
 通知服务 - 支持飞书和钉钉
 """
-import os
-import json
 import hmac
 import hashlib
 import base64
 import time
 import requests
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, Dict, Any, Union
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -283,7 +281,7 @@ class NotificationService:
         self,
         summary_content: str,
         db: Union[Session, DatabaseManager],
-        limit: int = 20
+        articles_count: Optional[int] = None
     ) -> bool:
         """
         发送每周摘要
@@ -291,7 +289,7 @@ class NotificationService:
         Args:
             summary_content: 摘要内容
             db: 数据库会话或数据库管理器
-            limit: 推荐文章数量限制
+            articles_count: 文章数量（用于日志）
 
         Returns:
             是否发送成功
@@ -300,98 +298,43 @@ class NotificationService:
         if self._is_in_quiet_hours():
             logger.info("⏰ 当前处于勿扰时段，跳过每周摘要通知")
             return False
+        
+        try:
+            # 构建消息内容（与Web保持一致）
+            if self.platform == "feishu":
+                content = self._build_feishu_summary_message(summary_content)
+            else:  # dingtalk
+                content = self._build_dingtalk_summary_message(summary_content)
 
-        # 如果是 DatabaseManager，使用上下文管理器获取会话
-        if isinstance(db, DatabaseManager):
-            try:
-                with db.get_session() as session:
-                    # 获取推荐文章
-                    articles = (
-                        session.query(Article)
-                        .filter(Article.importance.in_(["high", "medium"]))
-                        .order_by(Article.published_at.desc())
-                        .limit(limit)
-                        .all()
-                    )
+            # 发送消息
+            success = self._send_message(content)
 
-                    # 构建消息内容
-                    if self.platform == "feishu":
-                        content = self._build_feishu_weekly_summary_message(summary_content, articles)
-                    else:  # dingtalk
-                        content = self._build_dingtalk_weekly_summary_message(summary_content, articles)
+            # 记录日志
+            self._log_notification(
+                db=db,
+                notification_type="weekly_summary",
+                status="success" if success else "error",
+                articles_count=articles_count or 0,
+                error_message=None if success else "发送失败"
+            )
 
-                    # 发送消息
-                    success = self._send_message(content)
-
-                    # 记录日志（传递 DatabaseManager，让 _log_notification 处理）
-                    self._log_notification(
-                        db=db,
-                        notification_type="weekly_summary",
-                        status="success" if success else "error",
-                        articles_count=len(articles),
-                        error_message=None if success else "发送失败"
-                    )
-
-                    return success
-
-            except Exception as e:
-                logger.error(f"❌ 发送每周摘要失败: {e}", exc_info=True)
-                self._log_notification(
-                    db=db,
-                    notification_type="weekly_summary",
-                    status="error",
-                    articles_count=0,
-                    error_message=str(e)
-                )
-                return False
-        else:
-            # 如果是 Session，直接使用
-            try:
-                # 获取推荐文章
-                articles = (
-                    db.query(Article)
-                    .filter(Article.importance.in_(["high", "medium"]))
-                    .order_by(Article.published_at.desc())
-                    .limit(limit)
-                    .all()
-                )
-
-                # 构建消息内容
-                if self.platform == "feishu":
-                    content = self._build_feishu_weekly_summary_message(summary_content, articles)
-                else:  # dingtalk
-                    content = self._build_dingtalk_weekly_summary_message(summary_content, articles)
-
-                # 发送消息
-                success = self._send_message(content)
-
-                # 记录日志
-                self._log_notification(
-                    db=db,
-                    notification_type="weekly_summary",
-                    status="success" if success else "error",
-                    articles_count=len(articles),
-                    error_message=None if success else "发送失败"
-                )
-
-                return success
-
-            except Exception as e:
-                logger.error(f"❌ 发送每周摘要失败: {e}", exc_info=True)
-                self._log_notification(
-                    db=db,
-                    notification_type="weekly_summary",
-                    status="error",
-                    articles_count=0,
-                    error_message=str(e)
-                )
-                return False
+            return success
+        except Exception as e:
+            logger.error(f"❌ 发送每周摘要失败: {e}", exc_info=True)
+            self._log_notification(
+                db=db,
+                notification_type="weekly_summary",
+                status="error",
+                articles_count=articles_count or 0,
+                error_message=str(e)
+            )
+            return False
 
     def send_daily_summary(
         self,
         summary_content: str,
         db: Union[Session, DatabaseManager],
-        limit: int = 20
+        articles_count: Optional[int] = None
     ) -> bool:
         """
         发送每日摘要
@@ -399,7 +342,7 @@ class NotificationService:
         Args:
             summary_content: 摘要内容
             db: 数据库会话或数据库管理器
-            limit: 推荐文章数量限制
+            articles_count: 文章数量（用于日志）
 
         Returns:
             是否发送成功
@@ -409,91 +352,37 @@ class NotificationService:
             logger.info("⏰ 当前处于勿扰时段，跳过每日摘要通知")
             return False
         
-        # 如果是 DatabaseManager，使用上下文管理器获取会话
-        if isinstance(db, DatabaseManager):
-            try:
-                with db.get_session() as session:
-                    # 获取推荐文章
-                    articles = (
-                        session.query(Article)
-                        .filter(Article.importance.in_(["high", "medium"]))
-                        .order_by(Article.published_at.desc())
-                        .limit(limit)
-                        .all()
-                    )
-                    
-                    # 构建消息内容
-                    if self.platform == "feishu":
-                        content = self._build_feishu_summary_message(summary_content, articles)
-                    else:  # dingtalk
-                        content = self._build_dingtalk_summary_message(summary_content, articles)
-                    
-                    # 发送消息
-                    success = self._send_message(content)
-                    
-                    # 记录日志（传递 DatabaseManager，让 _log_notification 处理）
-                    self._log_notification(
-                        db=db,
-                        notification_type="daily_summary",
-                        status="success" if success else "error",
-                        articles_count=len(articles),
-                        error_message=None if success else "发送失败"
-                    )
-                    
-                    return success
-                    
-            except Exception as e:
-                logger.error(f"❌ 发送摘要失败: {e}", exc_info=True)
-                self._log_notification(
-                    db=db,
-                    notification_type="daily_summary",
-                    status="error",
-                    articles_count=0,
-                    error_message=str(e)
-                )
-                return False
-        else:
-            # 如果是 Session，直接使用
-            try:
-                # 获取推荐文章
-                articles = (
-                    db.query(Article)
-                    .filter(Article.importance.in_(["high", "medium"]))
-                    .order_by(Article.published_at.desc())
-                    .limit(limit)
-                    .all()
-                )
-                
-                # 构建消息内容
-                if self.platform == "feishu":
-                    content = self._build_feishu_summary_message(summary_content, articles)
-                else:  # dingtalk
-                    content = self._build_dingtalk_summary_message(summary_content, articles)
-                
-                # 发送消息
-                success = self._send_message(content)
-                
-                # 记录日志
-                self._log_notification(
-                    db=db,
-                    notification_type="daily_summary",
-                    status="success" if success else "error",
-                    articles_count=len(articles),
-                    error_message=None if success else "发送失败"
-                )
-                
-                return success
-                
-            except Exception as e:
-                logger.error(f"❌ 发送摘要失败: {e}", exc_info=True)
-                self._log_notification(
-                    db=db,
-                    notification_type="daily_summary",
-                    status="error",
-                    articles_count=0,
-                    error_message=str(e)
-                )
-                return False
+        try:
+            # 构建消息内容（与Web保持一致）
+            if self.platform == "feishu":
+                content = self._build_feishu_summary_message(summary_content)
+            else:  # dingtalk
+                content = self._build_dingtalk_summary_message(summary_content)
+
+            # 发送消息
+            success = self._send_message(content)
+
+            # 记录日志
+            self._log_notification(
+                db=db,
+                notification_type="daily_summary",
+                status="success" if success else "error",
+                articles_count=articles_count or 0,
+                error_message=None if success else "发送失败"
+            )
+
+            return success
+
+        except Exception as e:
+            logger.error(f"❌ 发送摘要失败: {e}", exc_info=True)
+            self._log_notification(
+                db=db,
+                notification_type="daily_summary",
+                status="error",
+                articles_count=articles_count or 0,
+                error_message=str(e)
+            )
+            return False
 
     def send_instant_alert(self, article: Article, db: Optional[Union[Session, DatabaseManager]] = None) -> bool:
         """
@@ -545,147 +434,25 @@ class NotificationService:
                 )
             return False
 
-    def _build_feishu_weekly_summary_message(
-        self,
-        summary_content: str,
-        articles: List[Article]
-    ) -> Dict[str, Any]:
-        """构建飞书每周摘要消息"""
-        # 构建推荐文章列表
-        article_elements = []
-        for article in articles[:10]:  # 最多显示10篇
-            title = article.title_zh or article.title
-            article_elements.append({
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": f"• [{title}]({article.url})"
-                }
-            })
-
-        content = {
-            "msg_type": "interactive",
-            "card": {
-                "config": {
-                    "wide_screen_mode": True
-                },
-                "header": {
-                    "title": {
-                        "tag": "plain_text",
-                        "content": "📰 AI新闻每周摘要"
-                    },
-                    "template": "blue"
-                },
-                "elements": [
-                    {
-                        "tag": "div",
-                        "text": {
-                            "tag": "lark_md",
-                            "content": f"**摘要内容**\n\n{summary_content}"
-                        }
-                    },
-                    {
-                        "tag": "hr"
-                    },
-                    {
-                        "tag": "div",
-                        "text": {
-                            "tag": "lark_md",
-                            "content": f"**推荐文章** ({len(articles)} 篇)"
-                        }
-                    },
-                    *article_elements
-                ]
-            }
-        }
-
-        return content
-
-    def _build_dingtalk_weekly_summary_message(
-        self,
-        summary_content: str,
-        articles: List[Article]
-    ) -> Dict[str, Any]:
-        """构建钉钉每周摘要消息"""
-        # 构建推荐文章列表
-        article_list = []
-        for article in articles[:10]:  # 最多显示10篇
-            title = article.title_zh or article.title
-            article_list.append(f"• [{title}]({article.url})")
-
-        articles_text = "\n".join(article_list) if article_list else "暂无推荐文章"
-
-        content = {
-            "msgtype": "markdown",
-            "markdown": {
-                "title": "📰 AI新闻每周摘要",
-                "text": f"""## 📰 AI新闻每周摘要
-
-**摘要内容**
-
-{summary_content}
-
----
-
-**推荐文章** ({len(articles)} 篇)
-
-{articles_text}
-"""
-            }
-        }
-
-        return content
-
     def _build_feishu_summary_message(
         self,
-        summary_content: str,
-        articles: List[Article]
+        summary_content: str
     ) -> Dict[str, Any]:
-        """构建飞书每日摘要消息"""
-        # 构建推荐文章列表
-        article_elements = []
-        for article in articles[:10]:  # 最多显示10篇
-            title = article.title_zh or article.title
-            article_elements.append({
-                "tag": "div",
-                "text": {
-                    "tag": "lark_md",
-                    "content": f"• [{title}]({article.url})"
-                }
-            })
-
+        """构建飞书摘要消息（与Web一致）"""
         content = {
             "msg_type": "interactive",
             "card": {
                 "config": {
                     "wide_screen_mode": True
                 },
-                "header": {
-                    "title": {
-                        "tag": "plain_text",
-                        "content": "📰 AI新闻每日摘要"
-                    },
-                    "template": "blue"
-                },
                 "elements": [
                     {
                         "tag": "div",
                         "text": {
                             "tag": "lark_md",
-                            "content": f"**摘要内容**\n\n{summary_content}"
+                            "content": summary_content or "暂无摘要"
                         }
-                    },
-                    {
-                        "tag": "hr"
-                    },
-                    {
-                        "tag": "div",
-                        "text": {
-                            "tag": "lark_md",
-                            "content": f"**推荐文章** ({len(articles)} 篇)"
-                        }
-                    },
-                    *article_elements
+                    }
                 ]
             }
         }
@@ -694,34 +461,14 @@ class NotificationService:
 
     def _build_dingtalk_summary_message(
         self,
-        summary_content: str,
-        articles: List[Article]
+        summary_content: str
     ) -> Dict[str, Any]:
-        """构建钉钉摘要消息"""
-        # 构建推荐文章列表
-        article_list = []
-        for article in articles[:10]:  # 最多显示10篇
-            title = article.title_zh or article.title
-            article_list.append(f"• [{title}]({article.url})")
-        
-        articles_text = "\n".join(article_list) if article_list else "暂无推荐文章"
-        
+        """构建钉钉摘要消息（与Web一致）"""
         content = {
             "msgtype": "markdown",
             "markdown": {
-                "title": "📰 AI新闻每日摘要",
-                "text": f"""## 📰 AI新闻每日摘要
-
-**摘要内容**
-
-{summary_content}
-
----
-
-**推荐文章** ({len(articles)} 篇)
-
-{articles_text}
-"""
+                "title": "📰 AI新闻摘要",
+                "text": summary_content or "暂无摘要"
             }
         }
         

@@ -143,6 +143,7 @@ class SummaryGenerator:
                     "importance": article.importance,
                     "published_at": article.published_at,
                     "summary": article.summary,
+                    "url": article.url,
                 })
 
         # 统计信息
@@ -337,12 +338,14 @@ class SummaryGenerator:
                 articles_str += f"""
 {i}. {importance_emoji} [ID: {article_id}] [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
    发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
+   链接: {article.get('url', 'N/A')}
    摘要: {article.get('summary', '')[:1000]}
 """
             else:
                 articles_str += f"""
 {i}. {importance_emoji} [ID: {article_id}] [{article.get('source', 'Unknown')}] {article.get('title', 'N/A')}
    发布时间: {article.get('published_at', datetime.now()).strftime('%Y-%m-%d %H:%M')}
+   链接: {article.get('url', 'N/A')}
    摘要: {article.get('summary', '')[:1000]}...
 """
 
@@ -386,6 +389,12 @@ class SummaryGenerator:
 
         if not template_has_articles:
             rendered = f"{rendered}\n\n文章列表：\n{articles_str}"
+
+        rendered = (
+            f"{rendered}\n\n"
+            "链接要求：输出中涉及的文章标题必须使用Markdown链接格式"
+            " [文章标题（来源）](链接)，链接请使用输入中提供的“链接”字段，确保可点击打开。"
+        )
 
         return rendered
 

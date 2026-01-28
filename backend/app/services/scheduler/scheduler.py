@@ -292,7 +292,11 @@ class TaskScheduler:
             if self.notifier and hasattr(self.notifier, 'send_daily_summary'):
                 logger.info("📤 开始推送每日摘要...")
                 summary_content = summary_obj.summary_content
-                success = self.notifier.send_daily_summary(summary_content, self.db, limit=20)
+                success = self.notifier.send_daily_summary(
+                    summary_content,
+                    self.db,
+                    articles_count=summary_obj.total_articles
+                )
                 if success:
                     logger.info("✅ 每日摘要推送成功")
                 else:
@@ -351,7 +355,11 @@ class TaskScheduler:
             if self.notifier and hasattr(self.notifier, 'send_weekly_summary'):
                 logger.info("📤 开始推送每周摘要...")
                 summary_content = summary_obj.summary_content
-                success = self.notifier.send_weekly_summary(summary_content, self.db, limit=20)
+                success = self.notifier.send_weekly_summary(
+                    summary_content,
+                    self.db,
+                    articles_count=summary_obj.total_articles
+                )
                 if success:
                     logger.info("✅ 每周摘要推送成功")
                 else:
